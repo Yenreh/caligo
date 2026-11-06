@@ -41,7 +41,8 @@ enum class LabTone { NEUTRAL, OK, WARN, CRIT }
 
 private class LabSnackbarVisuals(
     override val message: String,
-    val tone: LabTone,
+    /** Null for a plain snackbar, with no marker */
+    val tone: LabTone?,
     override val actionLabel: String?,
 ) : SnackbarVisuals {
     override val withDismissAction = false
@@ -60,11 +61,12 @@ class LabSnackbars(val host: SnackbarHostState, private val scope: CoroutineScop
 
     /**
      * Show [message] for [duration]. One with an action stays until it is
-     * used or replaced, as a Flutter snackbar with an action persists.
+     * used or replaced, as a Flutter snackbar with an action persists. A
+     * null [tone] shows it plain, as a bare SnackBar in the Flutter theme.
      */
     fun show(
         message: String,
-        tone: LabTone = LabTone.NEUTRAL,
+        tone: LabTone? = LabTone.NEUTRAL,
         duration: Duration = 4.seconds,
         actionLabel: String? = null,
         onAction: () -> Unit = {},
@@ -99,11 +101,13 @@ fun LabSnackbarHost(snackbars: LabSnackbars, modifier: Modifier = Modifier) {
 private fun LabSnackbar(data: SnackbarData) {
     val p = LabTheme.palette
     val visuals = data.visuals
-    val color = when ((visuals as? LabSnackbarVisuals)?.tone ?: LabTone.NEUTRAL) {
+    val tone = if (visuals is LabSnackbarVisuals) visuals.tone else LabTone.NEUTRAL
+    val color = when (tone) {
         LabTone.NEUTRAL -> p.muted
         LabTone.OK -> p.ok
         LabTone.WARN -> p.warn
         LabTone.CRIT -> p.crit
+        null -> null
     }
     val action = visuals.actionLabel
     Row(
@@ -118,12 +122,14 @@ private fun LabSnackbar(data: SnackbarData) {
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier
-                .size(8.dp)
-                .background(color),
-        )
-        Spacer(Modifier.width(10.dp))
+        if (color != null) {
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .background(color),
+            )
+            Spacer(Modifier.width(10.dp))
+        }
         Text(
             text = visuals.message,
             modifier = Modifier

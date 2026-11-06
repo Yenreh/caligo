@@ -24,7 +24,10 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.yenreh.caligo.BuildConfig
 import com.yenreh.caligo.domain.entities.Settings
+import com.yenreh.caligo.ui.cards.CardsRoute
 import com.yenreh.caligo.ui.cards.CardsViewModel
+import com.yenreh.caligo.ui.cards.CreateCardRoute
+import com.yenreh.caligo.ui.cards.EditCardRoute
 import com.yenreh.caligo.ui.home.HomeActions
 import com.yenreh.caligo.ui.home.HomeRoute
 import com.yenreh.caligo.ui.licenses.LicenseRoute
@@ -40,8 +43,8 @@ import com.yenreh.caligo.ui.stops.StopsViewModel
  * for the cards and the stops: those are the activity's, shared by every
  * screen that lists them, as the Flutter providers are.
  *
- * The cards, stops, search, planner, line and station screens come in
- * later parts: their keys exist, nothing pushes them yet.
+ * The stops, search, planner, line and station screens come in later
+ * parts: their keys exist, nothing pushes them yet.
  */
 @Composable
 fun AppNavigation(
@@ -58,6 +61,13 @@ fun AppNavigation(
     fun back() {
         if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
     }
+    // A screen closing itself once its work is done: only while it is on
+    // top, so a back the user already gave is not taken twice
+    fun backFrom(route: Route) {
+        if (backStack.lastOrNull() == route) back()
+    }
+    @Composable
+    fun cards(): CardsViewModel = viewModel(activity, factory = CardsViewModel.Factory)
 
     NavDisplay(
         backStack = backStack,
@@ -73,10 +83,28 @@ fun AppNavigation(
             entry<Route.Home> {
                 HomeRoute(
                     settings = current,
-                    actions = HomeActions(onSettings = { open(Route.Settings) }),
-                    cardsViewModel = viewModel(activity, factory = CardsViewModel.Factory),
+                    actions = HomeActions(
+                        onSettings = { open(Route.Settings) },
+                        onCards = { open(Route.Cards) },
+                    ),
+                    cardsViewModel = cards(),
                     stopsViewModel = { viewModel(activity, factory = StopsViewModel.Factory) },
                 )
+            }
+            entry<Route.Cards> {
+                CardsRoute(
+                    settings = current,
+                    viewModel = cards(),
+                    onBack = ::back,
+                    onCreate = { open(Route.CreateCard) },
+                    onEdit = { open(Route.EditCard(it)) },
+                )
+            }
+            entry<Route.CreateCard> {
+                CreateCardRoute(cards(), onBack = ::back, onDone = { backFrom(Route.CreateCard) })
+            }
+            entry<Route.EditCard> { key ->
+                EditCardRoute(key.cardId, cards(), onBack = ::back, onDone = { backFrom(key) })
             }
             entry<Route.Settings> {
                 SettingsRoute(onBack = ::back, onLicenses = { open(Route.Licenses) })

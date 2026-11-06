@@ -10,8 +10,11 @@ import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.data.datasources.ApiException
 import com.yenreh.caligo.domain.entities.CardEntity
 import com.yenreh.caligo.domain.repositories.CardRepository
+import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,13 +40,14 @@ data class CardsState(
 )
 
 /**
- * The cards and their balances: the part of the Flutter app's
- * CardsNotifier the home screen uses. Creating, editing, reordering,
- * deleting and the backup screens come with the cards and settings
- * screens.
+ * The cards and their balances, as the Flutter app's CardsNotifier keeps
+ * them: listing, creating, editing, reordering, deleting and refreshing.
+ * Backups go through the settings' own view model.
  *
- * One per activity, shared by the screens that list cards. Each action
- * returns the [Job] doing it, as the Dart methods return their Future.
+ * One per activity, shared by the home and the cards screens. Each action
+ * returns the [Job] doing it, as the Dart methods return their Future;
+ * those that report success return a [Deferred]. The work runs in the
+ * view model's scope, so it ends even if the screen that asked is gone.
  */
 class CardsViewModel(
     private val repository: CardRepository,
@@ -92,6 +96,90 @@ class CardsViewModel(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             set { it.copy(error = e.toString(), isLoading = false) }
+        }
+    }
+
+    /**
+     * Save a new card, then read them all again. True once saved; false,
+     * with [CardsState.error] set, if the save failed.
+     */
+    fun createCard(
+        id: String,
+        name: String,
+        prefix: String = "",
+        suffix: String = "",
+        position: Int = 0,
+    ): Deferred<Boolean> = viewModelScope.async {
+        saving {
+            val card = CardEntity(
+                internalId = newInternalId(),
+                id = id,
+                name = name,
+                prefix = prefix,
+                suffix = suffix,
+                position = position,
+            )
+            repository.createCard(card)
+        }
+    }
+
+    /** Save [card] over the one with its internal id, then read them all again */
+    fun updateCard(card: CardEntity): Deferred<Boolean> = viewModelScope.async {
+        saving { repository.updateCard(card) }
+    }
+
+    /** [save], then the cards read again; any failure in [CardsState.error] */
+    private suspend fun saving(save: suspend () -> Unit): Boolean {
+        try {
+            save()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            set { it.copy(error = e.toString()) }
+            return false
+        }
+        // A failed read reports itself, and the save stands
+        load()
+        return true
+    }
+
+    /**
+     * Move a card as a drag leaves it, with the indexes a Flutter
+     * reorderable list reports: [newIndex] counts the card itself when
+     * moving down. The new order shows at once; saving only follows, card
+     * by card, for those whose position changed.
+     */
+    fun reorderCards(oldIndex: Int, newIndex: Int): Job {
+        val cards = state.value.cards.toMutableList()
+        val target = if (newIndex > oldIndex) newIndex - 1 else newIndex
+        // Where Dart would throw a RangeError into the framework's log
+        if (oldIndex !in cards.indices || target !in cards.indices) return DONE
+        val moved = cards.removeAt(oldIndex)
+        cards.add(target, moved)
+
+        val numbered = cards.mapIndexed { i, card -> card.copy(position = i) }
+        // Shown at once; saving only follows
+        set { it.copy(cards = numbered) }
+
+        return viewModelScope.launch {
+            try {
+                numbered.forEachIndexed { i, card ->
+                    if (cards[i].position != i) repository.updateCard(card)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                set { it.copy(error = e.toString()) }
+            }
+        }
+    }
+
+    /** Delete every card numbered [cardId], then read them all again */
+    fun deleteCardById(cardId: String): Job = viewModelScope.launch {
+        try {
+            repository.deleteCard(cardId)
+            load()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            set { it.copy(error = e.toString()) }
         }
     }
 
@@ -211,6 +299,9 @@ class CardsViewModel(
 
     companion object {
         private val DONE: Job = Job().apply { complete() }
+
+        /** A random (version 4) UUID, as the Dart uuid package's v4 */
+        private fun newInternalId(): String = UUID.randomUUID().toString()
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

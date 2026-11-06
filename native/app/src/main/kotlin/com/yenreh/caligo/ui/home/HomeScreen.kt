@@ -64,8 +64,8 @@ import com.yenreh.caligo.ui.theme.CaliGoTheme
 import com.yenreh.caligo.ui.theme.LabTheme
 
 /**
- * Where the home's buttons lead. The screens they open are not ported
- * yet, so for now each does nothing.
+ * Where the home's buttons lead. Each does nothing until its screen is
+ * ported: the settings and the cards are.
  */
 class HomeActions(
     val onSettings: () -> Unit = {},

@@ -42,8 +42,8 @@ import kotlin.math.floor
 
 /**
  * Transport card as a lab panel: number, name, balance and fares. The
- * home lists it with the refresh alone; editing and deleting come with
- * the cards screen.
+ * home lists it with the refresh alone; the cards screen adds editing
+ * and deleting, given [onEditClick] and [onDeleteClick], beside it.
  */
 @Composable
 fun CardItem(
@@ -55,6 +55,8 @@ fun CardItem(
     refreshFailed: Boolean = false,
     // Shorter, so more cards fit when the home also shows the stops
     compact: Boolean = false,
+    onEditClick: (() -> Unit)? = null,
+    onDeleteClick: (() -> Unit)? = null,
 ) {
     val fares = availableFares(card.balance, farePrice)
     val stale = refreshFailed && card.balance != null
@@ -79,6 +81,21 @@ fun CardItem(
                 overflow = TextOverflow.Ellipsis,
             )
             RefreshButton(isRefreshing, onRefreshClick)
+            if (onEditClick != null && onDeleteClick != null) {
+                Spacer(Modifier.width(6.dp))
+                LabIconButton(
+                    icon = painterResource(R.drawable.ic_edit),
+                    contentDescription = stringResource(R.string.edit),
+                    onClick = onEditClick,
+                )
+                Spacer(Modifier.width(6.dp))
+                LabIconButton(
+                    icon = painterResource(R.drawable.ic_delete),
+                    contentDescription = stringResource(R.string.delete),
+                    onClick = onDeleteClick,
+                    danger = true,
+                )
+            }
         }
         LabDivider()
 

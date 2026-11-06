@@ -43,6 +43,40 @@
     <string name="arriving_now">Ya</string>
     <string name="minutes_short">%1$d min</string>
 
+    <!-- Cards screen -->
+    <string name="new_card">Nueva tarjeta</string>
+    <string name="create_first_card">Crear primera tarjeta</string>
+    <string name="edit">Editar</string>
+    <string name="delete">Eliminar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="delete_card_title">Eliminar Tarjeta</string>
+    <string name="delete_card_message">¿Estás seguro de que quieres eliminar \"%1$s\"? Esta acción no se puede deshacer.</string>
+
+    <!-- Card form -->
+    <string name="create_card_title">Crear Nueva Tarjeta</string>
+    <string name="edit_card_title">Editar Tarjeta</string>
+    <string name="card_id_label">ID de Tarjeta *</string>
+    <string name="card_id_placeholder">Ingresa el ID de la tarjeta</string>
+    <string name="id_required">El ID es obligatorio</string>
+    <string name="card_id_exists">Ya existe una tarjeta con este ID</string>
+    <string name="card_name_label">Nombre *</string>
+    <string name="card_name_placeholder">Nombre de la tarjeta</string>
+    <string name="name_required">El nombre es obligatorio</string>
+    <string name="card_prefix_label">Prefijo</string>
+    <string name="card_prefix_placeholder">Prefijo opcional</string>
+    <string name="card_suffix_label">Sufijo</string>
+    <string name="card_suffix_placeholder">Sufijo opcional</string>
+    <string name="create_card_button">Crear Tarjeta</string>
+    <string name="create_card_error">Error al crear la tarjeta</string>
+    <string name="save_changes">Guardar Cambios</string>
+    <string name="save_changes_error">Error al guardar los cambios</string>
+
+    <!-- Moving an item in a list, as Flutter's widgets localizations word it -->
+    <string name="reorder_item_to_start">Mover al principio</string>
+    <string name="reorder_item_up">Mover hacia arriba</string>
+    <string name="reorder_item_down">Mover hacia abajo</string>
+    <string name="reorder_item_to_end">Mover al final</string>
+
     <string name="back">Atrás</string>
 
     <!-- Settings -->

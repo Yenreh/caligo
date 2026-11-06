@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -39,7 +40,8 @@ import com.yenreh.caligo.ui.theme.LabTheme
  * The Flutter theme's app bar: paper behind the status bar, a back arrow,
  * the title in serif and the 2dp masthead rule along the bottom, drawn
  * inside the bar's 56dp as a Flutter shape border is. [subtitle] goes
- * under the title, as the license page puts its count.
+ * under the title, as the license page puts its count. [actions] sit at
+ * the end, as an AppBar's, flush with the edge.
  */
 @Composable
 fun LabTopBar(
@@ -47,6 +49,7 @@ fun LabTopBar(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val p = LabTheme.palette
     Row(
@@ -94,5 +97,6 @@ fun LabTopBar(
             }
         }
         Spacer(Modifier.width(16.dp))
+        actions?.invoke(this)
     }
 }

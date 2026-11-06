@@ -19,7 +19,8 @@ import kotlin.time.Duration
 /**
  * Cards kept in memory. The balance service fails for [failing] ids, as
  * the Dart test's fake; [failure] can make it throw anything else, and
- * [answer] stands in for the request itself.
+ * [answer] stands in for the request itself. Saves land in [cards] and
+ * are recorded; [saveFailure] makes them throw, and [saving] holds them.
  */
 class FakeCardRepository(
     cards: List<CardEntity>,
@@ -30,7 +31,8 @@ class FakeCardRepository(
     var failure: Throwable? = null
     var answer: (suspend () -> Unit)? = null
 
-    override suspend fun getAllCards() = cards.toList()
+    /** In the datasource's order: by position, then by name */
+    override suspend fun getAllCards() = cards.sortedWith(compareBy<CardEntity> { it.position }.thenBy { it.name })
 
     override suspend fun refreshCardBalance(card: CardEntity): CardBalance {
         asked.add(card.id)
@@ -47,13 +49,32 @@ class FakeCardRepository(
 
     override suspend fun getCardById(id: String) = cards.firstOrNull { it.id == id }
 
+    val updated = mutableListOf<CardEntity>()
+    val deleted = mutableListOf<String>()
+    var saveFailure: Throwable? = null
+    var saving: (suspend () -> Unit)? = null
+
     override suspend fun createCard(card: CardEntity) {
+        saving?.invoke()
+        saveFailure?.let { throw it }
         cards.add(card)
     }
 
-    override suspend fun updateCard(card: CardEntity) = Unit
+    /** By internal id, as the datasource */
+    override suspend fun updateCard(card: CardEntity) {
+        saving?.invoke()
+        saveFailure?.let { throw it }
+        updated.add(card)
+        val i = cards.indexOfFirst { it.internalId == card.internalId }
+        if (i >= 0) cards[i] = card
+    }
 
-    override suspend fun deleteCard(id: String) = Unit
+    override suspend fun deleteCard(id: String) {
+        saving?.invoke()
+        saveFailure?.let { throw it }
+        deleted.add(id)
+        cards.removeAll { it.id == id }
+    }
 }
 
 /** Repository that records how the arrivals were asked for */

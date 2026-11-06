@@ -44,6 +44,40 @@
     <string name="arriving_now">Now</string>
     <string name="minutes_short">%1$d min</string>
 
+    <!-- Cards screen -->
+    <string name="new_card">New card</string>
+    <string name="create_first_card">Create first card</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete_card_title">Delete Card</string>
+    <string name="delete_card_message">Are you sure you want to delete \"%1$s\"? This action cannot be undone.</string>
+
+    <!-- Card form -->
+    <string name="create_card_title">Create New Card</string>
+    <string name="edit_card_title">Edit Card</string>
+    <string name="card_id_label">Card ID *</string>
+    <string name="card_id_placeholder">Enter card ID</string>
+    <string name="id_required">ID is required</string>
+    <string name="card_id_exists">A card with this ID already exists</string>
+    <string name="card_name_label">Name *</string>
+    <string name="card_name_placeholder">Card name</string>
+    <string name="name_required">Name is required</string>
+    <string name="card_prefix_label">Prefix</string>
+    <string name="card_prefix_placeholder">Optional prefix</string>
+    <string name="card_suffix_label">Suffix</string>
+    <string name="card_suffix_placeholder">Optional suffix</string>
+    <string name="create_card_button">Create Card</string>
+    <string name="create_card_error">Error creating card</string>
+    <string name="save_changes">Save Changes</string>
+    <string name="save_changes_error">Error saving changes</string>
+
+    <!-- Moving an item in a list, as Flutter's widgets localizations word it -->
+    <string name="reorder_item_to_start">Move to the start</string>
+    <string name="reorder_item_up">Move up</string>
+    <string name="reorder_item_down">Move down</string>
+    <string name="reorder_item_to_end">Move to the end</string>
+
     <string name="back">Back</string>
 
     <!-- Settings -->
