@@ -3,6 +3,9 @@ package com.yenreh.caligo.ui.home
 import android.os.Looper
 import android.os.SystemClock
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -110,5 +113,27 @@ class HomeRouteTest {
         assertEquals(2, stops.nearbyCalls)
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(2).plusSeconds(1))
         assertEquals(3, stops.nearbyCalls)
+    }
+
+    @Test
+    fun comingBackFromAnotherScreenNeverRefreshesAgain() {
+        // Opened with the refresh off; turned on in the settings, then home
+        val cardsViewModel = CardsViewModel(cards)
+        var settings by mutableStateOf(HomeSamples.settings(HomeContent.CARDS).copy(refreshBalancesOnOpen = false))
+        var onScreen by mutableStateOf(true)
+        compose.setContent {
+            CaliGoTheme {
+                if (onScreen) HomeRoute(settings, cardsViewModel = cardsViewModel, stopsViewModel = { error("No stops") })
+            }
+        }
+        compose.waitForIdle()
+
+        onScreen = false
+        compose.waitForIdle()
+        settings = settings.copy(refreshBalancesOnOpen = true)
+        onScreen = true
+        compose.waitForIdle()
+
+        assertTrue(cards.asked.isEmpty())
     }
 }

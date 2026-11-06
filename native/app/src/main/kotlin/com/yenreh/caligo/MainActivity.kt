@@ -12,7 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yenreh.caligo.domain.entities.AppThemeMode
-import com.yenreh.caligo.ui.home.HomeRoute
+import com.yenreh.caligo.ui.navigation.AppNavigation
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 
 class MainActivity : ComponentActivity() {
@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
                 onDispose {}
             }
             CaliGoTheme(darkTheme = dark) {
-                HomeRoute(settings)
+                AppNavigation(settings)
             }
         }
     }

@@ -28,8 +28,10 @@ Every version lives in `gradle/libs.versions.toml`, SDK levels included.
 
 The database (`caligo.db`), `settings.json` and the cache sit where the
 Flutter app keeps them, in the same formats, so the final port reads that
-app's data as is. A debug build takes a backup exported by the Flutter app
-(Settings, Export data) on launch:
+app's data as is. Settings, Import data takes a backup exported by the
+Flutter app (Settings, Export data) through the system's document picker;
+Export data hands one out through the share sheet. A debug build also
+takes one on launch, without the screen:
 
 ```sh
 adb push caligo_backup.json /sdcard/Android/data/com.yenreh.caligo.next/files/import.json
@@ -38,6 +40,14 @@ adb push caligo_backup.json /sdcard/Android/data/com.yenreh.caligo.next/files/im
 It is imported once and renamed to `import.done.json`; one that fails to
 import stays, and is tried again on the next launch. An import is all or
 nothing: a file with a fault changes nothing.
+
+## Licenses
+
+The licenses page lists the app's GPL and the fonts' OFL, from
+`app/src/main/assets/licenses/`, and every library in the APK, from the
+report the AboutLibraries Gradle plugin writes at build time
+(`res/raw/aboutlibraries.json`, offline, BOMs left out). No runtime
+library reads it: the app parses the JSON itself.
 
 ## Baseline Profile
 

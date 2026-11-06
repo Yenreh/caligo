@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -208,5 +209,23 @@ class CardsViewModelTest {
         cards.clearRefreshError()
         assertNull(cards.state.refreshError)
         assertNull(cards.state.refreshFailedCardId)
+    }
+
+    @Test
+    fun readsTheCardsAgainEachTimeTheyChangeElsewhere() = test {
+        val repository = FakeCardRepository(listOf(card("a")))
+        val reloads = MutableSharedFlow<Unit>()
+        val cards = ViewModelProvider.create(
+            store,
+            viewModelFactory { initializer { CardsViewModel(repository, reloads = reloads) } },
+        )[CardsViewModel::class]
+        advanceUntilIdle()
+        assertEquals(listOf("a"), cards.state.cards.map { it.id })
+
+        repository.cards.add(card("b"))
+        reloads.emit(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("a", "b"), cards.state.cards.map { it.id })
     }
 }

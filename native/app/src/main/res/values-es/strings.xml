@@ -42,4 +42,69 @@
     <string name="no_buses_coming">Sin buses próximos</string>
     <string name="arriving_now">Ya</string>
     <string name="minutes_short">%1$d min</string>
+
+    <string name="back">Atrás</string>
+
+    <!-- Settings -->
+    <string name="appearance">Apariencia</string>
+    <string name="theme_system">Sistema</string>
+    <string name="theme_system_desc">Seguir configuración del dispositivo</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_light_desc">Tema claro</string>
+    <string name="theme_dark">Oscuro</string>
+    <string name="theme_dark_desc">Tema oscuro</string>
+    <string name="home_screen">Pantalla de inicio</string>
+    <string name="home_cards_only">Solo tarjetas</string>
+    <string name="home_stops_only">Solo paradas favoritas</string>
+    <string name="home_both">Tarjetas y paradas</string>
+    <string name="home_screen_desc">Qué mostrar al abrir la app</string>
+    <string name="sort_by_proximity">Paradas más cercanas primero</string>
+    <string name="sort_by_proximity_desc">Usa la ubicación si ya está disponible. Apagado, las paradas siguen tu orden: mantén pulsada una y arrástrala para cambiarlo</string>
+    <string name="map_tab">Mapa</string>
+    <string name="dark_map">Mapa oscuro</string>
+    <string name="dark_map_desc">Mapa de paradas con fondo oscuro, sin importar el tema de la app</string>
+    <string name="sharp_map">Mapa nítido</string>
+    <string name="sharp_map_desc">Mapas a la resolución completa de la pantalla. Apagado, gastan menos datos móviles y se ven un poco menos definidos</string>
+    <string name="refresh_balances_on_open">Actualizar saldos al abrir</string>
+    <string name="refresh_balances_on_open_desc">Consulta el saldo de cada tarjeta cada vez que se abre la app</string>
+    <string name="fare">Pasaje</string>
+    <string name="fare_price">Valor del pasaje</string>
+    <string name="fare_price_desc">Se usa para calcular cuántos pasajes te alcanza el saldo</string>
+    <string name="save">Guardar</string>
+    <string name="fare_price_updated">Valor del pasaje actualizado</string>
+    <string name="data">Datos</string>
+    <string name="export_data">Exportar datos</string>
+    <string name="export_data_desc">Copia de tarjetas, paradas y ajustes</string>
+    <string name="import_data">Importar datos</string>
+    <string name="import_data_desc">Restaurar desde un archivo</string>
+    <string name="cache">Datos en caché</string>
+    <string name="cache_desc">Estaciones, rutas y posiciones de paradas</string>
+    <string name="cache_cleared">Caché borrada</string>
+    <string name="nothing_to_export">No hay datos para exportar</string>
+    <string name="import_error">Error al importar</string>
+    <string name="no_new_items_imported">No hay nada nuevo para importar</string>
+    <plurals name="imported_items">
+        <item quantity="one">%d elemento importado</item>
+        <item quantity="many">%d elementos importados</item>
+        <item quantity="other">%d elementos importados</item>
+    </plurals>
+    <string name="about">Acerca de</string>
+    <string name="unofficial_notice">App no oficial, sin relación con Metro Cali. Las llegadas, saldos y rutas vienen de sus servicios públicos y pueden no ser exactos.</string>
+    <string name="data_from">Datos: %1$s</string>
+    <string name="licenses">Licencias de código abierto</string>
+    <string name="check_updates">Buscar actualizaciones</string>
+    <string name="no_releases_yet">Aún no hay versiones publicadas</string>
+    <string name="update_available">Está disponible la versión %1$s</string>
+    <string name="up_to_date">Tienes la última versión (%1$s)</string>
+    <string name="update_check_failed">No se pudo buscar actualizaciones</string>
+    <string name="download_update">Descargar %1$s</string>
+    <string name="update_install_hint">Abre el archivo descargado para instalarlo sobre esta versión; tus datos se conservan.</string>
+
+    <!-- Licenses, as Flutter's Material localizations word them -->
+    <string name="licenses_page_title">Licencias</string>
+    <plurals name="license_count">
+        <item quantity="one">1 licencia</item>
+        <item quantity="many">%d licencias</item>
+        <item quantity="other">%d licencias</item>
+    </plurals>
 </resources>

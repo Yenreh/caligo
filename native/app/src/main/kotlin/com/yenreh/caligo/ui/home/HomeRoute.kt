@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -70,26 +69,21 @@ fun HomeRoute(
 
 /**
  * Every balance, once, as the app opens: not on coming back from the
- * background. Done once the settings and the cards have loaded.
+ * background or from another screen. Done once the settings and the
+ * cards have loaded.
  */
 @Composable
 private fun RefreshBalancesOnOpen(settings: Settings, cards: CardsState, viewModel: CardsViewModel) {
-    val due = remember { Due() }
     LaunchedEffect(settings, cards.isLoading, cards.cards) {
-        if (!due.pending || settings.isLoading) return@LaunchedEffect
+        if (!viewModel.openRefreshPending || settings.isLoading) return@LaunchedEffect
         if (!settings.refreshBalancesOnOpen || !settings.showsCards) {
-            due.pending = false
+            viewModel.openRefreshPending = false
             return@LaunchedEffect
         }
         if (cards.isLoading) return@LaunchedEffect
         // False until the cards are there to refresh
-        if (viewModel.refreshOnOpen()) due.pending = false
+        if (viewModel.refreshOnOpen()) viewModel.openRefreshPending = false
     }
-}
-
-/** Set on opening only; cleared once the balances have been dealt with */
-private class Due {
-    var pending = true
 }
 
 /**

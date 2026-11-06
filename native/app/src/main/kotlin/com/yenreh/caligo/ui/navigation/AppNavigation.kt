@@ -1,0 +1,115 @@
+package com.yenreh.caligo.ui.navigation
+
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavBackStack
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.NavDisplay
+import com.yenreh.caligo.BuildConfig
+import com.yenreh.caligo.domain.entities.Settings
+import com.yenreh.caligo.ui.cards.CardsViewModel
+import com.yenreh.caligo.ui.home.HomeActions
+import com.yenreh.caligo.ui.home.HomeRoute
+import com.yenreh.caligo.ui.licenses.LicenseRoute
+import com.yenreh.caligo.ui.licenses.LicensesRoute
+import com.yenreh.caligo.ui.settings.SettingsRoute
+import com.yenreh.caligo.ui.stops.StopsViewModel
+
+/**
+ * The app's screens on one back stack, the home at its root; back, and
+ * the predictive back gesture, pop it.
+ *
+ * Each screen keeps its own view models, cleared when it is popped, but
+ * for the cards and the stops: those are the activity's, shared by every
+ * screen that lists them, as the Flutter providers are.
+ *
+ * The cards, stops, search, planner, line and station screens come in
+ * later parts: their keys exist, nothing pushes them yet.
+ */
+@Composable
+fun AppNavigation(
+    settings: Settings,
+    modifier: Modifier = Modifier,
+    backStack: NavBackStack<NavKey> = rememberNavBackStack(Route.Home),
+) {
+    val activity: ViewModelStoreOwner = checkNotNull(LocalViewModelStoreOwner.current)
+    // Read inside the entries, so they follow every change of the settings
+    val current by rememberUpdatedState(settings)
+    fun open(route: Route) {
+        backStack.add(route)
+    }
+    fun back() {
+        if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+    }
+
+    NavDisplay(
+        backStack = backStack,
+        modifier = modifier,
+        onBack = ::back,
+        entryDecorators = listOf(
+            rememberSaveableStateHolderNavEntryDecorator(),
+            rememberViewModelStoreNavEntryDecorator(),
+        ),
+        transitionSpec = { zoomIn() },
+        popTransitionSpec = { zoomOut() },
+        entryProvider = entryProvider {
+            entry<Route.Home> {
+                HomeRoute(
+                    settings = current,
+                    actions = HomeActions(onSettings = { open(Route.Settings) }),
+                    cardsViewModel = viewModel(activity, factory = CardsViewModel.Factory),
+                    stopsViewModel = { viewModel(activity, factory = StopsViewModel.Factory) },
+                )
+            }
+            entry<Route.Settings> {
+                SettingsRoute(onBack = ::back, onLicenses = { open(Route.Licenses) })
+            }
+            entry<Route.Licenses> {
+                LicensesRoute(
+                    appVersion = BuildConfig.VERSION_NAME,
+                    onBack = ::back,
+                    onPackage = { open(Route.PackageLicense(it)) },
+                )
+            }
+            entry<Route.PackageLicense> { key ->
+                LicenseRoute(key.name, onBack = ::back)
+            }
+        },
+    )
+}
+
+/**
+ * Close to Flutter's zoom page transition, its default on Android: the
+ * new screen grows into place as it fades in, the one below grows a
+ * little behind it
+ */
+private fun zoomIn(): ContentTransform =
+    (fadeIn(tween(FADE_MS, delayMillis = FADE_DELAY_MS)) + scaleIn(tween(ZOOM_MS, easing = FastOutSlowInEasing), 0.85f))
+        .togetherWith(scaleOut(tween(ZOOM_MS, easing = FastOutSlowInEasing), 1.05f))
+
+/** The way back: the screen shrinks and fades away over the one below */
+private fun zoomOut(): ContentTransform =
+    (scaleIn(tween(ZOOM_MS, easing = FastOutSlowInEasing), 1.05f))
+        .togetherWith(fadeOut(tween(FADE_MS, delayMillis = FADE_DELAY_MS)) + scaleOut(tween(ZOOM_MS), 0.9f))
+        .apply { targetContentZIndex = -1f }
+
+private const val ZOOM_MS = 300
+private const val FADE_MS = 75
+private const val FADE_DELAY_MS = 25

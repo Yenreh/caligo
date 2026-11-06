@@ -4,6 +4,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.aboutlibraries)
     alias(libs.plugins.roborazzi)
     alias(libs.plugins.baselineprofile)
 }
@@ -42,6 +44,8 @@ android {
 
     buildFeatures {
         compose = true
+        // The version the settings show and compare with the latest release
+        buildConfig = true
     }
 
     testOptions {
@@ -86,12 +90,30 @@ tasks.withType<Test>().configureEach {
     systemProperty("robolectric.graphicsMode", "NATIVE")
 }
 
+// The licenses page lists every library the APK ships, from this report
+aboutLibraries {
+    // No network at build time: the licence texts come with the plugin
+    offlineMode = true
+    collect {
+        // BOMs only pin versions; nothing of them ships
+        includePlatform = false
+    }
+    export {
+        // Only what the licenses page shows
+        excludeFields.addAll("description", "developers", "funding", "organization", "scm", "website")
+    }
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
     // Installs the Baseline Profile on devices without Play's profile cloud
     implementation(libs.androidx.profileinstaller)
     baselineProfile(project(":baselineprofile"))

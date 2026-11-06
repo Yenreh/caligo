@@ -12,9 +12,11 @@ import com.yenreh.caligo.domain.entities.CardEntity
 import com.yenreh.caligo.domain.repositories.CardRepository
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -47,6 +49,8 @@ class CardsViewModel(
     private val repository: CardRepository,
     /** Waited for before the first read: the app's startup work */
     private val ready: suspend () -> Unit = {},
+    /** Each time the saved cards change elsewhere, as an import does */
+    reloads: Flow<Unit> = emptyFlow(),
 ) : ViewModel() {
     // Loading from the start: the first read follows at once
     private val state = MutableStateFlow(CardsState(isLoading = true))
@@ -58,10 +62,19 @@ class CardsViewModel(
      */
     private var openRefreshDone = false
 
+    /**
+     * Whether the home still has to decide on the refresh on opening.
+     * Kept here, not in the home, so it outlives the home's composition
+     * while another screen covers it, as the Flutter MainScreen's state
+     * outlives the screens pushed over it.
+     */
+    var openRefreshPending = true
+
     init {
         viewModelScope.launch {
             ready()
             load()
+            reloads.collect { load() }
         }
     }
 
@@ -202,7 +215,11 @@ class CardsViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val container = (this[APPLICATION_KEY] as CaliGoApp).container
-                CardsViewModel(container.cardRepository, ready = { container.startup.join() })
+                CardsViewModel(
+                    container.cardRepository,
+                    ready = { container.startup.join() },
+                    reloads = container.backup.imported,
+                )
             }
         }
     }

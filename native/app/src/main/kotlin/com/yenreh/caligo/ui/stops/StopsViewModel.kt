@@ -25,9 +25,11 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -60,6 +62,8 @@ class StopsViewModel(
     /** Waited for before the first read: the app's startup work */
     private val ready: suspend () -> Unit = {},
     private val now: () -> Long = System::currentTimeMillis,
+    /** Each time the saved stops change elsewhere, as an import does */
+    reloads: Flow<Unit> = emptyFlow(),
 ) : ViewModel() {
     private val state = MutableStateFlow(StopsState(isLoading = true))
     val stops: StateFlow<StopsState> = state.asStateFlow()
@@ -82,6 +86,7 @@ class StopsViewModel(
         viewModelScope.launch {
             ready()
             load()
+            reloads.collect { load() }
         }
     }
 
@@ -428,7 +433,11 @@ class StopsViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val container = (this[APPLICATION_KEY] as CaliGoApp).container
-                StopsViewModel(container.stopsRepository, ready = { container.startup.join() })
+                StopsViewModel(
+                    container.stopsRepository,
+                    ready = { container.startup.join() },
+                    reloads = container.backup.imported,
+                )
             }
         }
     }

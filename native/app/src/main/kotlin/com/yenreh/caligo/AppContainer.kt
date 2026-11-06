@@ -10,6 +10,7 @@ import com.yenreh.caligo.data.datasources.FileJsonCache
 import com.yenreh.caligo.data.datasources.JsonCache
 import com.yenreh.caligo.data.datasources.StopsLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsRemoteDatasource
+import com.yenreh.caligo.data.datasources.UpdateChecker
 import com.yenreh.caligo.data.repositories.CardRepositoryImpl
 import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.repositories.CardRepository
@@ -38,7 +39,7 @@ class AppContainer(context: Context) {
 
     private val database = AppDatabase(context)
     private val http = OkHttpClient()
-    private val cache: JsonCache = FileJsonCache(File(documents, "cache"))
+    val cache: JsonCache = FileJsonCache(File(documents, "cache"))
 
     val settings = SettingsStore(File(documents, "settings.json"), scope)
 
@@ -54,6 +55,9 @@ class AppContainer(context: Context) {
     )
 
     val backup = Backup(database, cardRepository, stopsRepository, settings)
+
+    /** Asked only when the user says so, from the settings */
+    val updates by lazy { UpdateChecker(http) }
 
     /**
      * Work the first screen waits for before reading any data: the debug

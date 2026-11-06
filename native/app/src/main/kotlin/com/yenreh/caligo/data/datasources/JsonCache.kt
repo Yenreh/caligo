@@ -35,6 +35,12 @@ interface JsonCache {
      */
     suspend fun prune(maxAge: Duration)
 
+    /** What the entries take on disk, 0 when that cannot be told */
+    suspend fun sizeInBytes(): Long = 0
+
+    /** Throw away everything, on disk and in memory */
+    suspend fun clear() = Unit
+
     /** Cache that keeps nothing, for tests */
     object None : JsonCache {
         override suspend fun read(key: String, maxAge: Duration?): JsonElement? = null
@@ -103,6 +109,25 @@ class FileJsonCache(
             // Pruning is housekeeping: failing to do it changes nothing
         }
         Unit
+    }
+
+    override suspend fun sizeInBytes(): Long = withContext(io) {
+        try {
+            directory.listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0
+        } catch (_: Exception) {
+            0
+        }
+    }
+
+    override suspend fun clear() {
+        memory.clear()
+        withContext(io) {
+            try {
+                directory.listFiles()?.forEach { if (it.isFile) it.delete() }
+            } catch (_: Exception) {
+                // Nothing to clear is a fine outcome
+            }
+        }
     }
 
     private fun fileFor(key: String): File {

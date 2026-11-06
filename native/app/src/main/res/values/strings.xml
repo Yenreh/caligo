@@ -43,4 +43,68 @@
     <string name="no_buses_coming">No buses coming</string>
     <string name="arriving_now">Now</string>
     <string name="minutes_short">%1$d min</string>
+
+    <string name="back">Back</string>
+
+    <!-- Settings -->
+    <string name="appearance">Appearance</string>
+    <string name="theme_system">System</string>
+    <string name="theme_system_desc">Follow device settings</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_light_desc">Light theme</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_dark_desc">Dark theme</string>
+    <string name="home_screen">Home screen</string>
+    <string name="home_cards_only">Cards only</string>
+    <string name="home_stops_only">Favorite stops only</string>
+    <string name="home_both">Cards and stops</string>
+    <string name="home_screen_desc">What to show when the app opens</string>
+    <string name="sort_by_proximity">Closest stops first</string>
+    <string name="sort_by_proximity_desc">Uses the location when it is already available. Off, stops keep your own order: hold one and drag it to change it</string>
+    <string name="map_tab">Map</string>
+    <string name="dark_map">Dark map</string>
+    <string name="dark_map_desc">Dark tiles on the stops map, whatever the app theme</string>
+    <string name="sharp_map">Sharp map</string>
+    <string name="sharp_map_desc">Maps at the screen\'s full resolution. Off, they use less mobile data and look a little softer</string>
+    <string name="refresh_balances_on_open">Refresh balances on opening</string>
+    <string name="refresh_balances_on_open_desc">Asks for every card\'s balance each time the app opens</string>
+    <string name="fare">Fare</string>
+    <string name="fare_price">Fare price</string>
+    <string name="fare_price_desc">Used to calculate how many fares your balance covers</string>
+    <string name="save">Save</string>
+    <string name="fare_price_updated">Fare price updated</string>
+    <string name="data">Data</string>
+    <string name="export_data">Export data</string>
+    <string name="export_data_desc">Back up cards, stops and settings</string>
+    <string name="import_data">Import data</string>
+    <string name="import_data_desc">Restore from a backup file</string>
+    <string name="cache">Cached data</string>
+    <string name="cache_desc">Stations, lines and stop positions</string>
+    <string name="cache_cleared">Cached data cleared</string>
+    <string name="nothing_to_export">There is nothing to export</string>
+    <string name="import_error">Import error</string>
+    <string name="no_new_items_imported">Nothing new to import</string>
+    <plurals name="imported_items">
+        <item quantity="one">%d item imported</item>
+        <item quantity="other">%d items imported</item>
+    </plurals>
+    <string name="about">About</string>
+    <string name="unofficial_notice">Unofficial app, not affiliated with Metro Cali. Arrivals, balances and routes come from its public services and may not be accurate.</string>
+    <string name="data_from">Data: %1$s</string>
+    <string name="licenses">Open source licenses</string>
+    <string name="made_by" translatable="false">by Yenreh</string>
+    <string name="check_updates">Check for updates</string>
+    <string name="no_releases_yet">No releases published yet</string>
+    <string name="update_available">Version %1$s is available</string>
+    <string name="up_to_date">You have the latest version (%1$s)</string>
+    <string name="update_check_failed">Could not check for updates</string>
+    <string name="download_update">Download %1$s</string>
+    <string name="update_install_hint">Open the downloaded file to install it over this version; your data stays.</string>
+
+    <!-- Licenses, as Flutter's Material localizations word them -->
+    <string name="licenses_page_title">Licenses</string>
+    <plurals name="license_count">
+        <item quantity="one">1 license</item>
+        <item quantity="other">%d licenses</item>
+    </plurals>
 </resources>

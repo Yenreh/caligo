@@ -14,6 +14,9 @@ import com.yenreh.caligo.data.json.toJson
 import com.yenreh.caligo.domain.repositories.CardRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import java.util.UUID
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -35,6 +38,14 @@ class Backup(
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val now: () -> Long = System::currentTimeMillis,
 ) {
+    private val imports = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /**
+     * Each import that went through, for the screens to read the cards
+     * and stops again, as the Flutter app reloads them after one
+     */
+    val imported: SharedFlow<Unit> = imports.asSharedFlow()
+
     /**
      * Everything saved, as the text of a backup file; null when there are
      * neither cards nor stops to export
@@ -88,6 +99,7 @@ class Backup(
             for (stop in newStops) StopsLocalDatasource.insertInto(db, stop)
         }
         if (fileSettings != null) settings.applyImported(fileSettings)
+        imports.tryEmit(Unit)
         return newCards.size + newStops.size
     }
 
