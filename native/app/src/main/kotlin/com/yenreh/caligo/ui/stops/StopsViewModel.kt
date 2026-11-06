@@ -161,35 +161,52 @@ class StopsViewModel(
 
         val results = LinkedHashMap(current.arrivals)
         val healed = LinkedHashMap<String, FavoriteStop>()
+        val saved = LinkedHashMap<String, FavoriteStop>()
         var failure: ApiException? = null
-
-        val groups = groupFavorites(targets)
-        for (batch in groups.chunked(MAX_CONCURRENT_REQUESTS)) {
-            coroutineScope {
-                batch.map { group ->
-                    async {
-                        try {
-                            refreshGroup(group, results, healed)
-                        } catch (e: ApiException) {
-                            // A failed request says nothing about the stops themselves
-                            failure = failure ?: e
-                        }
+        var ended = false
+        try {
+            // Every error ends the refresh, of whatever type: the Flutter app
+            // only caught ApiException, so anything else left it running
+            try {
+                val groups = groupFavorites(targets)
+                for (batch in groups.chunked(MAX_CONCURRENT_REQUESTS)) {
+                    coroutineScope {
+                        batch.map { group ->
+                            async {
+                                try {
+                                    refreshGroup(group, results, healed)
+                                } catch (e: Exception) {
+                                    if (e is CancellationException) throw e
+                                    // A failed request says nothing about the stops themselves
+                                    failure = failure ?: e.asApiException()
+                                }
+                            }
+                        }.awaitAll()
                     }
-                }.awaitAll()
+                }
+                for (stop in healed.values) {
+                    repository.updateFavorite(stop)
+                    saved[stop.id] = stop
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                failure = failure ?: e.asApiException()
             }
-        }
 
-        for (stop in healed.values) repository.updateFavorite(stop)
-
-        lastRefresh = now()
-        state.update {
-            it.copy(
-                favorites = if (healed.isEmpty()) it.favorites else it.favorites.map { stop -> healed[stop.id] ?: stop },
-                arrivals = results,
-                isRefreshing = false,
-                error = failure,
-                lastUpdated = now(),
-            )
+            lastRefresh = now()
+            state.update {
+                it.copy(
+                    favorites = if (saved.isEmpty()) it.favorites else it.favorites.map { stop -> saved[stop.id] ?: stop },
+                    arrivals = results,
+                    isRefreshing = false,
+                    error = failure,
+                    lastUpdated = now(),
+                )
+            }
+            ended = true
+        } finally {
+            // Cut short, by cancellation or worse: still over
+            if (!ended) state.update { it.copy(isRefreshing = false) }
         }
 
         if (failure == null) viewModelScope.launch { repository.keepArrivals(results) }

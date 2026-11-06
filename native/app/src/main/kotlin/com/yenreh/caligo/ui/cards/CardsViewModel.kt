@@ -104,6 +104,9 @@ class CardsViewModel(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 set { it.copy(error = e.toString(), refreshingCardId = null) }
+            } finally {
+                // Whatever ended it, the refresh is over
+                if (state.value.refreshingCardId == cardId) set { it.copy(refreshingCardId = null) }
             }
         }
     }
@@ -150,34 +153,41 @@ class CardsViewModel(
     private suspend fun refreshEach(cards: List<CardEntity>, quietly: Boolean) {
         var failure: ApiException? = null
         var failedCardId: String? = null
-        for (card in cards) {
-            try {
-                val balance = repository.refreshCardBalance(card)
-                repository.updateCardBalance(card.id, balance.balance, balance.balanceDate)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                failure = failure ?: e as? ApiException ?: ApiException(e.toString())
-                failedCardId = failedCardId ?: card.id
+        var ended = false
+        try {
+            for (card in cards) {
+                try {
+                    val balance = repository.refreshCardBalance(card)
+                    repository.updateCardBalance(card.id, balance.balance, balance.balanceDate)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    failure = failure ?: e as? ApiException ?: ApiException(e.toString())
+                    failedCardId = failedCardId ?: card.id
+                }
             }
-        }
-        load()
-        val failed = failedCardId
-        set {
-            if (quietly) {
-                it.copy(
-                    isRefreshingAll = false,
-                    refreshFailedCardId = failed,
-                    // Every card answered: nothing is out of date any more
-                    refreshError = if (failed == null) null else it.refreshError,
-                )
-            } else {
-                it.copy(
-                    isRefreshingAll = false,
-                    refreshError = failure ?: it.refreshError,
-                    refreshFailedCardId = failed ?: it.refreshFailedCardId,
-                    lastRefreshSuccess = failure == null,
-                )
+            load()
+            val failed = failedCardId
+            set {
+                if (quietly) {
+                    it.copy(
+                        isRefreshingAll = false,
+                        refreshFailedCardId = failed,
+                        // Every card answered: nothing is out of date any more
+                        refreshError = if (failed == null) null else it.refreshError,
+                    )
+                } else {
+                    it.copy(
+                        isRefreshingAll = false,
+                        refreshError = failure ?: it.refreshError,
+                        refreshFailedCardId = failed ?: it.refreshFailedCardId,
+                        lastRefreshSuccess = failure == null,
+                    )
+                }
             }
+            ended = true
+        } finally {
+            // Whatever cut it short, the refresh is over
+            if (!ended) set { it.copy(isRefreshingAll = false) }
         }
     }
 

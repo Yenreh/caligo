@@ -38,8 +38,8 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * The home's cases of stops_provider_test.dart, plus the refresh pace.
- * The view model runs on the test's main dispatcher,
+ * The home's cases of stops_provider_test.dart, plus the fix that ends a
+ * refresh on any error. The view model runs on the test's main dispatcher,
  * eager as Dart's synchronous start of an async call.
  */
 class StopsViewModelTest {
@@ -428,6 +428,71 @@ class StopsViewModelTest {
 
         assertEquals(listOf("A47", "A47"), stop.pick(listOf(bus("A47"), bus("T52"), bus("A47"))).map { it.line })
         assertEquals(1, favorite("b", 3.45, -76.53).pick(listOf(bus("T52"))).size)
+    }
+
+    // The fix: every error ends a refresh
+
+    @Test
+    fun anErrorOfAnyTypeEndsTheRefresh() = test {
+        val bus = BusArrival(line = "A47", destination = "X", arrivalTime = at(2026, 9, 28, 12, 0), vehicleId = "1")
+        val repository = FakeStopsRepository(
+            favorites = listOf(favorite("a", 3.4516, -76.5320)),
+            nearby = listOf(nearbyStop("a", arrivals = listOf(bus))),
+        )
+        val stops = ready(repository)
+        val before = stops.state.arrivals
+
+        // A wrongly typed field in the answer throws past ApiException
+        repository.failure = JsonTypeException("type 'String' is not a subtype of type 'int'")
+        stops.refreshArrivals(force = true).join()
+
+        assertFalse(stops.state.isRefreshing)
+        assertNotNull(stops.state.error)
+        assertTrue(stops.state.error is ApiException)
+        // A failed request says nothing about the stops: what was shown stays
+        assertEquals(before, stops.state.arrivals)
+
+        // And the next refresh goes ahead
+        repository.failure = null
+        repository.nearbyCalls = 0
+        stops.refreshArrivals(force = true).join()
+        assertEquals(1, repository.nearbyCalls)
+        assertNull(stops.state.error)
+    }
+
+    @Test
+    fun aFavoriteThatCannotBeSavedStillEndsTheRefresh() = test {
+        val repository = FakeStopsRepository(
+            favorites = listOf(favorite("a", 3.4516, -76.5320)),
+            nearby = listOf(NearbyStop(id = "a", name = "Renamed", distanceMeters = 5.0)),
+        )
+        repository.saveFailure = IllegalStateException("database is locked")
+        val stops = ready(repository)
+
+        stops.refreshArrivals(force = true).join()
+
+        assertFalse(stops.state.isRefreshing)
+        assertNotNull(stops.state.error)
+        // The arrivals still show; the name waits until it can be saved
+        assertEquals(emptyList<BusArrival>(), stops.state.arrivals["a"])
+        assertEquals("Stop a", stops.state.favorites.single().name)
+    }
+
+    @Test
+    fun aRefreshCutShortIsOverToo() = test {
+        val repository = FakeStopsRepository(
+            favorites = listOf(favorite("a", 3.4516, -76.5320)),
+            nearby = listOf(nearbyStop("a")),
+        )
+        val stops = ready(repository)
+
+        repository.answer = { awaitCancellation() }
+        val refresh = stops.refreshArrivals(force = true)
+        assertTrue(stops.state.isRefreshing)
+        refresh.cancel()
+        refresh.join()
+
+        assertFalse(stops.state.isRefreshing)
     }
 
     @Test

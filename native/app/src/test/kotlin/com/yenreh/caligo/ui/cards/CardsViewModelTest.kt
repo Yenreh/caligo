@@ -30,8 +30,8 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * The refreshOnOpen cases of cards_provider_test.dart, and how a refresh
- * the user asked for reports itself
+ * The refreshOnOpen cases of cards_provider_test.dart, plus the fix that
+ * ends a balance refresh on any error
  */
 class CardsViewModelTest {
     private val store = ViewModelStore()
@@ -137,6 +137,59 @@ class CardsViewModelTest {
 
         assertFalse(cards.state.isLoading)
         assertEquals(listOf("a"), cards.state.cards.map { it.id })
+    }
+
+    // The fix: every error ends a refresh
+
+    @Test
+    fun anErrorOfAnyTypeEndsTheRefreshOfOneCard() = test {
+        val repository = FakeCardRepository(listOf(card("a")))
+        val cards = ready(repository)
+
+        repository.failure = IllegalStateException("not a balance")
+        cards.refreshCardBalance("a").join()
+
+        assertNull(cards.state.refreshingCardId)
+        assertNotNull(cards.state.error)
+
+        // And the next one goes ahead
+        repository.failure = null
+        cards.refreshCardBalance("a").join()
+        assertEquals(9000.0, cards.state.cards.single().balance)
+        assertTrue(cards.state.lastRefreshSuccess)
+    }
+
+    @Test
+    fun anErrorOfAnyTypeEndsTheRefreshOfEveryCard() = test {
+        val repository = FakeCardRepository(listOf(card("a"), card("b")))
+        val cards = ready(repository)
+
+        repository.failure = IllegalStateException("not a balance")
+        cards.refreshAllBalances().join()
+
+        assertFalse(cards.state.isRefreshingAll)
+        assertEquals("a", cards.state.refreshFailedCardId)
+        assertNotNull(cards.state.refreshError)
+        assertFalse(cards.state.lastRefreshSuccess)
+    }
+
+    @Test
+    fun aRefreshCutShortIsOverToo() = test {
+        val repository = FakeCardRepository(listOf(card("a")))
+        val cards = ready(repository)
+        repository.answer = { awaitCancellation() }
+
+        val one = cards.refreshCardBalance("a")
+        assertEquals("a", cards.state.refreshingCardId)
+        one.cancel()
+        one.join()
+        assertNull(cards.state.refreshingCardId)
+
+        val all = cards.refreshAllBalances()
+        assertTrue(cards.state.isRefreshingAll)
+        all.cancel()
+        all.join()
+        assertFalse(cards.state.isRefreshingAll)
     }
 
     @Test
