@@ -36,4 +36,21 @@ adb push caligo_backup.json /sdcard/Android/data/com.yenreh.caligo.next/files/im
 ```
 
 It is imported once and renamed to `import.done.json`; one that fails to
-import stays, and is tried again on the next launch.
+import stays, and is tried again on the next launch. An import is all or
+nothing: a file with a fault changes nothing.
+
+## Baseline Profile
+
+The `baselineprofile` module cold-starts the app to the home with its
+content and scrolls it. With the phone connected (Android 13 or later) and
+data seeded through a debug build as above:
+
+```sh
+./gradlew :app:generateBaselineProfile
+```
+
+The run installs its own build of the app over the one there, and
+instrumented runs may uninstall the app when they end: seed again after.
+The profile lands in `app/src/release/generated/baselineProfiles/`, to be
+committed; the release build packs it, and `profileinstaller` installs it
+where no app store does.

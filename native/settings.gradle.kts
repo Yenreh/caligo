@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "caligo"
 include(":app")
+include(":baselineprofile")

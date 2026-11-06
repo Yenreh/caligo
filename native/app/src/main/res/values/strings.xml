@@ -3,8 +3,44 @@
     <!-- Launcher label; CaliGo Next installs beside CaliGo until the port replaces it -->
     <string name="app_name" translatable="false">CaliGo Next</string>
     <string name="settings">Settings</string>
+
+    <!-- Home -->
     <string name="no_cards">No cards</string>
     <string name="no_cards_message">You don\'t have any saved cards.\nAdd your first card to get started.</string>
     <string name="no_favorite_stops">No saved stops</string>
     <string name="no_favorite_stops_message">Save the stops you use and see the next buses here.</string>
+    <string name="my_cards">My cards</string>
+    <string name="favorite_stops">Favorite stops</string>
+    <string name="see_all">See all</string>
+    <string name="cards_short">Cards</string>
+    <string name="find_stops">Find stops</string>
+    <string name="plan_trip">Plan a trip</string>
+    <string name="favorites_short">Favorites</string>
+
+    <!-- Cards -->
+    <string name="update_balance">Update balance</string>
+    <string name="name">NAME</string>
+    <string name="balance">Balance</string>
+    <plurals name="fares">
+        <item quantity="one">%d fare</item>
+        <item quantity="other">%d fares</item>
+    </plurals>
+    <string name="stale_balance_notice">Last known balance</string>
+    <string name="updated_at">Updated: %1$s</string>
+    <string name="balance_updated">Balance updated</string>
+    <string name="retry">Retry</string>
+    <string name="could_not_update_balance">Could not update balance</string>
+    <string name="network_error_message">No connection. Check your internet and try again.</string>
+    <string name="server_error_message">Balance service is unavailable. Try again later.</string>
+    <string name="invalid_card_message">Invalid card number. It must have exactly 13 digits.</string>
+    <string name="card_not_found_message">No balance information found for this card.</string>
+    <string name="rate_limit_message">Service query limit reached. Wait a few minutes and try again.</string>
+
+    <!-- Stops -->
+    <string name="stop_not_reported">This stop is no longer reported</string>
+    <string name="arrivals_unknown">No arrivals yet</string>
+    <string name="no_buses_of_lines">None of these lines is coming</string>
+    <string name="no_buses_coming">No buses coming</string>
+    <string name="arriving_now">Now</string>
+    <string name="minutes_short">%1$d min</string>
 </resources>

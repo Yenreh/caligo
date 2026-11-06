@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.roborazzi)
+    alias(libs.plugins.baselineprofile)
 }
 
 android {
@@ -58,11 +59,14 @@ android {
     }
 }
 
-// Host tests run on debug alone: the release build differs only in R8, which
-// they do not exercise, and the test activity lives in the debug manifest
+// Host tests run on debug alone: the release builds, and the two the
+// Baseline Profile plugin adds, differ only in R8, which they do not
+// exercise, and the test activity lives in the debug manifest
 androidComponents {
-    beforeVariants(selector().withBuildType("release")) { variant ->
-        variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+    beforeVariants { variant ->
+        if (variant.buildType != "debug") {
+            variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+        }
     }
 }
 
@@ -86,6 +90,11 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    // Installs the Baseline Profile on devices without Play's profile cloud
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":baselineprofile"))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.tooling.preview)

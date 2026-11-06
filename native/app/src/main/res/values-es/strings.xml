@@ -1,8 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="settings">Configuración</string>
+
+    <!-- Home -->
     <string name="no_cards">Sin tarjetas</string>
     <string name="no_cards_message">No tienes tarjetas guardadas.\nAgrega tu primera tarjeta para comenzar.</string>
     <string name="no_favorite_stops">Sin paradas guardadas</string>
     <string name="no_favorite_stops_message">Guarda las paradas que usas y mira aquí los próximos buses.</string>
+    <string name="my_cards">Mis tarjetas</string>
+    <string name="favorite_stops">Paradas favoritas</string>
+    <string name="see_all">Ver todas</string>
+    <string name="cards_short">Tarjetas</string>
+    <string name="find_stops">Buscar paradas</string>
+    <string name="plan_trip">Planear viaje</string>
+    <string name="favorites_short">Favoritos</string>
+
+    <!-- Cards -->
+    <string name="update_balance">Actualizar saldo</string>
+    <string name="name">NOMBRE</string>
+    <string name="balance">Saldo</string>
+    <plurals name="fares">
+        <item quantity="one">%d pasaje</item>
+        <item quantity="many">%d pasajes</item>
+        <item quantity="other">%d pasajes</item>
+    </plurals>
+    <string name="stale_balance_notice">Último saldo conocido</string>
+    <string name="updated_at">Actualizado: %1$s</string>
+    <string name="balance_updated">Saldo actualizado</string>
+    <string name="retry">Reintentar</string>
+    <string name="could_not_update_balance">No se pudo actualizar el saldo</string>
+    <string name="network_error_message">Sin conexión. Revisa tu internet e inténtalo de nuevo.</string>
+    <string name="server_error_message">El servicio de saldos no está disponible. Intenta más tarde.</string>
+    <string name="invalid_card_message">Número de tarjeta inválido. Debe tener exactamente 13 dígitos.</string>
+    <string name="card_not_found_message">No se encontró información de saldo para esta tarjeta.</string>
+    <string name="rate_limit_message">Límite de consultas del servicio alcanzado. Espera unos minutos e inténtalo de nuevo.</string>
+
+    <!-- Stops -->
+    <string name="stop_not_reported">El servicio ya no reporta esta parada</string>
+    <string name="arrivals_unknown">Sin datos de llegadas</string>
+    <string name="no_buses_of_lines">No viene ninguna de estas rutas</string>
+    <string name="no_buses_coming">Sin buses próximos</string>
+    <string name="arriving_now">Ya</string>
+    <string name="minutes_short">%1$d min</string>
 </resources>

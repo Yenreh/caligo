@@ -1,7 +1,10 @@
 package com.yenreh.caligo.domain
 
 import kotlin.math.PI
+import kotlin.math.asin
 import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /** A point on the map */
@@ -13,6 +16,16 @@ fun metersBetween(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Doubl
     val dy = (lat2 - lat1) * metresPerDegree
     val dx = (lon2 - lon1) * metresPerDegree * cos((lat1 + lat2) / 2 * PI / 180)
     return sqrt(dx * dx + dy * dy)
+}
+
+/** Great-circle metres between two points, as Geolocator.distanceBetween */
+fun distanceBetween(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    fun radians(degrees: Double) = degrees * PI / 180
+    val earthRadius = 6378137.0
+    val dLat = radians(lat2 - lat1)
+    val dLon = radians(lon2 - lon1)
+    val a = sin(dLat / 2).pow(2) + sin(dLon / 2).pow(2) * cos(radians(lat1)) * cos(radians(lat2))
+    return earthRadius * 2 * asin(sqrt(a))
 }
 
 /**
