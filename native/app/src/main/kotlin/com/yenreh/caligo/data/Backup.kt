@@ -1,13 +1,16 @@
 package com.yenreh.caligo.data
 
+import com.yenreh.caligo.data.datasources.AppDatabase
+import com.yenreh.caligo.data.datasources.CardLocalDatasource
+import com.yenreh.caligo.data.datasources.StopsLocalDatasource
 import com.yenreh.caligo.data.json.cardFromJson
 import com.yenreh.caligo.data.json.dartIsoString
 import com.yenreh.caligo.data.json.favoriteFromJson
 import com.yenreh.caligo.data.json.listOrNull
 import com.yenreh.caligo.data.json.obj
 import com.yenreh.caligo.data.json.parseJson
+import com.yenreh.caligo.data.json.settingsFromJson
 import com.yenreh.caligo.data.json.toJson
-import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.repositories.CardRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import java.util.UUID
@@ -25,6 +28,7 @@ import kotlinx.serialization.json.put
  * and sharing the file belong to the screens.
  */
 class Backup(
+    private val database: AppDatabase,
     private val cards: CardRepository,
     private val stops: StopsRepository,
     private val settings: SettingsStore,
@@ -55,45 +59,36 @@ class Backup(
      * the settings when it has them. Returns how many cards and stops were
      * added.
      *
-     * Throws on a file that is not a backup, as the Flutter app failed on
-     * it; whatever came before the fault stays imported, as there.
+     * All or nothing, unlike the Flutter app, which kept whatever came
+     * before a fault: the file is read whole first, so one that is not a
+     * backup throws before anything changes; cards and stops are written
+     * in one transaction, and the settings applied once it commits. A card
+     * number or a stop id the file repeats is imported once.
      */
     suspend fun import(text: String): Int {
         val data = parseJson(text).obj()
 
         // Version 1 backups only carried the cards
-        val cardsList = data["cards"].listOrNull() ?: JsonArray(emptyList())
-        val stopsList = data["favoriteStops"].listOrNull() ?: JsonArray(emptyList())
-        var imported = 0
-
-        // A card counts as saved by its number, prefix and suffix apart
-        val saved = cards.getAllCards()
-        for (cardJson in cardsList) {
-            val card = cardFromJson(cardJson.obj())
-            if (saved.none { it.id == card.id }) {
-                // A new internal id, so it never takes the place of another
-                cards.createCard(card.copy(internalId = newId()))
-                imported++
-            }
-        }
-
+        val fileCards = (data["cards"].listOrNull() ?: JsonArray(emptyList())).map { cardFromJson(it.obj()) }
+        val fileStops = (data["favoriteStops"].listOrNull() ?: JsonArray(emptyList()))
+            .filterIsInstance<JsonObject>()
+            .map(::favoriteFromJson)
         val settingsJson = data["settings"]
-        if (settingsJson is JsonObject) settings.importSettings(settingsJson)
+        val fileSettings = if (settingsJson is JsonObject) settingsFromJson(settingsJson) else null
 
-        imported += importFavorites(stopsList.filterIsInstance<JsonObject>().map(::favoriteFromJson))
-        return imported
-    }
+        // A card counts as saved by its number, prefix and suffix apart, and
+        // gets a new internal id, so it never takes the place of another
+        val cardIds = cards.getAllCards().map { it.id }.toMutableSet()
+        val newCards = fileCards.filter { cardIds.add(it.id) }.map { it.copy(internalId = newId()) }
+        val stopIds = stops.getFavorites().map { it.id }.toMutableSet()
+        val newStops = fileStops.filter { stopIds.add(it.id) }
 
-    /** Save [favorites], skipping the ones already saved */
-    suspend fun importFavorites(favorites: List<FavoriteStop>): Int {
-        val existing = stops.getFavorites().map { it.id }.toSet()
-        var imported = 0
-        for (stop in favorites) {
-            if (stop.id in existing) continue
-            stops.addFavorite(stop)
-            imported++
+        database.inTransaction { db ->
+            for (card in newCards) CardLocalDatasource.insertInto(db, card)
+            for (stop in newStops) StopsLocalDatasource.insertInto(db, stop)
         }
-        return imported
+        if (fileSettings != null) settings.applyImported(fileSettings)
+        return newCards.size + newStops.size
     }
 
     companion object {

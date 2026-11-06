@@ -53,7 +53,7 @@ class AppContainer(context: Context) {
         cache,
     )
 
-    val backup = Backup(cardRepository, stopsRepository, settings)
+    val backup = Backup(database, cardRepository, stopsRepository, settings)
 
     /**
      * Work the first screen waits for before reading any data: the debug

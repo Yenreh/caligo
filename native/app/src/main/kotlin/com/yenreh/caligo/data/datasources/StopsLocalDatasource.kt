@@ -22,7 +22,7 @@ class StopsLocalDatasource(
 
     /** Throws when the id is already saved, as sqflite's insert did */
     suspend fun insert(stop: FavoriteStop) {
-        db { insertOrThrow(TABLE, null, stop.toValues()) }
+        db { insertInto(this, stop) }
     }
 
     suspend fun update(stop: FavoriteStop) {
@@ -79,20 +79,25 @@ class StopsLocalDatasource(
         }
     }
 
-    private fun FavoriteStop.toValues() = ContentValues().apply {
-        put("stop_id", id)
-        put("name", name)
-        put("anchor_latitude", anchorLatitude)
-        put("anchor_longitude", anchorLongitude)
-        put("position", position)
-        put("stop_ref", stopId)
-        put("custom_name", customName)
-        put("missing_count", missingCount)
-        put("show_on_home", if (showOnHome) 1 else 0)
-        put("lines", if (lines.isEmpty()) null else lines.joinToString(","))
-    }
+    companion object {
+        private const val TABLE = "favorite_stops"
 
-    private companion object {
-        const val TABLE = "favorite_stops"
+        /** Insert [stop] through [db]; throws when its id is already saved */
+        internal fun insertInto(db: SQLiteDatabase, stop: FavoriteStop) {
+            db.insertOrThrow(TABLE, null, stop.toValues())
+        }
+
+        private fun FavoriteStop.toValues() = ContentValues().apply {
+            put("stop_id", id)
+            put("name", name)
+            put("anchor_latitude", anchorLatitude)
+            put("anchor_longitude", anchorLongitude)
+            put("position", position)
+            put("stop_ref", stopId)
+            put("custom_name", customName)
+            put("missing_count", missingCount)
+            put("show_on_home", if (showOnHome) 1 else 0)
+            put("lines", if (lines.isEmpty()) null else lines.joinToString(","))
+        }
     }
 }

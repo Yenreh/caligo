@@ -63,7 +63,7 @@ class BackupTest {
         val settingsFile = File(folder.root, "$name-settings.json")
         val settings = SettingsStore(settingsFile, scope)
         private var ids = 0
-        val backup = Backup(cards, stops, settings, newId = { "new-${++ids}" }, now = { 1790608530123 })
+        val backup = Backup(database, cards, stops, settings, newId = { "new-${++ids}" }, now = { 1790608530123 })
     }
 
     private fun TestScope.device(name: String) = Device(this, name).also { advanceUntilIdle() }
@@ -218,29 +218,74 @@ class BackupTest {
     }
 
     @Test
-    fun aFaultStopsTheImportKeepingWhatCameBefore() = runTest {
+    fun aFileWithAFaultChangesNothing() = runTest {
         val device = device("a")
+        device.settings.setDarkMap(true)
+        advanceUntilIdle()
+        val good = """{"internalId": "x", "id": "1", "name": "A"}"""
+        val stop = """{"id": "500800", "name": "A", "anchorLatitude": 3.4, "anchorLongitude": -76.5}"""
 
+        // A mode past the last one, after a good card and stop
         assertThrowsSuspend<IndexOutOfBoundsException> {
+            device.backup.import("""{"cards": [$good], "favoriteStops": [$stop], "settings": {"themeMode": 3}}""")
+        }
+        // A bad card after a good one
+        assertThrowsSuspend<JsonTypeException> {
             device.backup.import(
-                """{"cards": [{"internalId": "x", "id": "1", "name": "A"}], "settings": {"themeMode": 3}}""",
+                """{"cards": [$good, {"internalId": "y", "id": "2", "name": "B", "position": 1.0}]}""",
             )
         }
-        assertEquals(1, device.cards.getAllCards().size)
+        // A bad stop after a good card
         assertThrowsSuspend<JsonTypeException> {
-            device.backup.import("""{"cards": [{"internalId": "x", "id": "2", "name": "B", "position": 1.0}]}""")
+            device.backup.import(
+                """{"cards": [$good], "favoriteStops": [{"id": "1", "name": "A", "anchorLatitude": "north"}]}""",
+            )
         }
         assertThrowsSuspend<JsonTypeException> { device.backup.import("""{"cards": {}}""") }
         assertThrowsSuspend<JsonTypeException> { device.backup.import("[]") }
         assertThrowsSuspend<JsonFormatException> { device.backup.import("not json") }
-        // Two stops with one id: the second fails as sqflite's insert did
+
+        assertTrue(device.cards.getAllCards().isEmpty())
+        assertTrue(device.stops.getFavorites().isEmpty())
+        assertTrue(device.settings.settings.value.darkMap)
+    }
+
+    @Test
+    fun whatAFileRepeatsIsImportedOnce() = runTest {
+        val device = device("a")
+
+        val imported = device.backup.import(
+            """{"cards": [
+                 {"internalId": "x", "id": "1", "name": "A"},
+                 {"internalId": "y", "id": "1", "name": "A again"}],
+               "favoriteStops": [
+                 {"id": "1", "name": "A", "anchorLatitude": 3.4, "anchorLongitude": -76.5},
+                 {"id": "1", "name": "B", "anchorLatitude": 3.4, "anchorLongitude": -76.5}]}""",
+        )
+
+        assertEquals(2, imported)
+        assertEquals(listOf("A"), device.cards.getAllCards().map { it.name })
+        assertEquals(listOf("A"), device.stops.getFavorites().map { it.name })
+    }
+
+    @Test
+    fun theSettingsApplyOnlyOnceTheDataIsSaved() = runTest {
+        val device = device("a")
+        // The database refuses the stop, written after the card
+        device.database.writableDatabase.execSQL(
+            "CREATE TRIGGER no_stops BEFORE INSERT ON favorite_stops BEGIN SELECT RAISE(ABORT, 'refused'); END",
+        )
+
         assertThrowsSuspend<SQLiteConstraintException> {
             device.backup.import(
-                """{"favoriteStops": [
-                     {"id": "1", "name": "A", "anchorLatitude": 3.4, "anchorLongitude": -76.5},
-                     {"id": "1", "name": "B", "anchorLatitude": 3.4, "anchorLongitude": -76.5}]}""",
+                """{"favoriteStops": [{"id": "1", "name": "A", "anchorLatitude": 3.4, "anchorLongitude": -76.5}],
+                   "cards": [{"internalId": "x", "id": "1", "name": "A"}],
+                   "settings": {"themeMode": 2}}""",
             )
         }
-        assertEquals(listOf("A"), device.stops.getFavorites().map { it.name })
+
+        // Nothing of it: neither the card written before the fault, nor the settings
+        assertTrue(device.cards.getAllCards().isEmpty())
+        assertEquals(AppThemeMode.SYSTEM, device.settings.settings.value.themeMode)
     }
 }

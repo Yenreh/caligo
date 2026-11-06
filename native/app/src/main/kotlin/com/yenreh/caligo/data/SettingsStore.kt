@@ -83,11 +83,13 @@ class SettingsStore(private val file: File, private val scope: CoroutineScope) {
      * Apply the settings found in a backup, defaults for what it lacks.
      * Throws, changing nothing, when a value has the wrong type.
      */
-    suspend fun importSettings(json: JsonObject) {
-        val imported = settingsFromJson(json)
+    suspend fun importSettings(json: JsonObject) = applyImported(settingsFromJson(json))
+
+    /** Apply settings read from a backup, and save them */
+    suspend fun applyImported(imported: Settings) {
         // After the first read, which would otherwise undo it
         loaded.join()
-        state.value = imported
+        state.value = imported.copy(isLoading = false)
         save()
     }
 }

@@ -3,6 +3,9 @@ package com.yenreh.caligo.data.datasources
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Single SQLite database shared by every local data source: the Flutter
@@ -41,6 +44,21 @@ class AppDatabase(context: Context, name: String? = NAME) :
 
     /** sqflite, without a downgrade callback, only records the version */
     override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+
+    /**
+     * Run [block] in one transaction, on one thread: everything it writes
+     * is saved, or nothing when it throws
+     */
+    suspend fun <T> inTransaction(io: CoroutineDispatcher = Dispatchers.IO, block: (SQLiteDatabase) -> T): T =
+        withContext(io) {
+            val db = writableDatabase
+            db.beginTransaction()
+            try {
+                block(db).also { db.setTransactionSuccessful() }
+            } finally {
+                db.endTransaction()
+            }
+        }
 
     companion object {
         const val NAME = "caligo.db"

@@ -27,7 +27,7 @@ class CardLocalDatasource(
 
     /** Insert a card, replacing one with the same internal id */
     suspend fun insertCard(card: CardEntity) {
-        db { insertWithOnConflict(TABLE, null, card.toValues(), SQLiteDatabase.CONFLICT_REPLACE) }
+        db { insertInto(this, card) }
     }
 
     suspend fun updateCard(card: CardEntity) {
@@ -73,18 +73,23 @@ class CardLocalDatasource(
         }
     }
 
-    private fun CardEntity.toValues() = ContentValues().apply {
-        put("internal_id", internalId)
-        put("card_id", id)
-        put("prefix", prefix)
-        put("suffix", suffix)
-        put("name", name)
-        put("position", position)
-        put("balance", balance)
-        put("last_update", lastUpdate)
-    }
+    companion object {
+        private const val TABLE = "cards"
 
-    private companion object {
-        const val TABLE = "cards"
+        /** Insert [card] through [db], replacing one with the same internal id */
+        internal fun insertInto(db: SQLiteDatabase, card: CardEntity) {
+            db.insertWithOnConflict(TABLE, null, card.toValues(), SQLiteDatabase.CONFLICT_REPLACE)
+        }
+
+        private fun CardEntity.toValues() = ContentValues().apply {
+            put("internal_id", internalId)
+            put("card_id", id)
+            put("prefix", prefix)
+            put("suffix", suffix)
+            put("name", name)
+            put("position", position)
+            put("balance", balance)
+            put("last_update", lastUpdate)
+        }
     }
 }
