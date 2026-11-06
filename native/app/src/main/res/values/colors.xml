@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#3F1D7A</color>
+    <!-- Lab palette bg, behind the first Compose frame -->
+    <color name="window_background">#F7F3EA</color>
+    <!-- As the Flutter LaunchTheme: the platform's light background -->
+    <color name="splash_background">#FFFFFF</color>
+</resources>

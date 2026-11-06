@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">Configuracion</string>
+    <string name="no_cards">Sin tarjetas</string>
+    <string name="no_cards_message">No tienes tarjetas guardadas.\nAgrega tu primera tarjeta para comenzar.</string>
+    <string name="no_favorite_stops">Sin paradas guardadas</string>
+    <string name="no_favorite_stops_message">Guarda las paradas que usas y mira aquí los próximos buses.</string>
+</resources>
