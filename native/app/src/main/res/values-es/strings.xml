@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings">Configuracion</string>
+    <string name="settings">Configuración</string>
     <string name="no_cards">Sin tarjetas</string>
     <string name="no_cards_message">No tienes tarjetas guardadas.\nAgrega tu primera tarjeta para comenzar.</string>
     <string name="no_favorite_stops">Sin paradas guardadas</string>

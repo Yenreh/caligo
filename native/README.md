@@ -23,3 +23,17 @@ The Kotlin and Jetpack Compose port of CaliGo. It installs as "CaliGo Next"
 release APK is `app/build/outputs/apk/release/app-release.apk`.
 
 Every version lives in `gradle/libs.versions.toml`, SDK levels included.
+
+## Data
+
+The database (`caligo.db`), `settings.json` and the cache sit where the
+Flutter app keeps them, in the same formats, so the final port reads that
+app's data as is. A debug build takes a backup exported by the Flutter app
+(Settings, Export data) on launch:
+
+```sh
+adb push caligo_backup.json /sdcard/Android/data/com.yenreh.caligo.next/files/import.json
+```
+
+It is imported once and renamed to `import.done.json`; one that fails to
+import stays, and is tried again on the next launch.

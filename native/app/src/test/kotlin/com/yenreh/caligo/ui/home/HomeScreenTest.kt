@@ -27,6 +27,6 @@ class HomeScreenTest {
     @Config(qualifiers = "es")
     fun speaksSpanish() {
         compose.onNodeWithText("Sin tarjetas").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Configuracion").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Configuración").assertIsDisplayed()
     }
 }

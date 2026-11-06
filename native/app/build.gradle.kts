@@ -89,6 +89,9 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
     debugImplementation(libs.androidx.compose.ui.tooling)
     // The activity createComposeRule hosts. AGP hands Robolectric the app's
     // manifest alone, so a test-only declaration would not reach it
@@ -102,4 +105,6 @@ dependencies {
     // ui-test brings Espresso 3.5, whose input injection fails on Android 17
     testImplementation(libs.espresso.core)
     testImplementation(libs.roborazzi)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver3)
 }
