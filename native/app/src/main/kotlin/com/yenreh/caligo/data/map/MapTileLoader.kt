@@ -144,8 +144,9 @@ class MapTileLoader(
         /**
          * When a tile answered with [headers] at [now] goes stale, and what
          * to ask about it with then, as flutter_map's
-         * CachedMapTileMetadata.fromHttpHeaders; null when a date it needs
-         * is missing or unreadable, and then the tile is not kept.
+         * CachedMapTileMetadata.fromHttpHeaders, a max-age without a Date
+         * counted from now; null when a date sent is unreadable, and then the
+         * tile is not kept.
          */
         fun metadataFrom(headers: Headers, now: Long): TileMetadata? {
             fun date(name: String): Long? = headers.getDate(name)?.time
@@ -163,7 +164,9 @@ class MapTileLoader(
                     val current = age.trim().toLongOrNull() ?: return null
                     return@run now + (maxAge - current) * 1000
                 }
-                val sent = date("Date") ?: return null
+                // No Date: the answer is taken as just sent, where
+                // flutter_map kept nothing
+                val sent = if (headers["Date"] != null) date("Date") ?: return null else now
                 val estimatedAge = max(0, (now - sent) / 1000)
                 now + (maxAge - estimatedAge) * 1000
             }

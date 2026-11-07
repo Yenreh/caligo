@@ -139,12 +139,12 @@ class MapTileLoaderTest {
     }
 
     @Test
-    fun aMaxAgeWithoutADateIsDrawnButNotKept() = runTest {
-        // flutter_map read the Date header without checking it was there
+    fun aMaxAgeWithoutADateCountsFromNow() = runTest {
+        // flutter_map read the Date header without checking it was there, and kept nothing
         val loader = tiles { _, _ -> png("Cache-Control" to "max-age=600") }
 
         assertArrayEquals(image, loader.load(url, headers))
-        assertNull(cache.get(url))
+        assertEquals(now + 600_000, cache.get(url)!!.metadata.staleAt)
     }
 
     @Test
