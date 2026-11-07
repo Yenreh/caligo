@@ -123,6 +123,11 @@
     <string name="sort_by_proximity">Closest stops first</string>
     <string name="sort_by_proximity_desc">Uses the location when it is already available. Off, stops keep your own order: hold one and drag it to change it</string>
     <string name="map_tab">Map</string>
+    <string name="search_here">Search here</string>
+    <string name="map_hint">Move the map and search to see stops anywhere</string>
+    <string name="my_location">My location</string>
+    <string name="reset_north">Face north</string>
+    <string name="map_credits">Map credits</string>
     <string name="dark_map">Dark map</string>
     <string name="dark_map_desc">Dark tiles on the stops map, whatever the app theme</string>
     <string name="sharp_map">Sharp map</string>

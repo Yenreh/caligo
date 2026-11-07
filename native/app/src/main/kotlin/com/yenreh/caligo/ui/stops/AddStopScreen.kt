@@ -71,19 +71,30 @@ import com.yenreh.caligo.ui.theme.LabTheme
 import kotlinx.coroutines.launch
 
 /**
- * The tabs of the add-stop screen. The Flutter screen opens on a map and
- * has the lines between these two: those come with the map and the line
- * screens.
+ * The tabs of the add-stop screen, the map first, where it opens. The
+ * Flutter screen has the lines between the stations and the stops near
+ * me: those come with the line screens.
  */
 private enum class AddStopTab(@param:DrawableRes val icon: Int, @param:StringRes val label: Int) {
+    MAP(R.drawable.ic_map, R.string.map_tab),
     STATIONS(R.drawable.ic_directions_bus, R.string.station_catalog),
     NEARBY(R.drawable.ic_near_me, R.string.nearby_stops),
 }
 
+/** Where each tab sits, for [AddStopScreen]'s initialTab */
+object AddStopTabs {
+    const val MAP = 0
+    const val STATIONS = 1
+    const val NEARBY = 2
+}
+
 /**
- * Look stops up in the station catalog or around the device, and save
- * the ones worth following. [explore] is the home's search: only the
- * title changes, saving stays one tap away.
+ * Look stops up on the map, in the station catalog or around the device,
+ * and save the ones worth following. [explore] is the home's search: only
+ * the title changes, saving stays one tap away.
+ *
+ * [map] draws the map tab, handed what opens a stop's details: the
+ * screen's own map, as [MapStopsRoute] makes it, or a test's.
  */
 @Composable
 fun AddStopScreen(
@@ -92,7 +103,8 @@ fun AddStopScreen(
     onStation: (Station) -> Unit,
     modifier: Modifier = Modifier,
     explore: Boolean = false,
-    initialTab: Int = 0,
+    initialTab: Int = AddStopTabs.MAP,
+    map: @Composable (onOpen: (OpenStop) -> Unit) -> Unit = {},
 ) {
     val p = LabTheme.palette
     val tabs = AddStopTab.entries
@@ -122,6 +134,7 @@ fun AddStopScreen(
             key = { tabs[it] },
         ) { page ->
             when (tabs[page]) {
+                AddStopTab.MAP -> map { details = it }
                 AddStopTab.STATIONS -> StationsTab(viewModel, search, onStation)
                 AddStopTab.NEARBY -> NearbyTab(viewModel, onOpen = { details = it })
             }

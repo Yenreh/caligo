@@ -13,6 +13,7 @@ import com.yenreh.caligo.data.datasources.JsonCache
 import com.yenreh.caligo.data.datasources.StopsLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsRemoteDatasource
 import com.yenreh.caligo.data.datasources.UpdateChecker
+import com.yenreh.caligo.data.map.MapTileCache
 import com.yenreh.caligo.data.repositories.CardRepositoryImpl
 import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.entities.CardEntity
@@ -50,11 +51,15 @@ class SettingsTestDevice(folder: File, release: () -> MockResponse = { MockServi
     val files = FakeBackupFiles()
     val cache = MemoryCache(bytes = 2048)
 
+    /** The map tiles, empty until a test puts some there */
+    val tiles = MapTileCache(File(folder, "fm_cache"))
+
     fun viewModel(appVersion: String = "4.1.0", files: BackupFiles = this.files) = SettingsViewModel(
         store = store,
         backup = backup,
         updates = UpdateChecker(github.client, abi = "arm64-v8a"),
         cache = cache,
+        tiles = tiles,
         files = files,
         work = work,
         appVersion = appVersion,

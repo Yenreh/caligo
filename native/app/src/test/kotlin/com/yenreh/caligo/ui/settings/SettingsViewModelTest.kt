@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.data.MockService.Companion.ok
 import com.yenreh.caligo.data.MockService.Companion.status
+import com.yenreh.caligo.data.map.TileMetadata
 import com.yenreh.caligo.domain.entities.AppThemeMode
 import com.yenreh.caligo.domain.entities.HomeContent
 import java.io.IOException
@@ -116,13 +117,30 @@ class SettingsViewModelTest {
     fun showsTheCacheSizeAndClearsIt() = runTest {
         val device = device()
         val model = device.model()
-        assertEquals(2048L, model.screen.value.cacheBytes)
+        model.screen.first { it.cacheBytes == 2048L }
 
         model.clearCache().join()
 
         assertEquals(1, device.cache.cleared)
         assertEquals(0L, model.screen.value.cacheBytes)
         assertEquals(SettingsMessage.CacheCleared, model.nextMessage())
+    }
+
+    @Test
+    fun theMapTilesCountAsCachedDataAndGoWithIt() = runTest {
+        val device = device()
+        val tile = ByteArray(1000) { it.toByte() }
+        device.tiles.put("https://tile.openstreetmap.org/16/18835/32139.png", TileMetadata(0, null, null), tile)
+        val onDisk = device.tiles.sizeInBytes()
+        assertTrue(onDisk > 1000)
+
+        val model = device.model()
+        model.screen.first { it.cacheBytes == 2048L + onDisk }
+
+        model.clearCache().join()
+
+        assertEquals(0L, device.tiles.sizeInBytes())
+        assertEquals(0L, model.screen.value.cacheBytes)
     }
 
     // Updates

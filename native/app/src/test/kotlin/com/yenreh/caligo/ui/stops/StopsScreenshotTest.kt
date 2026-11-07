@@ -109,7 +109,7 @@ class StopsScreenshotTest {
     private fun nearby(name: String, location: FakeLocationSource) {
         val viewModel = viewModel(location)
         compose.setContent {
-            CaliGoTheme { AddStopScreen(viewModel, onBack = {}, onStation = {}, initialTab = 1) }
+            CaliGoTheme { AddStopScreen(viewModel, onBack = {}, onStation = {}, initialTab = AddStopTabs.NEARBY) }
         }
         waitFor(hasTestTag("nearby_stops") or hasTestTag("add_stop_message"))
         compose.captureWindow(name)

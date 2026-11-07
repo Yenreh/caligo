@@ -36,6 +36,8 @@ fun LabListTile(
     leading: Painter? = null,
     leadingTint: Color? = null,
     titleWeight: FontWeight = FontWeight.Medium,
+    /** Title, subtitle and leading icon in one colour, as a selected Flutter tile has them */
+    contentColor: Color? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val p = LabTheme.palette
@@ -47,16 +49,16 @@ fun LabListTile(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {
-            Icon(leading, contentDescription = null, modifier = Modifier.size(24.dp), tint = leadingTint ?: p.muted)
+            Icon(leading, contentDescription = null, modifier = Modifier.size(24.dp), tint = contentColor ?: leadingTint ?: p.muted)
             Spacer(Modifier.width(16.dp))
         }
         Column(Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = titleWeight, color = p.ink),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = titleWeight, color = contentColor ?: p.ink),
             )
             if (subtitle != null) {
-                Text(text = subtitle, style = MaterialTheme.typography.bodyMedium.copy(color = p.muted))
+                Text(text = subtitle, style = MaterialTheme.typography.bodyMedium.copy(color = contentColor ?: p.muted))
             }
         }
         if (trailing != null) {

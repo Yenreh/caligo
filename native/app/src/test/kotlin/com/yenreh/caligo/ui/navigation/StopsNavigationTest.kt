@@ -2,6 +2,7 @@ package com.yenreh.caligo.ui.navigation
 
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
@@ -26,6 +27,7 @@ import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
 import com.yenreh.caligo.ui.favorite
+import com.yenreh.caligo.ui.map.FixtureTiles
 import com.yenreh.caligo.ui.stops.StopsViewModel
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import org.junit.Assert.assertEquals
@@ -58,7 +60,7 @@ class StopsNavigationTest {
         )[StopsViewModel::class]
         compose.setContent {
             val settings by container.settings.settings.collectAsStateWithLifecycle()
-            CaliGoTheme { AppNavigation(settings) }
+            CaliGoTheme { AppNavigation(settings, mapTiles = { remember { FixtureTiles() } }) }
         }
         compose.waitForIdle()
         return shared
@@ -107,8 +109,10 @@ class StopsNavigationTest {
 
         compose.onNodeWithContentDescription("Find stops").performClick()
 
-        waitFor(hasTestTag("tab_stations"))
+        // On the map first, as the Flutter screen opens
+        waitFor(hasTestTag("map"))
         compose.onNodeWithText("Find stops").assertExists()
+        compose.onNodeWithTag("tab_stations").performClick()
         waitFor(hasText("Estación Universidades"))
     }
 
@@ -125,6 +129,8 @@ class StopsNavigationTest {
         compose.onNodeWithContentDescription("Favorites").performClick()
         waitFor(addFab)
         compose.onNode(addFab).performClick()
+        waitFor(hasTestTag("tab_stations"))
+        compose.onNodeWithTag("tab_stations").performClick()
         waitFor(hasText("Estación Universidades"))
         compose.onNodeWithText("Estación Universidades").performClick()
         waitFor(hasText("Universidades A"))
@@ -150,6 +156,8 @@ class StopsNavigationTest {
     fun theStationsArrowComesBackToTheList() {
         show(FakeStopsRepository(emptyList(), emptyList(), stations = stations))
         compose.onNodeWithContentDescription("Find stops").performClick()
+        waitFor(hasTestTag("tab_stations"))
+        compose.onNodeWithTag("tab_stations").performClick()
         waitFor(hasText("Estación Universidades"))
         compose.onNodeWithText("Estación Universidades").performClick()
         waitFor(hasTestTag("save_area"))

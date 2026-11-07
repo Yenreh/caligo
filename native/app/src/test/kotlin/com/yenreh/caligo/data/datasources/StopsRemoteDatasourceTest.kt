@@ -13,8 +13,20 @@ import com.yenreh.caligo.domain.entities.LineStop
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sqrt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonElement
 import mockwebserver3.MockResponse
 import okhttp3.HttpUrl
@@ -140,6 +152,126 @@ class StopsRemoteDatasourceTest {
 
         assertEquals("Plaza de Cayzedo A1", cleared.displayName)
         assertNull(cleared.secondaryName)
+    }
+
+    // Stops placed on the map: locatedStops and its trilateration
+
+    /**
+     * A service that sees one stop 50 m north and 30 m east of the origin,
+     * at its true distance from wherever it is asked around
+     */
+    private fun stopNearOrigin() = arrivals { _, url ->
+        val metresPerDegree = 111320.0
+        val lonScale = metresPerDegree * cos(ORIGIN_LAT * PI / 180)
+        val vantageY = (url.queryParameter("latitud")!!.toDouble() - ORIGIN_LAT) * metresPerDegree
+        val vantageX = (url.queryParameter("longitud")!!.toDouble() - ORIGIN_LON) * lonScale
+        val distance = sqrt((30 - vantageX).pow(2) + (50 - vantageY).pow(2))
+        ok("""[{"idParada":"1","nombreParada":"Target","distanciaMetros":$distance,"buses":[]}]""")
+    }
+
+    @Test
+    fun placesStopsByTrilateratingThreeDistanceReadings() = runTest {
+        // Seen from the origin and from two vantage points 120 m away
+        val service = stopNearOrigin()
+        val metresPerDegree = 111320.0
+        val lonScale = metresPerDegree * cos(ORIGIN_LAT * PI / 180)
+
+        val stops = service.datasource().getLocatedStops(ORIGIN_LAT, ORIGIN_LON)
+
+        val stop = stops.single()
+        assertTrue(stop.hasPosition)
+        assertEquals(50.0, (stop.latitude!! - ORIGIN_LAT) * metresPerDegree, 1.0)
+        assertEquals(30.0, (stop.longitude!! - ORIGIN_LON) * lonScale, 1.0)
+    }
+
+    @Test
+    fun keepsStopsThatOnlyTheFirstReadingSaw() = runTest {
+        // Only the origin sees the stops; the vantage points are empty
+        val service = arrivals { call, _ -> ok(if (call == 1) ARRIVALS_BODY else "[]") }
+
+        val stops = service.datasource().getLocatedStops(3.4516, -76.532)
+
+        assertEquals(2, stops.size)
+        assertFalse(stops.all { it.hasPosition })
+    }
+
+    @Test
+    fun reusesAStopPositionInsteadOfAskingAgain() = runTest {
+        val service = stopNearOrigin()
+        val datasource = service.datasource()
+
+        val first = datasource.getLocatedStops(ORIGIN_LAT, ORIGIN_LON)
+        assertEquals(3, service.calls)
+        assertTrue(first.single().hasPosition)
+
+        // The position is known now, so the vantage points are skipped
+        val second = datasource.getLocatedStops(ORIGIN_LAT, ORIGIN_LON)
+        assertEquals(4, service.calls)
+        assertTrue(second.single().hasPosition)
+    }
+
+    @Test
+    fun handsOverTheStopListBeforePlacingTheStops() = runTest {
+        val service = arrivals { _, _ -> ok(ARRIVALS_BODY) }
+
+        val first = service.datasource().locatedStops(3.4516, -76.532).first()
+
+        // Only the request around the point itself was needed for the list
+        assertEquals(1, service.calls)
+        assertEquals(listOf("500800", "500751"), first.map { it.id })
+    }
+
+    @Test
+    fun asksTheVantagePoints120MetresNorthAndEast() = runTest {
+        val service = arrivals { _, _ -> ok(ARRIVALS_BODY) }
+
+        service.datasource().getLocatedStops(3.4516, -76.532)
+
+        val asked = service.requested.drop(1).map {
+            it.queryParameter("latitud")!!.toDouble() to it.queryParameter("longitud")!!.toDouble()
+        }.toSet()
+        val lonScale = 111320.0 * cos(3.4516 * PI / 180)
+        assertEquals(setOf(3.4516 + 120 / 111320.0 to -76.532, 3.4516 to -76.532 + 120 / lonScale), asked)
+    }
+
+    @Test
+    fun aVantagePointThatFailsLeavesTheListAsItCame() = runTest {
+        val service = arrivals { call, _ -> if (call == 1) ok(ARRIVALS_BODY) else status(404) }
+
+        val answers = service.datasource().locatedStops(3.4516, -76.532).toList()
+
+        assertEquals(1, answers.size)
+        assertEquals(2, answers.single().size)
+    }
+
+    @Test
+    fun keepsThePlacedStopsForTheNextRun() = runTest {
+        val service = stopNearOrigin()
+        val cache = MemoryCache()
+        service.datasource(cache).getLocatedStops(ORIGIN_LAT, ORIGIN_LON)
+
+        // Saved a moment later, for a whole batch at once
+        val saved = withContext(Dispatchers.Default) {
+            withTimeout(5_000) {
+                var kept: JsonElement? = null
+                while (kept == null) {
+                    kept = cache.read("stop_positions")
+                    if (kept == null) delay(50)
+                }
+                kept
+            }
+        }
+        val position = (saved as JsonObject)["1"] as JsonArray
+        assertEquals(2, position.size)
+
+        // A new run reads them back and asks no further
+        MockService { _, _ -> ok("""[{"idParada":"1","nombreParada":"Target","distanciaMetros":58.3,"buses":[]}]""") }
+            .use { next ->
+                val again = StopsRemoteDatasource(next.client, cache, backoff = Duration.ZERO)
+                    .getLocatedStops(ORIGIN_LAT, ORIGIN_LON)
+                assertEquals(1, next.calls)
+                assertTrue(again.single().hasPosition)
+            }
     }
 
     // StopsRemoteDatasource when the service pushes back
@@ -393,6 +525,9 @@ class StopsRemoteDatasourceTest {
 [{"id":1,"name":"Estación Alamos","address":"Av 3N - Cl 52N",
   "neighborhood":"Ciudad Los Alamos","commune":2,
   "longitude":-76.5133880103,"latitude":3.4842460459}]"""
+
+        const val ORIGIN_LAT = 3.4842
+        const val ORIGIN_LON = -76.5134
 
         const val ARRIVALS_URL =
             "https://servicios.siur.com.co/buscarutas/api/paradas_con_buses_proximos_a_llegar.php"

@@ -12,6 +12,8 @@ import com.yenreh.caligo.data.datasources.StopsLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsRemoteDatasource
 import com.yenreh.caligo.data.datasources.UpdateChecker
 import com.yenreh.caligo.data.location.AndroidLocationSource
+import com.yenreh.caligo.data.map.MapTileCache
+import com.yenreh.caligo.data.map.MapTileLoader
 import com.yenreh.caligo.data.repositories.CardRepositoryImpl
 import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.repositories.CardRepository
@@ -54,6 +56,12 @@ class AppContainer(context: Context) {
         StopsRemoteDatasource(http, cache, scope = scope),
         cache,
     )
+
+    /** The map tiles, where flutter_map kept them: path_provider's cache directory */
+    val tileCache = MapTileCache(File(context.cacheDir, MapTileCache.DIRECTORY))
+
+    /** Made when a map first shows */
+    val tileLoader by lazy { MapTileLoader(http, tileCache) }
 
     /** The device location, asked from the activity on screen */
     val location = AndroidLocationSource(context)

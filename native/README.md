@@ -50,12 +50,38 @@ me" tab shows. The stops screen and the home put the closest stops first
 when the setting asks for it and the permission is already given; they
 never ask for it.
 
+## Map
+
+`ui/map/LabMap` draws every map: raster tiles, markers and lines, with
+pan, pinch, fling, double tap and two-finger turns. It stands on
+MapCompose, which draws the tiles with Compose's own canvas (no native
+code); screens use `LabMap` and `LabMapState` only, so another library
+would change that one file.
+
+Tiles come from CARTO when the build carries a key, from OpenStreetMap
+otherwise, as the Flutter app's. The key is limited to CaliGo's package
+signed with its release certificate, which every tile request names
+(`AppInfo.PACKAGE_ID`, `AppInfo.SIGNING_SHA1`). It comes from the
+`CARTO_KEY` environment variable or, for local builds, from
+`local.properties`, which git ignores:
+
+```properties
+carto.key=...
+```
+
+Never commit it. The tiles are kept in `cache/fm_cache`, in the files
+flutter_map wrote, up to 100 MB; Settings, Cached data counts and clears
+them with the rest.
+
 ## Licenses
 
 The licenses page lists the app's GPL and the fonts' OFL, from
 `app/src/main/assets/licenses/`, and every library in the APK, from the
 report the AboutLibraries Gradle plugin writes at build time
-(`res/raw/aboutlibraries.json`, offline, BOMs left out). No runtime
+(`res/raw/aboutlibraries.json`, offline, BOMs left out). Offline, the
+plugin writes no licence text of its own: the texts come from
+`app/config/licenses/`, one file per SPDX id (Apache-2.0 for every
+library today); a library under another licence needs its file there. No runtime
 library reads it: the app parses the JSON itself.
 
 ## Baseline Profile

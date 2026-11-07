@@ -32,6 +32,8 @@ class StopsRepositoryImpl(
     override suspend fun getNearbyStops(latitude: Double, longitude: Double) =
         remote.getNearbyStops(latitude, longitude)
 
+    override fun locatedStops(latitude: Double, longitude: Double) = remote.locatedStops(latitude, longitude)
+
     override suspend fun getStations() = remote.getStations()
 
     override suspend fun getLinesByStop(stopId: String) = remote.getLinesByStop(stopId)

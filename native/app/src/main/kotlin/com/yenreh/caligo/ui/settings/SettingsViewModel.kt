@@ -16,11 +16,14 @@ import com.yenreh.caligo.data.datasources.AppRelease
 import com.yenreh.caligo.data.datasources.JsonCache
 import com.yenreh.caligo.data.datasources.UpdateChecker
 import com.yenreh.caligo.data.json.dartIntTryParse
+import com.yenreh.caligo.data.map.MapTileCache
 import com.yenreh.caligo.domain.entities.AppThemeMode
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.domain.entities.Settings
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -75,6 +78,8 @@ class SettingsViewModel(
     private val backup: Backup,
     private val updates: UpdateChecker,
     private val cache: JsonCache,
+    /** The map tiles, cached apart from the rest but counted with it */
+    private val tiles: MapTileCache?,
     private val files: BackupFiles,
     private val work: CoroutineScope,
     /** The installed version, as the about section shows it */
@@ -113,13 +118,19 @@ class SettingsViewModel(
     }
 
     private suspend fun loadCacheSize() {
-        // Map tiles join this once the map has its cache
-        val bytes = cache.sizeInBytes()
+        // Map tiles are cached apart from the rest, but count as cached data
+        val bytes = coroutineScope {
+            val tileBytes = async(Dispatchers.IO) { tiles?.sizeInBytes() ?: 0 }
+            cache.sizeInBytes() + tileBytes.await()
+        }
         state.update { it.copy(cacheBytes = bytes) }
     }
 
     fun clearCache(): Job = viewModelScope.launch {
-        cache.clear()
+        coroutineScope {
+            launch { cache.clear() }
+            launch(Dispatchers.IO) { tiles?.clear() }
+        }
         loadCacheSize()
         reports.send(SettingsMessage.CacheCleared)
     }
@@ -192,6 +203,7 @@ class SettingsViewModel(
                     backup = container.backup,
                     updates = container.updates,
                     cache = container.cache,
+                    tiles = container.tileCache,
                     files = AndroidBackupFiles(app),
                     work = container.scope,
                     appVersion = BuildConfig.VERSION_NAME,

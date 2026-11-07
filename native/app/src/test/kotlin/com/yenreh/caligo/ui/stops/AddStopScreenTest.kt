@@ -62,7 +62,7 @@ class AddStopScreenTest {
     private fun show(
         repository: FakeStopsRepository,
         location: FakeLocationSource = FakeLocationSource(),
-        tab: Int = 0,
+        tab: Int = AddStopTabs.STATIONS,
         explore: Boolean = false,
     ): StopsViewModel {
         val viewModel = StopsViewModel(
@@ -270,6 +270,6 @@ class AddStopScreenTest {
     }
 
     private companion object {
-        const val NEARBY = 1
+        const val NEARBY = AddStopTabs.NEARBY
     }
 }

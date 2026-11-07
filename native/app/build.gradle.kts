@@ -1,4 +1,5 @@
 import com.android.build.api.variant.HostTestBuilder
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -9,6 +10,17 @@ plugins {
     alias(libs.plugins.roborazzi)
     alias(libs.plugins.baselineprofile)
 }
+
+/**
+ * The CARTO key the map tiles ask with: the CARTO_KEY environment
+ * variable, else carto.key in local.properties, which git ignores. Never
+ * committed; without one the maps show OpenStreetMap's tiles.
+ */
+val cartoKey: String = providers.environmentVariable("CARTO_KEY").orNull?.takeIf { it.isNotBlank() }
+    ?: rootProject.file("local.properties").takeIf { it.isFile }?.let { file ->
+        Properties().apply { file.inputStream().use(::load) }.getProperty("carto.key")
+    }?.trim()
+    ?: ""
 
 android {
     namespace = "com.yenreh.caligo"
@@ -25,6 +37,7 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "CARTO_KEY", "\"$cartoKey\"")
     }
 
     buildTypes {
@@ -44,7 +57,8 @@ android {
 
     buildFeatures {
         compose = true
-        // The version the settings show and compare with the latest release
+        // The version the settings show and compare with the latest
+        // release, and the map key
         buildConfig = true
     }
 
@@ -92,11 +106,14 @@ tasks.withType<Test>().configureEach {
 
 // The licenses page lists every library the APK ships, from this report
 aboutLibraries {
-    // No network at build time: the licence texts come with the plugin
+    // No network at build time
     offlineMode = true
     collect {
         // BOMs only pin versions; nothing of them ships
         includePlatform = false
+        // Offline, the plugin fills in no licence text: the texts every
+        // library here needs are kept in config/licenses, by SPDX id
+        configPath = file("config")
     }
     export {
         // Only what the licenses page shows
@@ -123,6 +140,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+    // The maps: raster tiles drawn by Compose itself, no native code
+    implementation(libs.mapcompose)
     debugImplementation(libs.androidx.compose.ui.tooling)
     // The activity createComposeRule hosts. AGP hands Robolectric the app's
     // manifest alone, so a test-only declaration would not reach it

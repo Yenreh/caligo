@@ -122,6 +122,11 @@
     <string name="sort_by_proximity">Paradas más cercanas primero</string>
     <string name="sort_by_proximity_desc">Usa la ubicación si ya está disponible. Apagado, las paradas siguen tu orden: mantén pulsada una y arrástrala para cambiarlo</string>
     <string name="map_tab">Mapa</string>
+    <string name="search_here">Buscar aquí</string>
+    <string name="map_hint">Mueve el mapa y busca para ver paradas en cualquier lugar</string>
+    <string name="my_location">Mi ubicación</string>
+    <string name="reset_north">Orientar al norte</string>
+    <string name="map_credits">Créditos del mapa</string>
     <string name="dark_map">Mapa oscuro</string>
     <string name="dark_map_desc">Mapa de paradas con fondo oscuro, sin importar el tema de la app</string>
     <string name="sharp_map">Mapa nítido</string>

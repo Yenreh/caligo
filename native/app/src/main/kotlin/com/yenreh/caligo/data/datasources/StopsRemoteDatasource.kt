@@ -18,7 +18,11 @@ import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.metersBetween
+import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.milliseconds
@@ -33,6 +37,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -40,6 +47,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.OkHttpClient
 
 /**
@@ -94,11 +102,13 @@ class StopsRemoteDatasource(
 
     /**
      * Stop positions, from the routes or worked out earlier: a stop never
-     * moves, so they are kept for good and spare the extra lookups. The
-     * routes and the trilateration that add to them come in phase 4.
+     * moves, so they are kept for good and spare the extra lookups. In
+     * the order they were learned, the oldest first to go; the routes
+     * that add to them come with the line screens.
      */
-    private var positions: Map<String, List<Double>>? = null
+    private var positions: MutableMap<String, List<Double>>? = null
     private val positionsLock = Mutex()
+    private val positionsSavePending = AtomicBoolean(false)
 
     init {
         if (pruned.compareAndSet(false, true)) {
@@ -214,19 +224,133 @@ class StopsRemoteDatasource(
         }
     }
 
-    private suspend fun knownPositions(): Map<String, List<Double>> = positionsLock.withLock {
+    /**
+     * Stops around a point, each placed on the map when possible: first as
+     * soon as the service answers, then again once they are placed.
+     *
+     * The service reports how far a stop is but never where it is. The
+     * routes place every stop they call at, and earlier looks some more;
+     * for a stop still unplaced the same area is queried from two extra
+     * vantage points and the stop is trilaterated from the three
+     * distances. Stops that fall out of range of the extra points simply
+     * come back without a position.
+     */
+    fun locatedStops(latitude: Double, longitude: Double): Flow<List<NearbyStop>> = flow {
+        val offset = VANTAGE_OFFSET_METERS
+        val lonScale = METRES_PER_DEGREE * cos(latitude * PI / 180)
+
+        val placed = getNearbyStops(latitude, longitude)
+        // The list is useful before the stops are placed: hand it over now
+        emit(placed)
+        // Every stop here has been placed before: no extra requests needed
+        if (placed.all { it.hasPosition }) return@flow
+
+        val extras = try {
+            coroutineScope {
+                listOf(
+                    async { getNearbyStops(latitude + offset / METRES_PER_DEGREE, longitude) },
+                    async { getNearbyStops(latitude, longitude + offset / lonScale) },
+                ).awaitAll()
+            }
+        } catch (_: ApiException) {
+            // Placing the stops is a bonus: the list already went out
+            return@flow
+        }
+
+        val north = extras[0].associate { it.id to it.distanceMeters }
+        val east = extras[1].associate { it.id to it.distanceMeters }
+
+        val located = placed.map { stop ->
+            if (stop.hasPosition) return@map stop
+            val dNorth = north[stop.id] ?: return@map stop
+            val dEast = east[stop.id] ?: return@map stop
+
+            val point = trilaterate(
+                Reading(0.0, 0.0, stop.distanceMeters),
+                Reading(0.0, offset, dNorth),
+                Reading(offset, 0.0, dEast),
+            ) ?: return@map stop
+
+            stop.copy(
+                latitude = latitude + point.second / METRES_PER_DEGREE,
+                longitude = longitude + point.first / lonScale,
+            )
+        }
+
+        rememberPositions(located)
+        emit(located)
+    }
+
+    /** [locatedStops] once every stop that can be placed is */
+    suspend fun getLocatedStops(latitude: Double, longitude: Double): List<NearbyStop> =
+        locatedStops(latitude, longitude).last()
+
+    private suspend fun knownPositions(): MutableMap<String, List<Double>> = positionsLock.withLock {
         positions ?: loadPositions().also { positions = it }
     }
 
-    private suspend fun loadPositions(): Map<String, List<Double>> {
-        val cached = cache.read(POSITIONS_KEY) as? JsonObject ?: return emptyMap()
-        return buildMap {
-            for ((id, position) in cached) {
-                if (position is JsonArray && position.size == 2 && position.all { it.isNum }) {
-                    put(id, listOf(position[0].doubleOrNull()!!, position[1].doubleOrNull()!!))
-                }
+    private suspend fun loadPositions(): MutableMap<String, List<Double>> {
+        val loaded = Collections.synchronizedMap(LinkedHashMap<String, List<Double>>())
+        val cached = cache.read(POSITIONS_KEY) as? JsonObject ?: return loaded
+        for ((id, position) in cached) {
+            if (position is JsonArray && position.size == 2 && position.all { it.isNum }) {
+                loaded[id] = listOf(position[0].doubleOrNull()!!, position[1].doubleOrNull()!!)
             }
         }
+        return loaded
+    }
+
+    /** Keep the stops placed by trilateration that were not known */
+    private suspend fun rememberPositions(stops: List<NearbyStop>) {
+        val positions = knownPositions()
+        var added = false
+        for (stop in stops) {
+            if (!stop.hasPosition || positions.containsKey(stop.id)) continue
+            positions[stop.id] = listOf(stop.latitude!!, stop.longitude!!)
+            added = true
+        }
+        if (added) savePositionsSoon()
+    }
+
+    /**
+     * Save the positions a moment after they change: a whole network of
+     * routes comes in within a second or two, and a write or two does for
+     * all of it
+     */
+    private fun savePositionsSoon() {
+        if (!positionsSavePending.compareAndSet(false, true)) return
+        scope.launch {
+            delay(POSITIONS_SAVE_DELAY)
+            positionsSavePending.set(false)
+            val positions = knownPositions()
+            val saved = synchronized(positions) {
+                val iterator = positions.keys.iterator()
+                while (positions.size > MAX_STORED_POSITIONS) {
+                    iterator.next()
+                    iterator.remove()
+                }
+                JsonObject(positions.mapValues { (_, at) -> JsonArray(at.map(::JsonPrimitive)) })
+            }
+            cache.write(POSITIONS_KEY, saved)
+        }
+    }
+
+    /** A distance [d] read from ([x], [y]) in a local metric frame */
+    private class Reading(val x: Double, val y: Double, val d: Double)
+
+    /** Intersect three distance circles in a local metric frame: (x, y), or null when they cannot meet */
+    private fun trilaterate(p1: Reading, p2: Reading, p3: Reading): Pair<Double, Double>? {
+        val a = 2 * (p2.x - p1.x)
+        val b = 2 * (p2.y - p1.y)
+        val c = p1.d * p1.d - p2.d * p2.d - p1.x * p1.x + p2.x * p2.x - p1.y * p1.y + p2.y * p2.y
+        val d = 2 * (p3.x - p2.x)
+        val e = 2 * (p3.y - p2.y)
+        val f = p2.d * p2.d - p3.d * p3.d - p2.x * p2.x + p3.x * p3.x - p2.y * p2.y + p3.y * p3.y
+
+        val denominator = a * e - d * b
+        if (abs(denominator) < 1e-9) return null
+
+        return (c * e - f * b) / denominator to (a * f - d * c) / denominator
     }
 
     /** The full MIO station catalog, used to add favorites without GPS */
@@ -380,6 +504,20 @@ class StopsRemoteDatasource(
         private const val MAX_ATTEMPTS = 2
         private const val MAX_RECENT_AREAS = 24
         private const val POSITIONS_KEY = "stop_positions"
+
+        /**
+         * The routes place a bit over two thousand stops, so this holds every
+         * one the user could plausibly meet while never growing without end
+         */
+        private const val MAX_STORED_POSITIONS = 4000
+
+        private val POSITIONS_SAVE_DELAY = 2.seconds
+
+        /** Metres per degree of latitude, close enough over a few hundred metres */
+        private const val METRES_PER_DEGREE = 111320.0
+
+        /** How far north and east of the point the extra readings are taken */
+        private const val VANTAGE_OFFSET_METERS = 120.0
 
         /** Files nobody has written in this long are swept once per run */
         private val CACHE_LIFETIME = 45.days

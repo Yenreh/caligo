@@ -33,8 +33,11 @@ import com.yenreh.caligo.ui.home.HomeActions
 import com.yenreh.caligo.ui.home.HomeRoute
 import com.yenreh.caligo.ui.licenses.LicenseRoute
 import com.yenreh.caligo.ui.licenses.LicensesRoute
+import com.yenreh.caligo.ui.map.MapTileSource
+import com.yenreh.caligo.ui.map.rememberAppMapTiles
 import com.yenreh.caligo.ui.settings.SettingsRoute
 import com.yenreh.caligo.ui.stops.AddStopScreen
+import com.yenreh.caligo.ui.stops.MapStopsRoute
 import com.yenreh.caligo.ui.stops.StationStopsScreen
 import com.yenreh.caligo.ui.stops.StopsRoute
 import com.yenreh.caligo.ui.stops.StopsViewModel
@@ -55,6 +58,8 @@ fun AppNavigation(
     settings: Settings,
     modifier: Modifier = Modifier,
     backStack: NavBackStack<NavKey> = rememberNavBackStack(Route.Home),
+    /** The tiles of the maps, as the settings ask: the app's, or a test's */
+    mapTiles: @Composable (Settings) -> MapTileSource = { rememberAppMapTiles(it) },
 ) {
     val activity: ViewModelStoreOwner = checkNotNull(LocalViewModelStoreOwner.current)
     // Read inside the entries, so they follow every change of the settings
@@ -107,10 +112,16 @@ fun AppNavigation(
                 StopsRoute(current, stops(), onBack = ::back, onAdd = { open(Route.AddStop) })
             }
             entry<Route.AddStop> {
-                AddStopScreen(stops(), onBack = ::back, onStation = ::station)
+                AddStopScreen(stops(), onBack = ::back, onStation = ::station, map = { MapStopsRoute(current, mapTiles(current), it) })
             }
             entry<Route.SearchStops> {
-                AddStopScreen(stops(), onBack = ::back, onStation = ::station, explore = true)
+                AddStopScreen(
+                    stops(),
+                    onBack = ::back,
+                    onStation = ::station,
+                    explore = true,
+                    map = { MapStopsRoute(current, mapTiles(current), it) },
+                )
             }
             entry<Route.Station> { key ->
                 StationStopsScreen(

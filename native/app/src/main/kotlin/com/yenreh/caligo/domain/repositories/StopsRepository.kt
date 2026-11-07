@@ -10,6 +10,7 @@ import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.StopLine
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Stops and arrivals: the part of the Flutter app's repository the home
@@ -33,6 +34,12 @@ interface StopsRepository {
 
     /** Stops around a position, with their upcoming buses */
     suspend fun getNearbyStops(latitude: Double, longitude: Double): List<NearbyStop>
+
+    /**
+     * Stops around a position, as soon as the service answers, and again
+     * once those it can are placed on the map
+     */
+    fun locatedStops(latitude: Double, longitude: Double): Flow<List<NearbyStop>>
 
     /** MIO station catalog */
     suspend fun getStations(): List<Station>

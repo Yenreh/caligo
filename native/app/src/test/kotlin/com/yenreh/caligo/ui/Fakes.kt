@@ -23,6 +23,8 @@ import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.repositories.CardRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import kotlin.time.Duration
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 /**
  * Cards kept in memory. The balance service fails for [failing] ids, as
@@ -128,6 +130,23 @@ class FakeStopsRepository(
         answer?.invoke()
         failure?.let { throw it }
         return nearby
+    }
+
+    /**
+     * The stops around, as [getNearbyStops] answers them, then again with
+     * the places [located] gives them, when it gives any
+     */
+    var located: Map<String, GeoPoint> = emptyMap()
+
+    override fun locatedStops(latitude: Double, longitude: Double): Flow<List<NearbyStop>> = flow {
+        val stops = getNearbyStops(latitude, longitude)
+        emit(stops)
+        if (located.isEmpty()) return@flow
+        emit(
+            stops.map { stop ->
+                located[stop.id]?.let { stop.copy(latitude = it.latitude, longitude = it.longitude) } ?: stop
+            },
+        )
     }
 
     override suspend fun stopPositions(stopIds: Iterable<String>): Map<String, GeoPoint> =
