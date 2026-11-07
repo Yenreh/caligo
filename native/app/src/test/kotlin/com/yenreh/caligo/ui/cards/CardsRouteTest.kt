@@ -192,6 +192,34 @@ class CardsRouteTest {
     }
 
     @Test
+    fun aDeleteThatFailsSaysSoInItsOwnWords() {
+        val repository = FakeCardRepository(HomeSamples.cards)
+        show(repository)
+        repository.saveFailure = IllegalStateException("locked")
+
+        cardButton("Delete", 0).performClick()
+        waitFor(hasText("Delete Card"))
+        compose.onNode(hasText("Delete")).performClick()
+
+        waitFor(hasText("Could not delete the card"))
+        compose.onNodeWithText("Could not update balance").assertDoesNotExist()
+        names.assertCountEquals(2)
+    }
+
+    @Test
+    fun aMoveThatFailsToSaveSaysSoAndPutsTheCardBack() {
+        val repository = FakeCardRepository(HomeSamples.cards)
+        val viewModel = show(repository)
+        repository.saveFailure = IllegalStateException("locked")
+
+        performCustomAction("Mía", "Move down")
+
+        waitFor(hasText("Could not save the new order"))
+        compose.onNodeWithText("Could not update balance").assertDoesNotExist()
+        assertEquals(listOf("Mía", "Universidad"), viewModel.cards.value.cards.map { it.name })
+    }
+
+    @Test
     fun theLastCardGoneLeavesTheEmptyState() {
         val repository = FakeCardRepository(HomeSamples.cards.take(1))
         show(repository)

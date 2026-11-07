@@ -65,7 +65,12 @@ fun ListenCardRefresh(viewModel: CardsViewModel, snackbars: LabSnackbars) {
             }
 
             if (next.error != null && next.error != before.error) {
-                snackbars.show(resources.getString(R.string.could_not_update_balance), LabTone.CRIT, duration = 2.seconds)
+                val message = when (next.failedAction) {
+                    CardAction.REORDER -> R.string.could_not_reorder_cards
+                    CardAction.DELETE -> R.string.could_not_delete_card
+                    null -> R.string.could_not_update_balance
+                }
+                snackbars.show(resources.getString(message), LabTone.CRIT, duration = 2.seconds)
                 launch {
                     delay(100.milliseconds)
                     viewModel.clearError()

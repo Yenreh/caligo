@@ -72,6 +72,8 @@
     <string name="balance_updated">Balance updated</string>
     <string name="retry">Retry</string>
     <string name="could_not_update_balance">Could not update balance</string>
+    <string name="could_not_reorder_cards">Could not save the new order</string>
+    <string name="could_not_delete_card">Could not delete the card</string>
     <string name="network_error_message">No connection. Check your internet and try again.</string>
     <string name="server_error_message">Balance service is unavailable. Try again later.</string>
     <string name="invalid_card_message">Invalid card number. It must have exactly 13 digits.</string>

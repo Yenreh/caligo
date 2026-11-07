@@ -419,7 +419,7 @@ class CardsViewModelTest {
     }
 
     @Test
-    fun aReorderThatFailsToSaveKeepsTheErrorAndTheOrderShown() = test {
+    fun aReorderThatFailsToSaveSaysSoAndPutsTheOldOrderBack() = test {
         val repository = ordered()
         val cards = ready(repository)
         repository.saveFailure = IllegalStateException("locked")
@@ -427,7 +427,25 @@ class CardsViewModelTest {
         cards.reorderCards(0, 2).join()
 
         assertNotNull(cards.state.error)
-        assertEquals(listOf("b", "a", "c"), cards.state.cards.map { it.id })
+        assertEquals(CardAction.REORDER, cards.state.failedAction)
+        assertEquals(listOf("a", "b", "c"), cards.state.cards.map { it.id })
+        assertEquals(listOf(0, 1, 2), cards.state.cards.map { it.position })
+    }
+
+    @Test
+    fun aReorderCutShortHalfwayPutsBackTheCardsAlreadySaved() = test {
+        val repository = ordered()
+        val cards = ready(repository)
+        var saves = 0
+        repository.saving = { if (++saves == 2) throw IllegalStateException("locked") }
+
+        cards.reorderCards(0, 2).join()
+
+        // b was saved at 0 before a failed: it goes back to 1
+        assertEquals(listOf("a", "b", "c"), cards.state.cards.map { it.id })
+        cards.loadCards().join()
+        assertEquals(listOf("a", "b", "c"), cards.state.cards.map { it.id })
+        assertEquals(listOf(0, 1, 2), cards.state.cards.map { it.position })
     }
 
     @Test
@@ -463,6 +481,7 @@ class CardsViewModelTest {
         cards.deleteCardById("a").join()
 
         assertNotNull(cards.state.error)
+        assertEquals(CardAction.DELETE, cards.state.failedAction)
         assertEquals(listOf("a"), cards.state.cards.map { it.id })
     }
 

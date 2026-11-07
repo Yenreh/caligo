@@ -72,6 +72,8 @@
     <string name="balance_updated">Saldo actualizado</string>
     <string name="retry">Reintentar</string>
     <string name="could_not_update_balance">No se pudo actualizar el saldo</string>
+    <string name="could_not_reorder_cards">No se pudo guardar el nuevo orden</string>
+    <string name="could_not_delete_card">No se pudo eliminar la tarjeta</string>
     <string name="network_error_message">Sin conexión. Revisa tu internet e inténtalo de nuevo.</string>
     <string name="server_error_message">El servicio de saldos no está disponible. Intenta más tarde.</string>
     <string name="invalid_card_message">Número de tarjeta inválido. Debe tener exactamente 13 dígitos.</string>

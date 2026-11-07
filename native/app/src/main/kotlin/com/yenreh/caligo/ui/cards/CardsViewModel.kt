@@ -23,11 +23,16 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** What a failure in [CardsState.error] interrupted, when the user reads it apart */
+enum class CardAction { REORDER, DELETE }
+
 /** The saved cards and how their balance refreshes are going */
 data class CardsState(
     val cards: List<CardEntity> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
+    /** What [error] interrupted; null for a read or a balance refresh */
+    val failedAction: CardAction? = null,
     val refreshingCardId: String? = null,
     val isRefreshingAll: Boolean = false,
     val refreshError: ApiException? = null,
@@ -89,13 +94,13 @@ class CardsViewModel(
     fun loadCards(): Job = viewModelScope.launch { load() }
 
     private suspend fun load() {
-        set { it.copy(isLoading = true, error = null) }
+        set { it.copy(isLoading = true, error = null, failedAction = null) }
         try {
             val cards = repository.getAllCards()
             set { it.copy(cards = cards, isLoading = false) }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            set { it.copy(error = e.toString(), isLoading = false) }
+            set { it.copy(error = e.toString(), failedAction = null, isLoading = false) }
         }
     }
 
@@ -137,7 +142,7 @@ class CardsViewModel(
             save()
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            set { it.copy(error = e.toString()) }
+            set { it.copy(error = e.toString(), failedAction = null) }
             return false
         }
         // A failed read reports itself, and the save stands
@@ -149,10 +154,12 @@ class CardsViewModel(
      * Move a card as a drag leaves it, with the indexes a Flutter
      * reorderable list reports: [newIndex] counts the card itself when
      * moving down. The new order shows at once; saving only follows, card
-     * by card, for those whose position changed.
+     * by card, for those whose position changed. A save that fails puts
+     * the old order back, on screen and for the cards already saved.
      */
     fun reorderCards(oldIndex: Int, newIndex: Int): Job {
-        val cards = state.value.cards.toMutableList()
+        val before = state.value.cards
+        val cards = before.toMutableList()
         val target = if (newIndex > oldIndex) newIndex - 1 else newIndex
         // Where Dart would throw a RangeError into the framework's log
         if (oldIndex !in cards.indices || target !in cards.indices) return DONE
@@ -164,15 +171,38 @@ class CardsViewModel(
         set { it.copy(cards = numbered) }
 
         return viewModelScope.launch {
+            val saved = mutableListOf<CardEntity>()
             try {
                 numbered.forEachIndexed { i, card ->
-                    if (cards[i].position != i) repository.updateCard(card)
+                    if (cards[i].position != i) {
+                        repository.updateCard(card)
+                        saved.add(card)
+                    }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                set { it.copy(error = e.toString()) }
+                putBack(before, numbered, saved)
+                set { it.copy(error = e.toString(), failedAction = CardAction.REORDER) }
             }
         }
+    }
+
+    /**
+     * Undo a reorder that failed halfway: the cards [saved] get their old
+     * position again, and [before] shows again while [shown], the new
+     * order, is still on screen; otherwise what the disk holds does
+     */
+    private suspend fun putBack(before: List<CardEntity>, shown: List<CardEntity>, saved: List<CardEntity>) {
+        val old = before.associateBy { it.internalId }
+        try {
+            for (card in saved) old[card.internalId]?.let { repository.updateCard(it) }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            // The disk holds a mix of both: show what it holds
+            load()
+            return
+        }
+        if (state.value.cards === shown) set { it.copy(cards = before) } else load()
     }
 
     /** Delete every card numbered [cardId], then read them all again */
@@ -182,7 +212,7 @@ class CardsViewModel(
             load()
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            set { it.copy(error = e.toString()) }
+            set { it.copy(error = e.toString(), failedAction = CardAction.DELETE) }
         }
     }
 
@@ -193,7 +223,13 @@ class CardsViewModel(
         val card = state.value.cards.firstOrNull { it.id == cardId } ?: return DONE
 
         set {
-            it.copy(refreshingCardId = cardId, error = null, refreshError = null, refreshFailedCardId = null)
+            it.copy(
+                refreshingCardId = cardId,
+                error = null,
+                failedAction = null,
+                refreshError = null,
+                refreshFailedCardId = null,
+            )
         }
         return viewModelScope.launch {
             try {
@@ -207,7 +243,7 @@ class CardsViewModel(
                 set { it.copy(refreshError = e, refreshFailedCardId = cardId, refreshingCardId = null) }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                set { it.copy(error = e.toString(), refreshingCardId = null) }
+                set { it.copy(error = e.toString(), failedAction = null, refreshingCardId = null) }
             } finally {
                 // Whatever ended it, the refresh is over
                 if (state.value.refreshingCardId == cardId) set { it.copy(refreshingCardId = null) }
@@ -243,7 +279,7 @@ class CardsViewModel(
         if (current.isRefreshingAll || current.refreshingCardId != null) return DONE
         if (current.cards.isEmpty()) return DONE
 
-        set { it.copy(isRefreshingAll = true, error = null, refreshError = null, refreshFailedCardId = null) }
+        set { it.copy(isRefreshingAll = true, error = null, failedAction = null, refreshError = null, refreshFailedCardId = null) }
         return viewModelScope.launch {
             refreshEach(current.cards, quietly = false)
         }
@@ -298,7 +334,7 @@ class CardsViewModel(
     /** Clear the last refresh error and the failed card flag */
     fun clearRefreshError() = set { it.copy(refreshError = null, refreshFailedCardId = null) }
 
-    fun clearError() = set { it.copy(error = null) }
+    fun clearError() = set { it.copy(error = null, failedAction = null) }
 
     companion object {
         private val DONE: Job = Job().apply { complete() }
