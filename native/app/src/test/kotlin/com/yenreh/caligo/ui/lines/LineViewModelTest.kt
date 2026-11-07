@@ -276,7 +276,7 @@ class LineViewModelTest {
     }
 
     @Test
-    fun aSlowAnswerDoesNotHoldBackTheNextRequest() = test {
+    fun aSlowAnswerHoldsTheNextRequestBack() = test {
         val repository = repository()
         val model = viewModel(repository)
         val held = CompletableDeferred<Unit>()
@@ -285,9 +285,36 @@ class LineViewModelTest {
         model.setShown(true)
         advanceTimeBy(31.seconds)
 
-        // As a periodic timer: the second request went out while the first waits
-        assertEquals(2, repository.busesAsked.size)
+        // The Flutter timer sent the next while the first waited, and the
+        // first, answering last, then stood over the newer answer
+        assertEquals(1, repository.busesAsked.size)
+        repository.busAnswer = null
         held.complete(Unit)
+        runCurrent()
+        assertFalse(model.screen.value.updatingBuses)
+
+        // The next 30 s after that answer
+        advanceTimeBy(29.seconds)
+        assertEquals(1, repository.busesAsked.size)
+        advanceTimeBy(2.seconds)
+        assertEquals(2, repository.busesAsked.size)
+    }
+
+    @Test
+    fun theButtonsAnswerIsNeverReplacedByTheRoundItCut() = test {
+        val repository = repository()
+        val model = viewModel(repository)
+        val held = CompletableDeferred<Unit>()
+        repository.busAnswer = { held.await() }
+        model.setShown(true)
+
+        repository.busAnswer = null
+        repository.buses = mapOf("A47" to emptyList())
+        model.refreshBuses()
+        held.complete(Unit)
+        runCurrent()
+
+        assertEquals(Loaded.Ready(emptyList<LineBus>()), model.screen.value.buses)
     }
 
     @Test

@@ -59,7 +59,7 @@ class ShownRoute(all: List<LineStop>, chosen: Int?) {
 /**
  * The Flutter LineScreen's state with its providers: a line's route, one
  * direction at a time, the stop picked along it, and the buses on the
- * line, asked again every [interval] while the screen is in view
+ * line, asked again [interval] after each answer while the screen is in view
  * (lineBusesProvider) and not at all while it is not.
  *
  * One per line screen, kept while it turns.
@@ -128,18 +128,18 @@ class LineViewModel(
     }
 
     /**
-     * Ask now and every [interval], each request on its own, as a periodic
-     * timer does; the buses on show stay until the first new answer
+     * Ask now, and [interval] after each answer; the buses on show stay
+     * until the first new answer. One request at a time, and a round
+     * started over cancels the one it replaces: the Flutter app's periodic
+     * timer let a slow answer overlap the next, and land over a newer one.
      */
     private fun startRound() {
         round?.cancel()
         state.update { it.copy(updatingBuses = true) }
         round = viewModelScope.launch {
             while (true) {
-                launch {
-                    val answer = loadCatching { repository.getLineBuses(line) }
-                    state.update { it.copy(buses = answer, updatingBuses = false) }
-                }
+                val answer = loadCatching { repository.getLineBuses(line) }
+                state.update { it.copy(buses = answer, updatingBuses = false) }
                 delay(interval)
             }
         }
