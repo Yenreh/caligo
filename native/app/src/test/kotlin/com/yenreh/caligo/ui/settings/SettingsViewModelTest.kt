@@ -2,11 +2,13 @@
 
 package com.yenreh.caligo.ui.settings
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.data.MockService.Companion.ok
 import com.yenreh.caligo.data.MockService.Companion.status
@@ -217,7 +219,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun aShareThatFailsSaysThereIsNothingToExportAsTheFlutterAppDoes() = runTest {
+    fun aShareThatFailsSaysTheExportFailed() = runTest {
         val device = device()
         device.cards.createCard(SettingsTestDevice.card)
         device.files.failure = IOException("No space left")
@@ -225,7 +227,9 @@ class SettingsViewModelTest {
 
         model.export().join()
 
-        assertEquals(SettingsMessage.NothingToExport, model.nextMessage())
+        // The Flutter app said there was nothing to export
+        assertEquals(SettingsMessage.ExportFailed, model.nextMessage())
+        assertEquals("Could not export the data", SettingsMessage.ExportFailed.text(ApplicationProvider.getApplicationContext<Context>().resources))
     }
 
     // Import

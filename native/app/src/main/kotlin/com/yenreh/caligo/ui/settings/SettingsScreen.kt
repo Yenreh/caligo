@@ -468,6 +468,7 @@ internal fun SettingsMessage.text(resources: Resources): String = when (this) {
     SettingsMessage.FarePriceUpdated -> resources.getString(R.string.fare_price_updated)
     SettingsMessage.CacheCleared -> resources.getString(R.string.cache_cleared)
     SettingsMessage.NothingToExport -> resources.getString(R.string.nothing_to_export)
+    SettingsMessage.ExportFailed -> resources.getString(R.string.export_error)
     is SettingsMessage.Imported -> when {
         count < 0 -> resources.getString(R.string.import_error)
         count == 0 -> resources.getString(R.string.no_new_items_imported)

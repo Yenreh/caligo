@@ -60,8 +60,10 @@ sealed interface SettingsMessage {
 
     data object CacheCleared : SettingsMessage
 
-    /** Also what a failed export says, as the Flutter app has it */
     data object NothingToExport : SettingsMessage
+
+    /** The backup could not be written or shared; the Flutter app said there was nothing to export */
+    data object ExportFailed : SettingsMessage
 
     /** [count] cards and stops added; 0 also when no file was picked, -1 for a failure */
     data class Imported(val count: Int) : SettingsMessage
@@ -155,17 +157,17 @@ class SettingsViewModel(
 
     /** Share a backup of everything saved; nothing to share, or a failure, is reported */
     fun export(): Job = viewModelScope.launch {
-        val shared = work.async {
+        val failure = work.async {
             try {
-                val text = backup.export() ?: return@async false
+                val text = backup.export() ?: return@async SettingsMessage.NothingToExport
                 files.share(text)
-                true
+                null
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                false
+                SettingsMessage.ExportFailed
             }
         }.await()
-        if (!shared) reports.send(SettingsMessage.NothingToExport)
+        failure?.let { reports.send(it) }
     }
 
     /**

@@ -170,6 +170,7 @@
     <string name="cache_desc">Stations, lines and stop positions</string>
     <string name="cache_cleared">Cached data cleared</string>
     <string name="nothing_to_export">There is nothing to export</string>
+    <string name="export_error">Could not export the data</string>
     <string name="import_error">Import error</string>
     <string name="no_new_items_imported">Nothing new to import</string>
     <plurals name="imported_items">

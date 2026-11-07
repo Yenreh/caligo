@@ -93,6 +93,7 @@ private val SettingsMessage.tone: LabTone
     get() = when (this) {
         SettingsMessage.FarePriceUpdated, SettingsMessage.CacheCleared -> LabTone.OK
         SettingsMessage.NothingToExport -> LabTone.NEUTRAL
+        SettingsMessage.ExportFailed -> LabTone.CRIT
         is SettingsMessage.Imported -> when {
             count < 0 -> LabTone.CRIT
             count == 0 -> LabTone.NEUTRAL

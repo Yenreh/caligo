@@ -170,6 +170,7 @@
     <string name="cache_desc">Estaciones, rutas y posiciones de paradas</string>
     <string name="cache_cleared">Caché borrada</string>
     <string name="nothing_to_export">No hay datos para exportar</string>
+    <string name="export_error">No se pudieron exportar los datos</string>
     <string name="import_error">Error al importar</string>
     <string name="no_new_items_imported">No hay nada nuevo para importar</string>
     <plurals name="imported_items">
