@@ -140,8 +140,10 @@ class AddStopScreenTest {
         compose.onNodeWithText("05:00 – 20:09").assertExists()
         compose.onNodeWithText("Running now").assertExists()
         compose.onNodeWithText("Not running now").assertExists()
-        // Without hours, the name alone and no status
-        assertEquals(2, compose.onAllNodes(hasText("A52"), useUnmergedTree = true).fetchSemanticsNodes().size)
+        // Without hours, the name once, on its chip, and no status: the
+        // Flutter list put it in the title too
+        assertEquals(1, compose.onAllNodes(hasText("A52"), useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertEquals(1, compose.onAllNodes(hasText("Hours unknown"), useUnmergedTree = true).fetchSemanticsNodes().size)
     }
 
     @Test

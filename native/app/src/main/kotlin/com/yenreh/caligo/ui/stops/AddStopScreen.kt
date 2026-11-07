@@ -320,7 +320,8 @@ private fun LinesTab(viewModel: LinesViewModel, query: TextFieldState, onLine: (
                             val running = lineHours?.runsAt(at)
                             LabListTile(
                                 title = if (lineHours == null) {
-                                    line.name
+                                    // The chip names it already: the Flutter title did again
+                                    stringResource(R.string.hours_unknown)
                                 } else {
                                     "${hhmm(lineHours.start)} – ${hhmm(lineHours.end)}"
                                 },
