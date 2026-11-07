@@ -100,24 +100,27 @@ class CardsViewModel(
     }
 
     /**
-     * Save a new card, then read them all again. True once saved; false,
-     * with [CardsState.error] set, if the save failed.
+     * Save a new card at the end of the list, then read them all again.
+     * True once saved; false, with [CardsState.error] set, if the save
+     * failed.
      */
     fun createCard(
         id: String,
         name: String,
         prefix: String = "",
         suffix: String = "",
-        position: Int = 0,
     ): Deferred<Boolean> = viewModelScope.async {
         saving {
+            // After every card saved, whether reordered or not: the Flutter
+            // app gave position 0, which sorts by name among the first
+            val last = repository.getAllCards().maxOfOrNull { it.position } ?: -1
             val card = CardEntity(
                 internalId = newInternalId(),
                 id = id,
                 name = name,
                 prefix = prefix,
                 suffix = suffix,
-                position = position,
+                position = last + 1,
             )
             repository.createCard(card)
         }

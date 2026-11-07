@@ -250,7 +250,8 @@ class CardsViewModelTest {
         assertEquals("Bus", created.name)
         assertEquals("1906", created.prefix)
         assertEquals("1", created.suffix)
-        assertEquals(0, created.position)
+        // After the one there
+        assertEquals(1, created.position)
         // No balance until one is asked for
         assertNull(created.balance)
         assertEquals(4, UUID.fromString(created.internalId).version())
@@ -285,14 +286,25 @@ class CardsViewModelTest {
     }
 
     @Test
-    fun aNewCardTakesPositionZeroAndSortsByNameAmongThoseThere() = test {
-        // As Dart does: not at the end of a list already reordered
+    fun aNewCardLandsAtTheEndOfAListReordered() = test {
+        // Dart gave it position 0, so it sorted by name among the first
         val repository = ordered()
         val cards = ready(repository)
 
         cards.createCard(id = "z", name = "Card 0").await()
 
-        assertEquals(listOf("z", "a", "b", "c"), cards.state.cards.map { it.id })
+        assertEquals(listOf("a", "b", "c", "z"), cards.state.cards.map { it.id })
+        assertEquals(3, cards.state.cards.last().position)
+    }
+
+    @Test
+    fun aNewCardLandsAtTheEndOfAListNeverReordered() = test {
+        val repository = FakeCardRepository(listOf(card("b"), card("c")))
+        val cards = ready(repository)
+
+        cards.createCard(id = "a", name = "A first by name").await()
+
+        assertEquals(listOf("b", "c", "a"), cards.state.cards.map { it.id })
     }
 
     @Test
