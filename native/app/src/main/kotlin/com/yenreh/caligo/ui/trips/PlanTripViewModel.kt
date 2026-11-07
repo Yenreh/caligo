@@ -130,6 +130,9 @@ data class PlanTripState(
 enum class PlanTripMessage {
     /** The locate button found no position */
     COULD_NOT_LOCATE,
+
+    /** Planning failed, by a read or the planner itself */
+    COULD_NOT_PLAN,
 }
 
 /**
@@ -341,7 +344,11 @@ class PlanTripViewModel(
                 refreshLive()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                // Dart let such an error go unhandled: the screen stays as it was
+                if (request != planRequest) return@launch
+                // Dart let such an error go unhandled, the spinner on for
+                // good: what is shown stays, and the planner says so
+                state.update { it.copy(planning = false) }
+                reports.trySend(PlanTripMessage.COULD_NOT_PLAN)
             }
         }
     }

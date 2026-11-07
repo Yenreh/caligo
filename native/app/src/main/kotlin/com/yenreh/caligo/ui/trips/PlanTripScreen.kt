@@ -186,10 +186,12 @@ fun PlanTripScreen(
     }
 
     val couldNotLocate = stringResource(R.string.could_not_locate)
+    val couldNotPlan = stringResource(R.string.could_not_plan)
     LaunchedEffect(viewModel) {
         viewModel.messages.collect {
             when (it) {
                 PlanTripMessage.COULD_NOT_LOCATE -> snackbars.show(couldNotLocate, LabTone.WARN)
+                PlanTripMessage.COULD_NOT_PLAN -> snackbars.show(couldNotPlan, LabTone.CRIT)
             }
         }
     }

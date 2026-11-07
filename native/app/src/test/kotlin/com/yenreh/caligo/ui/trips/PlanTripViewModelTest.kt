@@ -242,6 +242,16 @@ class PlanTripViewModelTest {
     }
 
     @Test
+    fun aPlanThatFailsEndsTheSpinnerAndSaysSo() = test {
+        val repository = repository().apply { learnedAnswer = { error("Disk gone") } }
+        val model = viewModel(repository)
+
+        // The Flutter planner spun for good
+        assertFalse(model.screen.value.planning)
+        assertEquals(PlanTripMessage.COULD_NOT_PLAN, withTimeoutOrNull(1_000) { model.messages.first() })
+    }
+
+    @Test
     fun aPlanOvertakenByANewerOneIsDropped() = test {
         val gate = CompletableDeferred<Unit>()
         var calls = 0
