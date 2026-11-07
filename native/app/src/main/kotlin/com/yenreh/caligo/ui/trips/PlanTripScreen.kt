@@ -239,6 +239,7 @@ fun PlanTripScreen(
                             },
                             enabled = from != null && to != null,
                             modifier = Modifier.testTag("google_maps"),
+                            withIcon = true,
                         ) {
                             Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))

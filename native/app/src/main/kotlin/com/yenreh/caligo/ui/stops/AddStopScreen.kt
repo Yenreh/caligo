@@ -160,9 +160,10 @@ fun AddStopScreen(
 }
 
 /**
- * Tabs with the icon above the label, as Flutter's stacked tabs: the
- * chosen one in ink with an accent underline, which the bar's rule then
- * paints over, as in the Flutter app
+ * Tabs with the icon above the label, as Flutter's stacked tabs: 72 high
+ * over the 2 of the indicator's weight, as a TabBar sizes itself; the
+ * chosen one in ink with an accent underline there, which the bar's rule
+ * then paints over, as in the Flutter app
  */
 @Composable
 private fun Tabs(pager: PagerState, tabs: List<AddStopTab>) {
@@ -171,7 +172,7 @@ private fun Tabs(pager: PagerState, tabs: List<AddStopTab>) {
     Row(
         Modifier
             .fillMaxWidth()
-            .height(72.dp)
+            .height(74.dp)
             .drawBehind {
                 val width = size.width / tabs.size
                 val at = (pager.currentPage + pager.currentPageOffsetFraction) * width
@@ -187,7 +188,7 @@ private fun Tabs(pager: PagerState, tabs: List<AddStopTab>) {
                     .weight(1f)
                     .fillMaxHeight()
                     .selectable(selected = selected, role = Role.Tab) { scope.launch { pager.animateScrollToPage(i) } }
-                    .padding(horizontal = 4.dp)
+                    .padding(start = 4.dp, end = 4.dp, bottom = 2.dp)
                     .testTag("tab_${tab.name.lowercase()}"),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,

@@ -31,6 +31,8 @@ fun LabTextButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    /** Flutter's TextButton.icon: 4 more after the label, which the icon leads */
+    withIcon: Boolean = false,
     content: @Composable RowScope.() -> Unit,
 ) {
     TextButton(
@@ -39,9 +41,12 @@ fun LabTextButton(
         enabled = enabled,
         shape = RectangleShape,
         colors = ButtonDefaults.textButtonColors(contentColor = LabTheme.palette.accent),
+        contentPadding = if (withIcon) ICON_TEXT_BUTTON_PADDING else ButtonDefaults.TextButtonContentPadding,
         content = content,
     )
 }
+
+private val ICON_TEXT_BUTTON_PADDING = PaddingValues(start = 12.dp, top = 8.dp, end = 16.dp, bottom = 8.dp)
 
 /** Outlined button in ink on a rule, the rule turning accent while pressed */
 @Composable
