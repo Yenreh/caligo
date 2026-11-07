@@ -174,14 +174,15 @@ class PlacePickerViewModel(
     /**
      * The device: where it was last seen answers at once, and the planner
      * then refines it with a fresh fix; without one, a fresh fix, asking
-     * for the permission
+     * for the permission. Once at a time: the Flutter row could be tapped
+     * again before its spinner showed.
      */
     fun useDevice() {
+        if (state.value.locating) return
+        state.update { it.copy(locating = true) }
         viewModelScope.launch {
-            val known = location.lastKnownDevicePosition()
-            state.update { it.copy(locating = true) }
             try {
-                val position = known ?: location.currentDevicePosition()
+                val position = location.lastKnownDevicePosition() ?: location.currentDevicePosition()
                 reports.send(
                     PlacePickerEvent.Picked(
                         TripPlace(position.latitude, position.longitude, names.myLocation, isDevice = true),

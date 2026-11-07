@@ -17,6 +17,7 @@ import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -152,6 +153,24 @@ class PlacePickerViewModelTest {
             PlacePickerEvent.Picked(TripPlace(3.41, -76.51, "My location", isDevice = true)),
             model.events.first(),
         )
+        assertFalse(model.screen.value.locating)
+    }
+
+    @Test
+    fun theDeviceIsAskedForOnceWhileItsFixIsOnItsWay() = test {
+        val gate = CompletableDeferred<Unit>()
+        val location = FakeLocationSource(permission = LocationPermission.GRANTED, current = GeoPoint(3.41, -76.51))
+        location.waiting = { gate.await() }
+        val model = viewModel(location = location)
+
+        model.useDevice()
+        assertTrue(model.screen.value.locating)
+        // The Flutter row could be tapped again before its spinner showed
+        model.useDevice()
+        gate.complete(Unit)
+
+        assertEquals(PlacePickerEvent.Picked(TripPlace(3.41, -76.51, "My location", isDevice = true)), model.events.first())
+        assertEquals(1, location.currentAsked.size)
         assertFalse(model.screen.value.locating)
     }
 
