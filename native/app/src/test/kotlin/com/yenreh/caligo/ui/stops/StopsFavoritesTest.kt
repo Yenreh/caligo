@@ -243,6 +243,27 @@ class StopsFavoritesTest {
     }
 
     @Test
+    fun aSaveAnswersOnceSavedWhileTheArrivalsRefreshBehind() = test {
+        val repository = FakeStopsRepository(
+            favorites = listOf(favorite("a", 3.45, -76.53)),
+            nearby = listOf(nearbyStop("a"), nearbyStop("b", arrivals = listOf(bus))),
+        )
+        val stops = ready(repository, settings = byPosition())
+        val gate = CompletableDeferred<Unit>()
+        repository.answer = { gate.await() }
+
+        val saving = stops.addFavorite(id = "b", stopId = "b", name = "Stop b", anchorLatitude = 3.47, anchorLongitude = -76.52)
+
+        // The details sheet closes on it: the Flutter app waited for the refresh too
+        assertTrue(saving.isCompleted)
+        assertTrue(saving.await())
+        assertEquals(listOf("a", "b"), ids(stops))
+        assertTrue(stops.state.isRefreshing)
+        gate.complete(Unit)
+        assertEquals(listOf(bus), stops.state.arrivals["b"])
+    }
+
+    @Test
     fun anAreaHasNoStopAndABlankLabelIsNone() = test {
         val repository = FakeStopsRepository(favorites = emptyList(), nearby = emptyList())
         val stops = ready(repository)

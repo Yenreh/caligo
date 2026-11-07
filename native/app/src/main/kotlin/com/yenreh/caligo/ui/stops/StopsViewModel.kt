@@ -497,8 +497,9 @@ class StopsViewModel(
     }
 
     /**
-     * Save a stop, or an area when [stopId] is null. True once saved, and
-     * the stops loaded again with their arrivals, as the Dart future ends.
+     * Save a stop, or an area when [stopId] is null. True once saved; the
+     * stops then load again with their arrivals behind it, so a screen can
+     * close at once, where the Flutter one waited for the arrivals too.
      */
     fun addFavorite(
         id: String,
@@ -522,7 +523,7 @@ class StopsViewModel(
                 ),
             )
         }
-        if (added) load()
+        if (added) viewModelScope.launch { load() }
         added
     }
 
