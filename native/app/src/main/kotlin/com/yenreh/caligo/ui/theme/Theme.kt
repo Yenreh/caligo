@@ -1,5 +1,8 @@
 package com.yenreh.caligo.ui.theme
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,6 +13,7 @@ import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -17,8 +21,10 @@ import androidx.compose.ui.graphics.Color
  * reserved for the one primary action and reaches components through
  * primaryContainer.
  */
-fun labColorScheme(p: LabPalette, dark: Boolean): ColorScheme {
-    val onAccent = if (dark) p.bg else p.onFill
+fun labColorScheme(p: LabPalette, dark: Boolean): ColorScheme = labColorScheme(p, onAccent = if (dark) p.bg else p.onFill)
+
+/** The scheme on [p], with [onAccent] over the accent: bg in dark, onFill in light */
+private fun labColorScheme(p: LabPalette, onAccent: Color): ColorScheme {
     // Unset Flutter slots fall back to their base colour: the containers
     // and fixed colours of secondary and tertiary to the colour itself
     return ColorScheme(
@@ -83,15 +89,24 @@ private val labShapes = Shapes(
     extraLarge = square,
 )
 
-/** Light or dark following the system */
+/**
+ * Light or dark following the system. A change fades from one to the
+ * other over 200 ms, as MaterialApp's AnimatedTheme lerps ThemeData,
+ * the palette's colours mixed channel by channel as Color.lerp does.
+ */
 @Composable
 fun CaliGoTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val palette = if (darkTheme) LabPalette.Dark else LabPalette.Light
+    val darkness by animateFloatAsState(
+        targetValue = if (darkTheme) 1f else 0f,
+        animationSpec = tween(THEME_ANIMATION_MILLIS, easing = LinearEasing),
+        label = "theme",
+    )
+    val palette = LabPalette.Light.lerp(LabPalette.Dark, darkness)
     MaterialTheme(
-        colorScheme = labColorScheme(palette, darkTheme),
+        colorScheme = labColorScheme(palette, onAccent = lerpChannels(LabPalette.Light.onFill, LabPalette.Dark.bg, darkness)),
         typography = labTypography(palette),
         shapes = labShapes,
     ) {
@@ -103,6 +118,9 @@ fun CaliGoTheme(
         )
     }
 }
+
+/** Flutter's kThemeAnimationDuration */
+private const val THEME_ANIMATION_MILLIS = 200
 
 /** The palette of the current theme */
 object LabTheme {

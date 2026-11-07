@@ -24,6 +24,27 @@ data class LabPalette(
     val warn: Color,
     val crit: Color,
 ) {
+    /** This palette [t] of the way to [other], as the Flutter extension's lerp */
+    fun lerp(other: LabPalette, t: Float): LabPalette = when (t) {
+        0f -> this
+        1f -> other
+        else -> LabPalette(
+            bg = lerpChannels(bg, other.bg, t),
+            paper = lerpChannels(paper, other.paper, t),
+            paper2 = lerpChannels(paper2, other.paper2, t),
+            rule = lerpChannels(rule, other.rule, t),
+            ruleSoft = lerpChannels(ruleSoft, other.ruleSoft, t),
+            ink = lerpChannels(ink, other.ink, t),
+            muted = lerpChannels(muted, other.muted, t),
+            accent = lerpChannels(accent, other.accent, t),
+            fill = lerpChannels(fill, other.fill, t),
+            onFill = lerpChannels(onFill, other.onFill, t),
+            ok = lerpChannels(ok, other.ok, t),
+            warn = lerpChannels(warn, other.warn, t),
+            crit = lerpChannels(crit, other.crit, t),
+        )
+    }
+
     companion object {
         val Dark = LabPalette(
             bg = Color(0xFF15121A),
@@ -60,3 +81,14 @@ data class LabPalette(
 }
 
 val LocalLabPalette = staticCompositionLocalOf { LabPalette.Light }
+
+/**
+ * [a] [t] of the way to [b], each sRGB channel apart, as Flutter's
+ * Color.lerp mixes; Compose's own lerp goes through Oklab
+ */
+fun lerpChannels(a: Color, b: Color, t: Float): Color = Color(
+    red = a.red + (b.red - a.red) * t,
+    green = a.green + (b.green - a.green) * t,
+    blue = a.blue + (b.blue - a.blue) * t,
+    alpha = a.alpha + (b.alpha - a.alpha) * t,
+)
