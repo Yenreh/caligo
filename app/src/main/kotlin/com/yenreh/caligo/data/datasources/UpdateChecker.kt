@@ -79,9 +79,11 @@ class UpdateChecker(
         )
 
         /**
-         * The release workflow builds one APK per ABI; old 32-bit phones
-         * take the armeabi-v7a one, everything else arm64-v8a. Like Dart's
-         * `Abi.current()`, this asks what the process runs as.
+         * Which of a release's APK names this device takes: armeabi-v7a on
+         * old 32-bit phones, arm64-v8a on everything else. The Flutter
+         * releases built one APK per ABI; since 5.0.0 both names are the
+         * same universal APK, kept so those releases find the new ones.
+         * Like Dart's `Abi.current()`, this asks what the process runs as.
          */
         fun deviceAbi(): String = if (Process.is64Bit()) "arm64-v8a" else "armeabi-v7a"
 
