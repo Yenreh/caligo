@@ -1,18 +1,14 @@
 package com.yenreh.caligo.ui.common
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 /**
  * A value loading, as a Riverpod AsyncValue shows one through `when`:
@@ -40,36 +36,29 @@ suspend fun <T> loadCatching(load: suspend () -> T): Loaded<T> = try {
 
 /**
  * A load that lives as long as the screen part holding it, as a Riverpod
- * autoDispose provider: started when it first shows, cancelled when it
- * leaves, and run again by [reload], which Riverpod's invalidate does.
+ * autoDispose provider: started when it first shows, retried by itself
+ * as [RetryingLoad] is, cancelled when it leaves, and run again by
+ * [reload], which Riverpod's invalidate does.
  */
 @Stable
-class Loader<T> internal constructor(private val scope: CoroutineScope, private val load: suspend () -> T) {
-    var state: Loaded<T> by mutableStateOf(Loaded.Loading)
-        private set
-
-    private var job: Job? = null
-
-    internal suspend fun first() {
-        if (job != null || state != Loaded.Loading) return
-        val answer = loadCatching(load)
-        // A reload asked for meanwhile has the last word
-        if (job == null) state = answer
-    }
+class Loader<T> internal constructor(private val load: RetryingLoad<T>) {
+    /** What there is to show */
+    val state: Loaded<T>
+        @Composable get() = load.state.collectAsState().value
 
     /** Ask again, the last answer on show meanwhile */
-    fun reload() {
-        job?.cancel()
-        job = scope.launch { state = loadCatching(load) }
-    }
+    fun reload() = load.reload()
 }
 
 /** A [Loader] of [load], started at once and again whenever [key] changes */
 @Composable
-fun <T> rememberLoader(key: Any?, load: suspend () -> T): Loader<T> {
+fun <T> rememberLoader(key: Any?, retry: RetryRule = ProviderRetry.default, load: suspend () -> T): Loader<T> {
     val scope = rememberCoroutineScope()
     val current by rememberUpdatedState(load)
-    val loader = remember(key) { Loader(scope) { current() } }
-    LaunchedEffect(loader) { loader.first() }
-    return loader
+    val running = remember(key) { RetryingLoad(scope, retry) { current() } }
+    DisposableEffect(running) {
+        running.watch()
+        onDispose { running.cancel() }
+    }
+    return remember(running) { Loader(running) }
 }

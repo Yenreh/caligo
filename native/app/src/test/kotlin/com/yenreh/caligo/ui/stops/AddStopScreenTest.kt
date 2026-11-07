@@ -20,6 +20,7 @@ import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.TransitLine
+import com.yenreh.caligo.ui.common.ProviderRetry
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
 import com.yenreh.caligo.ui.favorite
@@ -82,8 +83,10 @@ class AddStopScreenTest {
             repository,
             location = location,
             settings = MutableStateFlow(Settings(isLoading = false)),
+            // The failures themselves; RetryTest has their retries
+            retry = ProviderRetry.none,
         )
-        val lines = LinesViewModel(repository)
+        val lines = LinesViewModel(repository, retry = ProviderRetry.none)
         compose.setContent {
             CaliGoTheme {
                 AddStopScreen(

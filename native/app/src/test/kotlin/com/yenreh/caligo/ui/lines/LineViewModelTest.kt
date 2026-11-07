@@ -108,12 +108,30 @@ class LineViewModelTest {
     fun aRouteThatFailsCanBeAskedForAgain() = test {
         val repository = repository().apply { routeFailure = NetworkApiException("Connection error") }
         val model = viewModel(repository)
+        // Tried again by itself, loading meanwhile, as Riverpod retries the provider
+        assertEquals(Loaded.Loading, model.screen.value.stops)
+        advanceTimeBy(60.seconds)
         assertTrue(model.screen.value.stops is Loaded.Failed)
+        assertEquals(11, repository.routesAsked.size)
 
         repository.routeFailure = null
         model.reloadStops()
 
         assertEquals(Loaded.Ready(route), model.screen.value.stops)
+    }
+
+    @Test
+    fun aRouteThatFailsOnceComesByItself() = test {
+        val repository = repository().apply { routeFailure = NetworkApiException("Connection error") }
+        val model = viewModel(repository)
+
+        repository.routeFailure = null
+        advanceTimeBy(199)
+        assertEquals(Loaded.Loading, model.screen.value.stops)
+        advanceTimeBy(2)
+
+        assertEquals(Loaded.Ready(route), model.screen.value.stops)
+        assertEquals(2, repository.routesAsked.size)
     }
 
     @Test
@@ -266,13 +284,52 @@ class LineViewModelTest {
 
         repository.busFailure = NetworkApiException("Connection error")
         advanceTimeBy(31.seconds)
+        // Tried again by itself, the buses hidden and the button spinning meanwhile
+        assertEquals(Loaded.Loading, model.screen.value.buses)
+        assertTrue(model.screen.value.updatingBuses)
+
+        repository.busFailure = null
+        advanceTimeBy(1.seconds)
+        assertEquals(1, model.screen.value.buses.valueOrNull!!.size)
+        assertFalse(model.screen.value.updatingBuses)
+    }
+
+    @Test
+    fun busesThatKeepFailingShowTheFailureAndTheRoundGoesOn() = test {
+        val repository = repository()
+        val model = viewModel(repository)
+        model.setShown(true)
+
+        repository.busFailure = NetworkApiException("Connection error")
+        advanceTimeBy(30.seconds + 39.seconds)
+        // The first round's failure, then ten more tries, then the failure shown
+        assertEquals(12, repository.busesAsked.size)
         assertTrue(model.screen.value.buses is Loaded.Failed)
         assertNull(model.screen.value.buses.valueOrNull)
         assertFalse(model.screen.value.updatingBuses)
 
+        // No more tries of its own: the next round 30 s on
         repository.busFailure = null
-        advanceTimeBy(30.seconds)
+        advanceTimeBy(29.seconds)
+        assertEquals(12, repository.busesAsked.size)
+        advanceTimeBy(2.seconds)
         assertEquals(1, model.screen.value.buses.valueOrNull!!.size)
+    }
+
+    @Test
+    fun outOfViewTheBusesStartTheirTriesAfresh() = test {
+        val repository = repository().apply { busFailure = NetworkApiException("Connection error") }
+        val model = viewModel(repository)
+        model.setShown(true)
+        advanceTimeBy(60.seconds)
+        assertEquals(11, repository.busesAsked.size)
+
+        // A provider let go and watched again counts from nought
+        model.setShown(false)
+        model.setShown(true)
+        advanceTimeBy(1.seconds)
+        // At once, then 200 and 600 ms on
+        assertEquals(14, repository.busesAsked.size)
     }
 
     @Test
@@ -352,17 +409,21 @@ class LinesViewModelTest {
         assertEquals(0, repository.lineCalls)
 
         model.watchLines()
+        // Tried again by itself, loading meanwhile
+        assertEquals(Loaded.Loading, model.lines.value)
+        advanceTimeBy(60_000)
         assertTrue(model.lines.value is Loaded.Failed)
+        assertEquals(11, repository.lineCalls)
         repository.catalogFailure = null
         // A failure is kept too, until asked again
         model.watchLines()
-        assertEquals(1, repository.lineCalls)
+        assertEquals(11, repository.lineCalls)
         assertTrue(model.lines.value is Loaded.Failed)
 
         model.reloadLines()
         assertEquals(Loaded.Ready(listOf(TransitLine(347, "A47"))), model.lines.value)
         model.watchLines()
-        assertEquals(2, repository.lineCalls)
+        assertEquals(12, repository.lineCalls)
     }
 
     @Test
@@ -378,9 +439,11 @@ class LinesViewModelTest {
         model.watchHours()
         assertEquals(emptyMap<String, LineHours>(), model.hours.value)
 
-        // The Flutter provider kept the failure for the run
+        // Tried again by itself, where the Flutter provider kept the failure for the run
         repository.hourFailure = null
         model.watchHours()
+        assertEquals(1, repository.hourCalls)
+        advanceTimeBy(201)
         assertEquals(2, repository.hourCalls)
         assertEquals(hours, model.hours.value)
 

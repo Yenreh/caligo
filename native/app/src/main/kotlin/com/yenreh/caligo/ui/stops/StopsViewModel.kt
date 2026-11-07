@@ -26,7 +26,9 @@ import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.metersBetween
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import com.yenreh.caligo.ui.common.Loaded
-import com.yenreh.caligo.ui.common.loadCatching
+import com.yenreh.caligo.ui.common.ProviderRetry
+import com.yenreh.caligo.ui.common.RetryRule
+import com.yenreh.caligo.ui.common.RetryingLoad
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -102,6 +104,8 @@ class StopsViewModel(
     private val location: LocationSource = NoLocation,
     /** The app's settings, for the order of the stops */
     private val settings: StateFlow<Settings> = MutableStateFlow(Settings(isLoading = false)),
+    /** When a failed load is tried again by itself, as Riverpod retries a provider */
+    val retry: RetryRule = ProviderRetry.default,
 ) : ViewModel() {
     private val state = MutableStateFlow(StopsState(isLoading = true))
     val stops: StateFlow<StopsState> = state.asStateFlow()
@@ -639,27 +643,22 @@ class StopsViewModel(
     suspend fun refreshStop(stop: NearbyStop, anchorLatitude: Double, anchorLongitude: Double): NearbyStop =
         refreshStopArrivals(repository, stop, anchorLatitude, anchorLongitude)
 
-    private val stationsState = MutableStateFlow<Loaded<List<Station>>>(Loaded.Loading)
-    private var stationsJob: Job? = null
+    private val stationsLoad = RetryingLoad(viewModelScope, retry) { repository.getStations() }
 
     /**
      * The MIO station catalog, used to add favorites without GPS:
-     * stationsProvider, which loads on first use, [watchStations], and
-     * keeps its answer, even a failure, for the app's life until
+     * stationsProvider, which loads on first use, [watchStations], is
+     * retried by itself while it fails, and keeps its answer, even a
+     * failure once the retries are spent, for the app's life until
      * [reloadStations]
      */
-    val stations: StateFlow<Loaded<List<Station>>> = stationsState.asStateFlow()
+    val stations: StateFlow<Loaded<List<Station>>> = stationsLoad.state
 
     /** Load the catalog unless it already is */
-    fun watchStations() {
-        if (stationsJob == null) reloadStations()
-    }
+    fun watchStations() = stationsLoad.watch()
 
     /** Ask for the catalog again, the last answer on show meanwhile */
-    fun reloadStations() {
-        stationsJob?.cancel()
-        stationsJob = viewModelScope.launch { stationsState.value = loadCatching { repository.getStations() } }
-    }
+    fun reloadStations() = stationsLoad.reload()
 
     /**
      * Refresh arrivals while [watcher], a screen listing them, is on show,

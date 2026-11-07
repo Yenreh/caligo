@@ -23,6 +23,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -238,7 +239,17 @@ class MapStopsViewModelTest {
         val model = viewModel(repository = repository)
 
         model.searchHere()
+        // Tried again by itself, loading meanwhile, as Riverpod retries the provider
+        assertEquals(Loaded.Loading, model.screen.value.results)
+        repository.failure = null
+        advanceTimeBy(200)
+        runCurrent()
+        assertTrue(model.screen.value.results is Loaded.Ready)
 
+        repository.failure = NetworkApiException("Connection error")
+        model.searchHere()
+        advanceTimeBy(60_000)
+        runCurrent()
         assertTrue(model.screen.value.results is Loaded.Failed)
     }
 

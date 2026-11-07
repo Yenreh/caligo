@@ -16,6 +16,7 @@ import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.Station
+import com.yenreh.caligo.ui.common.ProviderRetry
 import com.yenreh.caligo.ui.FakeStopsRepository
 import com.yenreh.caligo.ui.favorite
 import com.yenreh.caligo.ui.theme.CaliGoTheme
@@ -44,7 +45,7 @@ class StationStopsScreenTest {
     )
 
     private fun show(repository: FakeStopsRepository) {
-        val viewModel = StopsViewModel(repository, settings = MutableStateFlow(Settings(isLoading = false)))
+        val viewModel = StopsViewModel(repository, settings = MutableStateFlow(Settings(isLoading = false)), retry = ProviderRetry.none)
         compose.setContent {
             CaliGoTheme { StationStopsScreen(station, viewModel, onBack = {}, onDone = { done.add(Unit) }) }
         }

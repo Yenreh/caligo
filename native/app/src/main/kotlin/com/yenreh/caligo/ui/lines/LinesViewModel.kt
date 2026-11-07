@@ -11,7 +11,10 @@ import com.yenreh.caligo.domain.entities.LineHours
 import com.yenreh.caligo.domain.entities.TransitLine
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import com.yenreh.caligo.ui.common.Loaded
-import com.yenreh.caligo.ui.common.loadCatching
+import com.yenreh.caligo.ui.common.AutoRetry
+import com.yenreh.caligo.ui.common.ProviderRetry
+import com.yenreh.caligo.ui.common.RetryRule
+import com.yenreh.caligo.ui.common.RetryingLoad
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.days
 import kotlinx.coroutines.Job
@@ -22,33 +25,29 @@ import kotlinx.coroutines.launch
 
 /**
  * Every MIO line and the hours each runs: the Flutter app's linesProvider
- * and lineHoursProvider. Each loads on first use. The lines keep their
- * answer for the app's life, even a failure, until [reloadLines]; the
- * hours keep theirs for a day, and a failure until next asked, where the
- * Flutter provider kept either for the run.
+ * and lineHoursProvider. Each loads on first use and is retried by itself
+ * while it fails, as Riverpod retries a provider. The lines keep their
+ * answer for the app's life, even a failure once the retries are spent,
+ * until [reloadLines]; the hours keep theirs for a day, and a failure
+ * until next asked, where the Flutter provider kept either for the run.
  *
  * One per activity, shared by the screens that show lines.
  */
 class LinesViewModel(
     private val repository: StopsRepository,
     private val now: () -> Long = System::currentTimeMillis,
+    retry: RetryRule = ProviderRetry.default,
 ) : ViewModel() {
-    private val linesState = MutableStateFlow<Loaded<List<TransitLine>>>(Loaded.Loading)
-    private var linesJob: Job? = null
+    private val linesLoad = RetryingLoad(viewModelScope, retry) { repository.getLines() }
 
     /** Every MIO line, by name */
-    val lines: StateFlow<Loaded<List<TransitLine>>> = linesState.asStateFlow()
+    val lines: StateFlow<Loaded<List<TransitLine>>> = linesLoad.state
 
     /** Load the lines unless they already are */
-    fun watchLines() {
-        if (linesJob == null) reloadLines()
-    }
+    fun watchLines() = linesLoad.watch()
 
     /** Ask for the lines again, the last answer on show meanwhile */
-    fun reloadLines() {
-        linesJob?.cancel()
-        linesJob = viewModelScope.launch { linesState.value = loadCatching { repository.getLines() } }
-    }
+    fun reloadLines() = linesLoad.reload()
 
     private val hoursState = MutableStateFlow<Map<String, LineHours>>(emptyMap())
     private var hoursJob: Job? = null
@@ -76,9 +75,21 @@ class LinesViewModel(
      * day, as long as the cache keeps them
      */
     fun watchHours() {
-        if (hoursJob?.isActive == true) return
+        if (hoursJob?.isActive == true || hoursRetrying) return
         val at = hoursAt
         if (at != null && now() - at < HOURS_MAX_AGE.inWholeMilliseconds) return
+        loadHours()
+    }
+
+    /**
+     * Whether a failed load of the hours waits to be tried again by
+     * itself; the hours on show stay meanwhile
+     */
+    private var hoursRetrying = false
+    private val hoursRetry = AutoRetry(viewModelScope, retry)
+
+    private fun loadHours() {
+        hoursRetrying = false
         hoursJob = viewModelScope.launch {
             val answer = try {
                 repository.getLineHours().also { hoursAt = now() }
@@ -86,8 +97,9 @@ class LinesViewModel(
                 if (e is CancellationException) throw e
                 // Any failure: the Flutter provider turns an ApiException
                 // into no hours, and its screens read any other as none too.
-                // Hours already had stay.
+                // Hours already had stay, and the load is tried again.
                 hoursAt = null
+                hoursRetrying = hoursRetry.afterFailure(e, ::loadHours)
                 hoursState.value
             }
             hoursState.value = answer

@@ -13,7 +13,10 @@ import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.entities.LineBus
 import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.repositories.StopsRepository
+import com.yenreh.caligo.ui.common.AutoRetry
 import com.yenreh.caligo.ui.common.Loaded
+import com.yenreh.caligo.ui.common.ProviderRetry
+import com.yenreh.caligo.ui.common.RetryRule
 import com.yenreh.caligo.ui.common.loadCatching
 import com.yenreh.caligo.ui.map.LabMapState
 import kotlin.time.Duration
@@ -68,6 +71,8 @@ class LineViewModel(
     val line: String,
     private val repository: StopsRepository,
     private val interval: Duration = LINE_BUSES_INTERVAL,
+    /** When a failed request is tried again by itself, as Riverpod retries a provider */
+    private val retry: RetryRule = ProviderRetry.default,
 ) : ViewModel() {
     private val state = MutableStateFlow(LineScreenState())
     val screen: StateFlow<LineScreenState> = state.asStateFlow()
@@ -77,19 +82,30 @@ class LineViewModel(
         private set
 
     private var stopsJob: Job? = null
+    private val stopsRetry = AutoRetry(viewModelScope, retry)
     private var round: Job? = null
     private var shown = false
 
+    /** The buses' retries, counted while the screen is in view, as their provider lives */
+    private var busesRetry = AutoRetry(viewModelScope, retry)
+
     init {
-        reloadStops()
+        loadStops()
     }
 
     /** Ask for the route again, the last answer on show meanwhile: lineStopsProvider invalidated */
     fun reloadStops() {
+        stopsRetry.cancel()
+        loadStops()
+    }
+
+    /** A failure is tried again by itself, the screen loading meanwhile */
+    private fun loadStops() {
         stopsJob?.cancel()
         stopsJob = viewModelScope.launch {
             val answer = loadCatching { repository.getLineStops(line) }
-            state.update { it.copy(stops = answer) }
+            val retrying = answer is Loaded.Failed && stopsRetry.afterFailure(answer.error, ::loadStops)
+            state.update { it.copy(stops = if (retrying) Loaded.Loading else answer) }
         }
     }
 
@@ -114,8 +130,10 @@ class LineViewModel(
         if (shown == this.shown) return
         this.shown = shown
         if (shown) {
+            busesRetry = AutoRetry(viewModelScope, retry)
             startRound()
         } else {
+            busesRetry.cancel()
             round?.cancel()
             round = null
             state.update { it.copy(buses = Loaded.Loading, updatingBuses = true) }
@@ -124,7 +142,9 @@ class LineViewModel(
 
     /** Start the round over: positions now, the next in [interval] */
     fun refreshBuses() {
-        if (shown) startRound()
+        if (!shown) return
+        busesRetry.cancel()
+        startRound()
     }
 
     /**
@@ -132,6 +152,8 @@ class LineViewModel(
      * until the first new answer. One request at a time, and a round
      * started over cancels the one it replaces: the Flutter app's periodic
      * timer let a slow answer overlap the next, and land over a newer one.
+     * A failure starts the round over by itself, as Riverpod retries the
+     * provider, with the buses hidden and the button spinning meanwhile.
      */
     private fun startRound() {
         round?.cancel()
@@ -139,6 +161,10 @@ class LineViewModel(
         round = viewModelScope.launch {
             while (true) {
                 val answer = loadCatching { repository.getLineBuses(line) }
+                if (answer is Loaded.Failed && busesRetry.afterFailure(answer.error, ::startRound)) {
+                    state.update { it.copy(buses = Loaded.Loading, updatingBuses = true) }
+                    return@launch
+                }
                 state.update { it.copy(buses = answer, updatingBuses = false) }
                 delay(interval)
             }

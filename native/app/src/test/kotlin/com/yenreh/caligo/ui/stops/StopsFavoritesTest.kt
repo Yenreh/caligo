@@ -30,6 +30,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -664,8 +665,11 @@ class StopsFavoritesTest {
 
         stops.watchStations()
         stops.watchStations()
+        // Tried again by itself, loading meanwhile, as Riverpod retries the provider
+        assertEquals(Loaded.Loading, stops.stations.value)
+        advanceTimeBy(60_000)
         assertTrue(stops.stations.value is Loaded.Failed)
-        assertEquals(1, repository.stationCalls)
+        assertEquals(11, repository.stationCalls)
 
         repository.catalogFailure = null
         repository.stations = listOf(Station(1, "Estación Alamos", "Av 3N - Cl 52N", 3.48, -76.51))
@@ -674,7 +678,7 @@ class StopsFavoritesTest {
 
         stops.reloadStations()
         assertEquals("Estación Alamos", stops.stations.value.valueOrNull?.single()?.name)
-        assertEquals(2, repository.stationCalls)
+        assertEquals(12, repository.stationCalls)
     }
 
     @Test

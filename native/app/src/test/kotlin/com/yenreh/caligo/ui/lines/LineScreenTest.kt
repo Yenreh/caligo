@@ -21,6 +21,7 @@ import com.yenreh.caligo.data.datasources.NetworkApiException
 import com.yenreh.caligo.domain.entities.LineBus
 import com.yenreh.caligo.domain.entities.LineHours
 import com.yenreh.caligo.domain.entities.LineStop
+import com.yenreh.caligo.ui.common.ProviderRetry
 import com.yenreh.caligo.ui.FakeStopsRepository
 import com.yenreh.caligo.ui.map.FixtureTiles
 import com.yenreh.caligo.ui.stops.OpenStop
@@ -79,7 +80,7 @@ class LineScreenTest {
     }
 
     private fun show(repository: FakeStopsRepository = repository(), hours: LineHours? = null): LineViewModel {
-        val model = LineViewModel("A47", repository)
+        val model = LineViewModel("A47", repository, retry = ProviderRetry.none)
         compose.setContent {
             CaliGoTheme {
                 LineScreen(

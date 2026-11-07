@@ -25,6 +25,7 @@ import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
+import com.yenreh.caligo.ui.common.ProviderRetry
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
 import com.yenreh.caligo.ui.lines.LinesViewModel
@@ -80,7 +81,7 @@ class MapStopsScreenTest {
         location: FakeLocationSource = FakeLocationSource(),
         carto: Boolean = true,
     ): MapStopsViewModel {
-        val model = MapStopsViewModel(repository, location, cache, CoroutineScope(SupervisorJob() + Dispatchers.Unconfined))
+        val model = MapStopsViewModel(repository, location, cache, CoroutineScope(SupervisorJob() + Dispatchers.Unconfined), ProviderRetry.none)
         compose.setContent {
             if (shown) CaliGoTheme {
                 MapStopsScreen(

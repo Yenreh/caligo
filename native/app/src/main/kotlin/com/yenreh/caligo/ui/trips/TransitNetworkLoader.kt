@@ -1,16 +1,15 @@
 package com.yenreh.caligo.ui.trips
 
-import com.yenreh.caligo.data.datasources.ApiException
 import com.yenreh.caligo.domain.TransitNetwork
 import com.yenreh.caligo.domain.repositories.StopsRepository
+import com.yenreh.caligo.ui.common.AutoRetry
+import com.yenreh.caligo.ui.common.ProviderRetry
+import com.yenreh.caligo.ui.common.RetryRule
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,10 +43,8 @@ data class NetworkLoad(
  * that needs it.
  *
  * A load that fails is tried again on its own, as Riverpod 3 retries a
- * provider: ten times at most over the run, 200 ms after the first
- * failure and twice as long after each next one, 6.4 s at most. A
- * [reload] in between, the screen's Retry, starts at once and spends
- * none of them.
+ * provider ([AutoRetry]): ten times at most over the run. A [reload] in
+ * between, the screen's Retry, starts at once and spends none of them.
  */
 class TransitNetworkLoader(
     private val repository: StopsRepository,
@@ -55,16 +52,15 @@ class TransitNetworkLoader(
     private val scope: CoroutineScope,
     /** Where the network is put together: thousands of stops, off the main thread */
     private val building: CoroutineDispatcher = Dispatchers.Default,
-    /** How long to wait before the next automatic try, after [retries] of them; null for no more */
-    private val retryAfter: (retries: Int, error: Throwable) -> Duration? = ::riverpodRetry,
+    /** When a failed load is tried again by itself */
+    retry: RetryRule = ProviderRetry.default,
 ) {
     private val state = MutableStateFlow(NetworkLoad())
     val load: StateFlow<NetworkLoad> = state.asStateFlow()
 
     private val lock = Any()
     private var job: Job? = null
-    private var retry: Job? = null
-    private var retries = 0
+    private val retries = AutoRetry(scope, retry, lock)
 
     /** Counts the loads started, so a superseded one reports nothing */
     private var generation = 0
@@ -79,8 +75,7 @@ class TransitNetworkLoader(
 
     /** Under [lock] */
     private fun start() {
-        retry?.cancel()
-        retry = null
+        retries.cancel()
         job?.cancel()
         val load = ++generation
         fun current() = synchronized(lock) { load == generation }
@@ -97,40 +92,9 @@ class TransitNetworkLoader(
                 synchronized(lock) {
                     if (load != generation) return@launch
                     state.update { it.copy(error = e) }
-                    scheduleRetry(e)
+                    retries.afterFailure(e, ::start)
                 }
             }
         }
-    }
-
-    /** Under [lock] */
-    private fun scheduleRetry(error: Throwable) {
-        val wait = retryAfter(retries, error) ?: return
-        retry = scope.launch {
-            delay(wait)
-            synchronized(lock) {
-                if (retry !== coroutineContext[Job]) return@launch
-                retry = null
-                retries++
-                start()
-            }
-        }
-    }
-
-    companion object {
-        /**
-         * Riverpod 3's default retry: ten times, from 200 ms doubling to
-         * 6.4 s. Dart Errors are bugs and are not retried; here only the
-         * service's failures stand for Dart Exceptions.
-         */
-        fun riverpodRetry(retries: Int, error: Throwable): Duration? {
-            if (retries >= MAX_RETRIES || error !is ApiException) return null
-            val wait = MIN_RETRY_DELAY * (1 shl retries)
-            return if (wait > MAX_RETRY_DELAY) MAX_RETRY_DELAY else wait
-        }
-
-        private const val MAX_RETRIES = 10
-        private val MIN_RETRY_DELAY = 200.milliseconds
-        private val MAX_RETRY_DELAY = 6400.milliseconds
     }
 }

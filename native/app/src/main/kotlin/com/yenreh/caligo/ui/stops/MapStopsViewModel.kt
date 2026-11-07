@@ -17,7 +17,10 @@ import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.distanceBetween
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.repositories.StopsRepository
+import com.yenreh.caligo.ui.common.AutoRetry
 import com.yenreh.caligo.ui.common.Loaded
+import com.yenreh.caligo.ui.common.ProviderRetry
+import com.yenreh.caligo.ui.common.RetryRule
 import com.yenreh.caligo.ui.map.LabMapState
 import com.yenreh.caligo.ui.map.MapCamera
 import kotlin.coroutines.cancellation.CancellationException
@@ -63,11 +66,16 @@ class MapStopsViewModel(
     private val cache: JsonCache,
     /** Outlives the screen: the camera is saved on it as the map goes */
     private val work: CoroutineScope,
+    /** When a failed search is tried again by itself, as Riverpod retries a provider */
+    private val retry: RetryRule = ProviderRetry.default,
 ) : ViewModel() {
     private val state = MutableStateFlow(MapStopsState())
     val screen: StateFlow<MapStopsState> = state.asStateFlow()
 
     private var search: Job? = null
+
+    /** The retries of the point last searched around, which has a provider of its own */
+    private var searchRetry: AutoRetry? = null
 
     /** The quiet fix on opening, while it is on its way */
     private var quiet: Job? = null
@@ -157,16 +165,27 @@ class MapStopsViewModel(
         }
     }
 
-    /** Look for stops around the point under the crosshair */
+    /**
+     * Look for stops around the point under the crosshair; a failure is
+     * tried again by itself, loading meanwhile
+     */
     fun searchHere() {
         val center = state.value.map?.camera?.center ?: return
         state.update { it.copy(searched = center, selectedStopId = null, results = Loaded.Loading) }
+        searchRetry?.cancel()
+        val retries = AutoRetry(viewModelScope, retry)
+        searchRetry = retries
+        searchAround(center, retries)
+    }
+
+    private fun searchAround(center: GeoPoint, retries: AutoRetry) {
         search?.cancel()
         search = viewModelScope.launch {
             repository.locatedStops(center.latitude, center.longitude)
                 .catch { e ->
                     if (e is CancellationException) throw e
-                    state.update { it.copy(results = Loaded.Failed(e)) }
+                    val retrying = retries.afterFailure(e) { searchAround(center, retries) }
+                    state.update { it.copy(results = if (retrying) Loaded.Loading else Loaded.Failed(e)) }
                 }
                 .collect { stops -> state.update { it.copy(results = Loaded.Ready(stops)) } }
         }

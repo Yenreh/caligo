@@ -63,7 +63,7 @@ fun StationStopsScreen(
     val p = LabTheme.palette
     val scope = rememberCoroutineScope()
     // A list with no map: the stops need no placing beyond what is known
-    val stops = rememberLoader(station) { viewModel.nearbyAt(station.latitude, station.longitude) }
+    val stops = rememberLoader(station, viewModel.retry) { viewModel.nearbyAt(station.latitude, station.longitude) }
     var naming by rememberSaveable { mutableStateOf(false) }
     var details by remember { mutableStateOf<OpenStop?>(null) }
     val snackbars = rememberLabSnackbars()

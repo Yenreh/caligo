@@ -166,15 +166,4 @@ class TransitNetworkLoaderTest {
         assertEquals(1, repository.allRoutesCalls)
         assertTrue(loader.load.value.failed)
     }
-
-    @Test
-    fun waitsAsRiverpodThreeRetries() {
-        val error = NetworkApiException("Connection error")
-        assertEquals(200.milliseconds, TransitNetworkLoader.riverpodRetry(0, error))
-        assertEquals(400.milliseconds, TransitNetworkLoader.riverpodRetry(1, error))
-        assertEquals(6400.milliseconds, TransitNetworkLoader.riverpodRetry(5, error))
-        assertEquals(6400.milliseconds, TransitNetworkLoader.riverpodRetry(9, error))
-        assertNull(TransitNetworkLoader.riverpodRetry(10, error))
-        assertNull(TransitNetworkLoader.riverpodRetry(0, IllegalStateException()))
-    }
 }

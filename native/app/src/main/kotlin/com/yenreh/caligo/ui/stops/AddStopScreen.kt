@@ -353,7 +353,7 @@ private fun LinesTab(viewModel: LinesViewModel, query: TextFieldState, onLine: (
 @Composable
 private fun NearbyTab(viewModel: StopsViewModel, onOpen: (OpenStop) -> Unit) {
     val p = LabTheme.palette
-    val nearby = rememberLoader(viewModel) { viewModel.nearbyStops() }
+    val nearby = rememberLoader(viewModel, viewModel.retry) { viewModel.nearbyStops() }
 
     when (val state = nearby.state) {
         Loaded.Loading -> Spinner()
