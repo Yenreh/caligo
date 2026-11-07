@@ -37,9 +37,12 @@ import kotlinx.coroutines.flow.flow
  */
 class FakeCardRepository(
     cards: List<CardEntity>,
-    private val failing: Set<String> = emptySet(),
+    failing: Set<String> = emptySet(),
 ) : CardRepository {
     val cards = cards.toMutableList()
+
+    /** Numbers whose balance the service refuses */
+    val failing = failing.toMutableSet()
     val asked = mutableListOf<String>()
     var failure: Throwable? = null
     var answer: (suspend () -> Unit)? = null

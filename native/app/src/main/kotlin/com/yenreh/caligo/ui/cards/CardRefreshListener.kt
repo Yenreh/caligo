@@ -57,10 +57,11 @@ fun ListenCardRefresh(viewModel: CardsViewModel, snackbars: LabSnackbars) {
                     actionLabel = failedCardId?.let { resources.getString(R.string.retry) },
                     onAction = { if (failedCardId != null) viewModel.refreshCardBalance(failedCardId) },
                 )
-                // Cleared after a beat, as the Flutter app does
+                // The message is let go after a beat, so the same error can
+                // show again; the card stays marked until its next refresh
                 launch {
                     delay(100.milliseconds)
-                    viewModel.clearRefreshError()
+                    viewModel.clearRefreshMessage()
                 }
             }
 

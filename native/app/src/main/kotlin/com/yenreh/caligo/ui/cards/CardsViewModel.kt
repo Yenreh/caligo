@@ -233,7 +233,8 @@ class CardsViewModel(
                 error = null,
                 failedAction = null,
                 refreshError = null,
-                refreshFailedCardId = null,
+                // Another card marked out of date stays so
+                refreshFailedCardId = it.refreshFailedCardId.takeUnless { failed -> failed == cardId },
             )
         }
         return viewModelScope.launch {
@@ -338,6 +339,13 @@ class CardsViewModel(
 
     /** Clear the last refresh error and the failed card flag */
     fun clearRefreshError() = set { it.copy(refreshError = null, refreshFailedCardId = null) }
+
+    /**
+     * Clear the last refresh error once shown, keeping the failed card
+     * flag: its balance is still the last known one until a refresh of it
+     * answers. The Flutter app cleared both, so the notice flashed.
+     */
+    fun clearRefreshMessage() = set { it.copy(refreshError = null) }
 
     fun clearError() = set { it.copy(error = null, failedAction = null) }
 

@@ -261,6 +261,31 @@ class CardsRouteTest {
     }
 
     @Test
+    fun aFailedRefreshKeepsTheStaleNoticeUntilTheNextRefresh() {
+        val repository = FakeCardRepository(HomeSamples.cards, failing = setOf("06051869"))
+        val viewModel = show(repository)
+
+        cardButton("Update balance", 1).performClick()
+        waitFor(hasText("Balance service is unavailable. Try again later."))
+        // Past the beat after which the message is let go
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Last known balance").assertExists()
+        assertEquals("06051869", viewModel.cards.value.refreshFailedCardId)
+
+        // Another card's refresh says nothing of this one
+        cardButton("Update balance", 0).performClick()
+        waitFor(hasText("Balance updated"))
+        compose.onNodeWithText("Last known balance").assertExists()
+
+        // Its own next refresh, once it answers, lets it go
+        repository.failing.clear()
+        cardButton("Update balance", 1).performClick()
+        compose.waitUntil(5_000) { !exists(hasText("Last known balance")) }
+    }
+
+    @Test
     fun aSuccessAnnouncedBeforeTheScreenOpenedIsNotAnnouncedAgain() {
         val repository = FakeCardRepository(HomeSamples.cards)
         val viewModel = CardsViewModel(repository)
