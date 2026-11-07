@@ -170,6 +170,8 @@ fun <T> LabReorderableList(
  * touch: until the press is long enough the touch is theirs, a tap or a
  * scroll; once it is, every move is this drag's and they get none. On the
  * Main pass, as Compose's own detector works, the list would scroll first.
+ * The press is Flutter's, [HOLD_TO_DRAG_MILLIS], with no haptic feedback,
+ * as its delayed drag start gives none.
  */
 private suspend fun PointerInputScope.detectHoldAndDrag(
     onStart: (y: Float) -> Boolean,
@@ -178,7 +180,7 @@ private suspend fun PointerInputScope.detectHoldAndDrag(
 ) = awaitEachGesture {
     val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
     // Null once the wait runs out still pressed and still: a long press
-    val shortOrMoved = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+    val shortOrMoved = withTimeoutOrNull(HOLD_TO_DRAG_MILLIS) {
         while (true) {
             val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id }
                 ?: break
@@ -284,6 +286,13 @@ private class ReorderDrag(private val list: LazyListState) {
         onDrop(key, offset)
     }
 }
+
+/**
+ * How long an item is held before it follows the finger: Flutter's
+ * kLongPressTimeout, which its ReorderableListView waits on a phone,
+ * where Android's own long press is 400 ms
+ */
+internal const val HOLD_TO_DRAG_MILLIS = 500L
 
 /** The fastest the list scrolls under a held item, in pixels a frame */
 private const val MAX_SCROLL_PER_FRAME = 24f

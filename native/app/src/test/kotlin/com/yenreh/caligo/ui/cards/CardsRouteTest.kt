@@ -26,6 +26,7 @@ import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.ui.FakeCardRepository
 import com.yenreh.caligo.ui.home.HomeSamples
+import com.yenreh.caligo.ui.lab.HOLD_TO_DRAG_MILLIS
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
@@ -333,7 +334,7 @@ class CardsRouteTest {
         item("Mía").performTouchInput {
             down(center)
             // Past the long press, then down over the next card
-            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            advanceEventTime(HOLD_TO_DRAG_MILLIS + 100)
             repeat(10) { moveBy(Offset(0f, height / 10f)) }
             moveBy(Offset(0f, height / 4f))
             up()
@@ -345,13 +346,33 @@ class CardsRouteTest {
     }
 
     @Test
+    fun aHoldShorterThanFluttersLongPressMovesNothing() {
+        val repository = FakeCardRepository(HomeSamples.cards)
+        val viewModel = show(repository)
+        val height = item("Mía").fetchSemanticsNode().size.height.toFloat()
+
+        item("Mía").performTouchInput {
+            down(center)
+            // Past Android's long press, short of Flutter's
+            advanceEventTime(450)
+            repeat(10) { moveBy(Offset(0f, height / 10f)) }
+            moveBy(Offset(0f, height / 4f))
+            up()
+        }
+        compose.waitForIdle()
+
+        assertEquals(listOf("Mía", "Universidad"), viewModel.cards.value.cards.map { it.name })
+        assertTrue(repository.updated.isEmpty())
+    }
+
+    @Test
     fun aDragLetGoWhereItStartedChangesNothing() {
         val repository = FakeCardRepository(HomeSamples.cards)
         val viewModel = show(repository)
 
         item("Mía").performTouchInput {
             down(center)
-            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            advanceEventTime(HOLD_TO_DRAG_MILLIS + 100)
             moveBy(Offset(0f, 20f))
             moveBy(Offset(0f, -20f))
             up()
