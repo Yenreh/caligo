@@ -21,6 +21,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.domain.entities.CardEntity
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.domain.entities.Settings
@@ -68,7 +69,7 @@ class CardsRouteTest {
 
     private fun exists(matcher: SemanticsMatcher) = compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { exists(matcher) }
+    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
     /** The list item holding the card named [name], the one that moves */
     private fun item(name: String) =
@@ -170,7 +171,7 @@ class CardsRouteTest {
         ).assertExists()
 
         compose.onNodeWithText("Cancel").performClick()
-        compose.waitUntil(5_000) { !exists(hasText("Delete Card")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(hasText("Delete Card")) }
 
         assertTrue(repository.deleted.isEmpty())
         names.assertCountEquals(2)
@@ -186,7 +187,7 @@ class CardsRouteTest {
         // The sheet's button, not the cards' icon buttons
         compose.onNode(hasText("Delete")).performClick()
 
-        compose.waitUntil(5_000) { !exists(hasText("Mía")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(hasText("Mía")) }
         assertEquals(listOf("06051868"), repository.deleted)
         compose.onNodeWithText("Universidad").assertExists()
         compose.onNodeWithText("Delete Card").assertDoesNotExist()
@@ -257,7 +258,7 @@ class CardsRouteTest {
 
         waitFor(hasText("Balance service is unavailable. Try again later."))
         compose.onNodeWithText("Retry").performClick()
-        compose.waitUntil(5_000) { repository.asked.size == 2 }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { repository.asked.size == 2 }
         assertEquals(listOf("06051869", "06051869"), repository.asked)
     }
 
@@ -283,7 +284,7 @@ class CardsRouteTest {
         // Its own next refresh, once it answers, lets it go
         repository.failing.clear()
         cardButton("Update balance", 1).performClick()
-        compose.waitUntil(5_000) { !exists(hasText("Last known balance")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(hasText("Last known balance")) }
     }
 
     @Test
@@ -409,7 +410,7 @@ class CardsRouteTest {
 
         runBlocking { viewModel.createCard(id = "06051868", name = "Mía").await() }
 
-        compose.waitUntil(5_000) { repository.asked.isNotEmpty() }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { repository.asked.isNotEmpty() }
         assertEquals(listOf("06051868"), repository.asked)
         // Quietly: no message for a refresh nobody asked for
         compose.waitForIdle()

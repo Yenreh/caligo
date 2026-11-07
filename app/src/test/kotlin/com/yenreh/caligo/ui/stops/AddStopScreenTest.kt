@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.datasources.NetworkApiException
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.GeoPoint
@@ -113,9 +114,9 @@ class AddStopScreenTest {
     private fun exists(matcher: SemanticsMatcher) =
         compose.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { exists(matcher) }
+    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
-    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { !exists(matcher) }
+    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(matcher) }
 
     // The title
 
@@ -290,7 +291,7 @@ class AddStopScreenTest {
 
         compose.onNodeWithText("Retry").performClick()
 
-        compose.waitUntil(5_000) { repository.nearbyCalls == 2 }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { repository.nearbyCalls == 2 }
     }
 
     // The details of a stop found

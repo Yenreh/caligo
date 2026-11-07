@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.datasources.NetworkApiException
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.entities.BusArrival
@@ -55,7 +56,7 @@ class StationStopsScreenTest {
     private fun exists(matcher: SemanticsMatcher) =
         compose.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { exists(matcher) }
+    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
     @Test
     fun listsThePlatformsAroundTheStation() {
@@ -94,7 +95,7 @@ class StationStopsScreenTest {
         compose.onNodeWithTag("custom_name").performTextReplacement("U")
         compose.onNodeWithText("Save").performClick()
 
-        compose.waitUntil(5_000) { done.isNotEmpty() }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { done.isNotEmpty() }
         val area = repository.added.single()
         assertEquals("station-12", area.id)
         assertEquals("Estación Universidades", area.name)
@@ -165,7 +166,7 @@ class StationStopsScreenTest {
         waitFor(hasTestTag("stop_name_dialog"))
         compose.onNodeWithText("Save").performClick()
 
-        compose.waitUntil(5_000) { repository.added.isNotEmpty() }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { repository.added.isNotEmpty() }
         val added = repository.added.single()
         assertEquals("520101", added.stopId)
         assertEquals(GeoPoint(3.37, -76.53), GeoPoint(added.anchorLatitude, added.anchorLongitude))

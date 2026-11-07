@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.datasources.NetworkApiException
 import com.yenreh.caligo.domain.entities.LineBus
 import com.yenreh.caligo.domain.entities.LineHours
@@ -104,7 +105,7 @@ class LineScreenTest {
     private fun exists(matcher: SemanticsMatcher) =
         compose.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { exists(matcher) }
+    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
     private val refresh = hasContentDescription("Update bus positions")
 
@@ -222,7 +223,7 @@ class LineScreenTest {
 
         compose.onNodeWithText("Tv 103 con Kr 28F").performClick()
 
-        compose.waitUntil(5_000) { opened.isNotEmpty() }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { opened.isNotEmpty() }
         val open = opened.last()
         assertEquals("514484", open.stop.id)
         assertEquals(0.0, open.stop.distanceMeters, 0.0)
@@ -240,7 +241,7 @@ class LineScreenTest {
 
         compose.onNodeWithTag("route_stop_500300", useUnmergedTree = true).performTouchInput { click() }
 
-        compose.waitUntil(5_000) { opened.isNotEmpty() }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { opened.isNotEmpty() }
         assertEquals("500300", opened.last().stop.id)
         assertEquals("500300", model.screen.value.selectedStopId)
     }
@@ -273,7 +274,7 @@ class LineScreenTest {
         waitFor(hasTestTag("bus_32051"))
 
         shown = false
-        compose.waitUntil(5_000) { exists(hasTestTag("updating_buses")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { exists(hasTestTag("updating_buses")) }
         assertFalse(exists(hasTestTag("bus_32051")))
         assertEquals(1, repository.busesAsked.size)
 

@@ -19,6 +19,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.viewModelScope
 import androidx.navigation3.runtime.NavKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.TripPlace
 import kotlinx.coroutines.isActive
@@ -65,9 +66,9 @@ class PlanTripNavigationTest {
     private fun exists(matcher: SemanticsMatcher) =
         compose.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { exists(matcher) }
+    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
-    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { !exists(matcher) }
+    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(matcher) }
 
     private fun systemBack() = compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
 
@@ -118,7 +119,7 @@ class PlanTripNavigationTest {
 
         waitFor(home)
         // The screen went with its view model: nothing left asking
-        compose.waitUntil(5_000) { !planners.single().first.viewModelScope.isActive }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { !planners.single().first.viewModelScope.isActive }
     }
 
     @Test

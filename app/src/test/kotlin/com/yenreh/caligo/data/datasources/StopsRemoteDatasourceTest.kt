@@ -1,5 +1,6 @@
 package com.yenreh.caligo.data.datasources
 
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.MockService
 import com.yenreh.caligo.data.MockService.Companion.dropped
 import com.yenreh.caligo.data.MockService.Companion.ok
@@ -253,7 +254,7 @@ class StopsRemoteDatasourceTest {
 
         // Saved a moment later, for a whole batch at once
         val saved = withContext(Dispatchers.Default) {
-            withTimeout(5_000) {
+            withTimeout(WAIT_TIMEOUT_MS) {
                 var kept: JsonElement? = null
                 while (kept == null) {
                     kept = cache.read("stop_positions")

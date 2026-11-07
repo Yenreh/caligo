@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.CaliGoApp
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import kotlinx.coroutines.runBlocking
@@ -45,9 +46,9 @@ class AppNavigationTest {
 
     private fun exists(matcher: SemanticsMatcher) = compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { exists(matcher) }
+    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
-    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { !exists(matcher) }
+    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(matcher) }
 
     private val settingsButton = hasContentDescription("Settings")
     private val settingsTitle = hasText("Settings")

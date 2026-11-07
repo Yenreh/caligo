@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.domain.entities.CardEntity
 import com.yenreh.caligo.ui.FakeCardRepository
 import com.yenreh.caligo.ui.home.HomeSamples
@@ -154,7 +155,7 @@ class CardFormRouteTest {
 
         submit()
 
-        compose.waitUntil(5_000) { compose.onAllNodes(hasText("Error creating card")).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasText("Error creating card")).fetchSemanticsNodes().isNotEmpty() }
         assertEquals(0, done)
         field("card_submit").assertIsEnabled()
         // Told here: not left to show elsewhere as a failed balance update
@@ -199,7 +200,7 @@ class CardFormRouteTest {
         submit()
 
         gate.complete(Unit)
-        compose.waitUntil(5_000) { done == 1 }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { done == 1 }
         assertEquals(1, ids.count { it == "06051870" })
     }
 
@@ -305,7 +306,7 @@ class CardFormRouteTest {
 
         submit()
 
-        compose.waitUntil(5_000) {
+        compose.waitUntil(WAIT_TIMEOUT_MS) {
             compose.onAllNodes(hasText("Error saving changes")).fetchSemanticsNodes().isNotEmpty()
         }
         assertEquals(0, done)
@@ -343,7 +344,7 @@ class CardFormRouteTest {
         compose.onNodeWithText("No cards").assertExists()
 
         loaded.complete(Unit)
-        compose.waitUntil(5_000) { compose.onAllNodes(hasText("Mía")).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasText("Mía")).fetchSemanticsNodes().isNotEmpty() }
         assertEquals("06051868", text("card_id"))
         field("card_name").performTextInput("!")
         assertEquals("Mía!", text("card_name"))

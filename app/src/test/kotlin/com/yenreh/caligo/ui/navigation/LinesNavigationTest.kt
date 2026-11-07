@@ -21,6 +21,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.CaliGoApp
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.domain.entities.LineBus
 import com.yenreh.caligo.domain.entities.LineStop
@@ -97,9 +98,9 @@ class LinesNavigationTest {
     private fun exists(matcher: SemanticsMatcher) =
         compose.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { exists(matcher) }
+    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
-    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { !exists(matcher) }
+    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(matcher) }
 
     private fun systemBack() = compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
 
@@ -141,7 +142,7 @@ class LinesNavigationTest {
         waitGone(hasText("Chiminangos"))
         waitFor(hasText("A47"))
         // The screen went with its view model: no round is left asking
-        compose.waitUntil(5_000) { !lineModels.single().viewModelScope.isActive }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { !lineModels.single().viewModelScope.isActive }
         assertEquals(asked, repository.busesAsked.size)
         assertFalse(exists(hasContentDescription("Update bus positions")))
     }

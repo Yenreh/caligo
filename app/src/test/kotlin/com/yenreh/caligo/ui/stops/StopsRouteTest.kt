@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.datasources.NetworkApiException
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.FavoriteStop
@@ -76,9 +77,9 @@ class StopsRouteTest {
     /** The line toggle of [line] in the edit sheet */
     private fun toggle(line: String) = hasTestTag("line_toggle") and hasAnyDescendant(hasText(line))
 
-    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { exists(matcher) }
+    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
-    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { !exists(matcher) }
+    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(matcher) }
 
     /** The button named [description] on the stop titled [title] */
     private fun button(title: String, description: String) = compose.onNode(
@@ -189,7 +190,7 @@ class StopsRouteTest {
         chosen.performClick()
         compose.onNodeWithText("Save").performClick()
 
-        compose.waitUntil(5_000) { repository.saved.isNotEmpty() }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { repository.saved.isNotEmpty() }
         assertTrue(repository.saved.single().lines.isEmpty())
     }
 
@@ -227,7 +228,7 @@ class StopsRouteTest {
         compose.onNodeWithText("42 m").assertExists()
         compose.onNodeWithText("Stop z").performClick()
 
-        compose.waitUntil(5_000) { repository.saved.any { it.stopId == "z" } }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { repository.saved.any { it.stopId == "z" } }
         val relinked = repository.saved.first { it.stopId == "z" }
         assertEquals("a", relinked.id)
         assertEquals(0, relinked.missingCount)
@@ -255,7 +256,7 @@ class StopsRouteTest {
         repository.failure = null
         val calls = repository.nearbyCalls
         compose.onNodeWithText("Retry").performClick()
-        compose.waitUntil(5_000) { repository.nearbyCalls > calls }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { repository.nearbyCalls > calls }
     }
 
     @Test

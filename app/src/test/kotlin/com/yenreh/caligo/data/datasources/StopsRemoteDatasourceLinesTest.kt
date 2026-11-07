@@ -1,5 +1,6 @@
 package com.yenreh.caligo.data.datasources
 
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.MockService
 import com.yenreh.caligo.data.MockService.Companion.dropped
 import com.yenreh.caligo.data.MockService.Companion.ok
@@ -56,7 +57,7 @@ class StopsRemoteDatasourceLinesTest {
 
     /** Wait on the real clock, as the background work runs on its own threads */
     private suspend fun eventually(check: suspend () -> Boolean) = withContext(Dispatchers.Default) {
-        withTimeout(5_000) {
+        withTimeout(WAIT_TIMEOUT_MS) {
             while (!check()) delay(20)
         }
     }

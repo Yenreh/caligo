@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.GeocodedPlace
@@ -211,7 +212,7 @@ class PlacePickerScreenTest {
         compose.onNodeWithTag("search_address").assertIsNotEnabled()
 
         gate.complete(Unit)
-        compose.waitUntil(5_000) { !exists(hasTestTag("searching")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(hasTestTag("searching")) }
         assertEquals(1, geocoder.asked.size)
     }
 
@@ -262,7 +263,7 @@ class PlacePickerScreenTest {
 
         gate.complete(Unit)
 
-        compose.waitUntil(5_000) { exists(hasText("Could not get your location")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { exists(hasText("Could not get your location")) }
         assertFalse(exists(hasTestTag("locating")))
         assertTrue(picked.isEmpty())
     }

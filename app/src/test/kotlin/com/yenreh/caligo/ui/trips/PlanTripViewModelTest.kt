@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.datasources.ServerApiException
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.GeoPoint
@@ -278,7 +279,7 @@ class PlanTripViewModelTest {
         val model = viewModel(repository(), planning = planning)
 
         val state = withContext(Dispatchers.Default) {
-            withTimeout(5_000) { model.screen.first { it.plans != null && !it.fetchingLive } }
+            withTimeout(WAIT_TIMEOUT_MS) { model.screen.first { it.plans != null && !it.fetchingLive } }
         }
         assertEquals(1, state.options.size)
         // The plan ran on the planning dispatcher, and never on the main thread

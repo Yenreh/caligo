@@ -20,6 +20,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.datasources.NetworkApiException
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.GeoPoint
@@ -101,9 +102,9 @@ class MapStopsScreenTest {
     private fun exists(matcher: SemanticsMatcher) =
         compose.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { exists(matcher) }
+    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
-    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { !exists(matcher) }
+    private fun waitGone(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(matcher) }
 
     private val searchHere = hasContentDescription("Search here")
 
@@ -163,7 +164,7 @@ class MapStopsScreenTest {
 
         compose.onNodeWithTag("marker_500751", useUnmergedTree = true).performTouchInput { click() }
 
-        compose.waitUntil(5_000) { opened.isNotEmpty() }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { opened.isNotEmpty() }
         val open = opened.single()
         assertEquals("500751", open.stop.id)
         // Its details look around the point searched
@@ -267,8 +268,8 @@ class MapStopsScreenTest {
 
         compose.onNodeWithContentDescription("My location").performClick()
 
-        compose.waitUntil(5_000) { location.requests == 1 }
-        compose.waitUntil(5_000) { model.screen.value.map!!.camera.center.latitude == 3.42 }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { location.requests == 1 }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { model.screen.value.map!!.camera.center.latitude == 3.42 }
     }
 
     @Test

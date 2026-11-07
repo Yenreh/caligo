@@ -1,5 +1,6 @@
 package com.yenreh.caligo.data.map
 
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -212,7 +213,7 @@ class MapTileCacheTest {
         val cache = MapTileCache(folder, maxBytes = 1100)
         cache.get(url)
 
-        val deadline = System.currentTimeMillis() + 5_000
+        val deadline = System.currentTimeMillis() + WAIT_TIMEOUT_MS
         while (cache.sizeInBytes() > 1100 && System.currentTimeMillis() < deadline) Thread.sleep(20)
         assertEquals(1030L, cache.sizeInBytes())
     }

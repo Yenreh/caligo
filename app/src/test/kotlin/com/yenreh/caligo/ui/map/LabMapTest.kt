@@ -2,6 +2,7 @@ package com.yenreh.caligo.ui.map
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -26,7 +27,9 @@ import androidx.compose.ui.test.swipeWithVelocity
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.domain.GeoPoint
+import java.time.Duration
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -39,6 +42,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -94,7 +98,19 @@ class LabMapTest {
         return "$zoom/$x/$y"
     }
 
-    private fun waitForTile(tiles: FixtureTiles, tile: String) = compose.waitUntil(10_000) { tile in tiles.asked }
+    /**
+     * Wait for [condition] while the map's timed work runs: MapCompose
+     * throttles and debounces its tile and marker updates on the main looper,
+     * whose clock Robolectric moves only when told, so each look moves it on
+     * 20 ms. Without that, a move from code with no frame pending never asks
+     * for its tiles.
+     */
+    private fun waitOnMap(condition: () -> Boolean) = compose.waitUntil(WAIT_TIMEOUT_MS) {
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20))
+        condition()
+    }
+
+    private fun waitForTile(tiles: FixtureTiles, tile: String) = waitOnMap { tile in tiles.asked }
 
     /** Where a node's centre lies on screen, in pixels */
     private fun centreOf(tag: String): Offset {
@@ -150,7 +166,7 @@ class LabMapTest {
         waitForTile(tiles, tileOf(cali, 16))
         // At least the 2 by 2 around the centre, on their own threads; waited
         // for, not assumed asked within a sleep
-        compose.waitUntil(10_000) { tiles.asked.toSet().size >= 4 }
+        waitOnMap { tiles.asked.toSet().size >= 4 }
         Thread.sleep(300)
         compose.waitForIdle()
 
@@ -164,7 +180,7 @@ class LabMapTest {
         val tiles = FixtureTiles()
         show(LabMapState(MapCamera(cali, 16.0)), tiles)
         waitForTile(tiles, tileOf(cali, 16))
-        compose.waitUntil(10_000) {
+        waitOnMap {
             // The fixture's paper, not the grey under the tiles
             window().getPixel(5, 5) != 0xFFE0E0E0.toInt()
         }
@@ -174,7 +190,7 @@ class LabMapTest {
     fun aDarkMapFromLightTilesIsDrawnInverted() {
         val light = FixtureTiles()
         show(LabMapState(MapCamera(cali, 16.0)), FixtureTiles(inverted = true, id = "inverted"))
-        compose.waitUntil(10_000) { window().getPixel(5, 5) != 0xFFE0E0E0.toInt() }
+        waitOnMap { window().getPixel(5, 5) != 0xFFE0E0E0.toInt() }
         val pixel = window().getPixel(5, 5)
         // The fixture's light paper comes out dark
         val brightness = (pixel shr 16 and 0xFF) + (pixel shr 8 and 0xFF) + (pixel and 0xFF)
@@ -187,7 +203,7 @@ class LabMapTest {
     @Test
     fun drawsAMarkerCentredOnItsPlace() {
         show(LabMapState(MapCamera(cali, 16.0)), markers = listOf(LabMapMarker("a", cali)))
-        compose.waitUntil(5_000) { exists(hasTestTag("marker_a")) }
+        waitOnMap { exists(hasTestTag("marker_a")) }
 
         val map = compose.onNodeWithTag("map").fetchSemanticsNode().boundsInRoot.center
         val marker = centreOf("marker_a")
@@ -198,7 +214,7 @@ class LabMapTest {
     @Test
     fun placesEachMarkerAtItsDistance() {
         show(LabMapState(MapCamera(cali, 17.0)), markers = listOf(LabMapMarker("a", cali), LabMapMarker("b", ermita)))
-        compose.waitUntil(5_000) { exists(hasTestTag("marker_b")) }
+        waitOnMap { exists(hasTestTag("marker_b")) }
 
         val a = centreOf("marker_a")
         val b = centreOf("marker_b")
@@ -221,11 +237,11 @@ class LabMapTest {
                 fadeIn = false,
             )
         }
-        compose.waitUntil(5_000) { exists(hasTestTag("marker_a")) }
+        waitOnMap { exists(hasTestTag("marker_a")) }
 
         markers = listOf(LabMapMarker("b", ermita))
 
-        compose.waitUntil(5_000) { exists(hasTestTag("marker_b")) && !exists(hasTestTag("marker_a")) }
+        waitOnMap { exists(hasTestTag("marker_b")) && !exists(hasTestTag("marker_a")) }
     }
 
     @Test
@@ -234,18 +250,18 @@ class LabMapTest {
             LabMapState(MapCamera(cali, 17.0)),
             markers = listOf(LabMapMarker("a", cali), LabMapMarker("b", ermita)),
         )
-        compose.waitUntil(5_000) { exists(hasTestTag("marker_b")) }
+        waitOnMap { exists(hasTestTag("marker_b")) }
 
         compose.onNodeWithTag("marker_b", useUnmergedTree = true).performTouchInput { click() }
 
-        compose.waitUntil(5_000) { tapped.isNotEmpty() }
+        waitOnMap { tapped.isNotEmpty() }
         assertEquals(listOf("b"), tapped)
     }
 
     @Test
     fun aTapAwayFromTheMarkersSaysNothing() {
         show(LabMapState(MapCamera(cali, 17.0)), markers = listOf(LabMapMarker("a", cali)))
-        compose.waitUntil(5_000) { exists(hasTestTag("marker_a")) }
+        waitOnMap { exists(hasTestTag("marker_a")) }
 
         compose.onNodeWithTag("map").performTouchInput { click(Offset(20f, 20f)) }
         compose.mainClock.advanceTimeBy(1_000)
@@ -262,7 +278,7 @@ class LabMapTest {
             tiles = FixtureTiles(dark = true),
             polylines = listOf(LabMapPolyline("route", listOf(cali, east), Color(0xFF0000FF), width = 6.dp)),
         )
-        compose.waitUntil(10_000) { window().getPixel(5, 5) != 0xFFE0E0E0.toInt() }
+        waitOnMap { window().getPixel(5, 5) != 0xFFE0E0E0.toInt() }
 
         // Halfway along the line, right of the centre, on the screen's middle row
         val map = compose.onNodeWithTag("map").fetchSemanticsNode().boundsInRoot

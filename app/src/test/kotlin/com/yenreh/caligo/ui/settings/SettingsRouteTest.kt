@@ -22,6 +22,7 @@ import androidx.core.app.ActivityOptionsCompat
 import androidx.core.content.IntentCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.MockService.Companion.ok
 import com.yenreh.caligo.data.MockService.Companion.status
 import com.yenreh.caligo.domain.entities.AppThemeMode
@@ -102,7 +103,7 @@ class SettingsRouteTest {
         compose.onNodeWithText(text).performScrollTo().performClick()
     }
 
-    private fun waitForText(text: String) = compose.waitUntil(10_000) {
+    private fun waitForText(text: String) = compose.waitUntil(WAIT_TIMEOUT_MS) {
         compose.onAllNodes(androidx.compose.ui.test.hasText(text)).fetchSemanticsNodes().isNotEmpty()
     }
 
@@ -172,7 +173,7 @@ class SettingsRouteTest {
         tap("Export data")
 
         val started = shadowOf(app)
-        compose.waitUntil(10_000) { started.peekNextStartedActivity() != null }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { started.peekNextStartedActivity() != null }
         val chooser = started.nextStartedActivity
         assertEquals(Intent.ACTION_CHOOSER, chooser.action)
         val send = IntentCompat.getParcelableExtra(chooser, Intent.EXTRA_INTENT, Intent::class.java)!!

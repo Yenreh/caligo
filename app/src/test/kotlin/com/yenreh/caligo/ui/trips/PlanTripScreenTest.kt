@@ -25,6 +25,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.domain.LiveArrivals
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.TripPlace
@@ -93,7 +94,7 @@ class PlanTripScreenTest {
     private fun exists(matcher: SemanticsMatcher) =
         compose.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(5_000) { exists(matcher) }
+    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
     private val PlanTripViewModel.option get() = (screen.value.results as PlanResults.Options).rows.first().option
 
@@ -193,7 +194,7 @@ class PlanTripScreenTest {
         compose.onNodeWithTag("option_0").assertExists()
 
         gate.complete(Unit)
-        compose.waitUntil(5_000) { !exists(hasTestTag("replanning")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(hasTestTag("replanning")) }
         compose.onNodeWithText("Nearer").assertExists()
     }
 
@@ -328,7 +329,7 @@ class PlanTripScreenTest {
         assertEquals(listOf(1.minutes, Duration.ZERO), repository.tripAsked.map { it.second })
 
         gate.complete(Unit)
-        compose.waitUntil(5_000) { !exists(hasTestTag("fetching_live")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(hasTestTag("fetching_live")) }
         compose.onNodeWithContentDescription("Update times").assertIsEnabled()
     }
 
@@ -367,12 +368,12 @@ class PlanTripScreenTest {
         show(model)
         compose.onNodeWithTag("locating", useUnmergedTree = true).assertExists()
         gate.complete(Unit)
-        compose.waitUntil(5_000) { !exists(hasTestTag("locating")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(hasTestTag("locating")) }
 
         location.waiting = null
         compose.onNodeWithContentDescription("Update my location").performClick()
 
-        compose.waitUntil(5_000) { exists(hasText("Could not get your location")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { exists(hasText("Could not get your location")) }
         assertEquals(2, location.currentAsked.size)
     }
 

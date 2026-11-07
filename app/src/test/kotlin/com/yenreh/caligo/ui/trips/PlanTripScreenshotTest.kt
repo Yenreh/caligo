@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.DpSize
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.GeocodedPlace
@@ -84,7 +85,7 @@ class PlanTripScreenshotTest {
      * clock moves here only when told.
      */
     private fun waitForTiles(tiles: FixtureTiles, zoom: Int) {
-        compose.waitUntil(10_000) {
+        compose.waitUntil(WAIT_TIMEOUT_MS) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
             tiles.asked.count { it.startsWith("$zoom/") } >= 4
         }
@@ -126,7 +127,7 @@ class PlanTripScreenshotTest {
         val tiles = FixtureTiles(dark = dark)
         planner(model, tiles, dark)
         compose.onNodeWithTag("option_${model.screen.value.order.first()}").performClick()
-        compose.waitUntil(5_000) { exists(hasTestTag("map_to")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { exists(hasTestTag("map_to")) }
         waitForTiles(tiles, zoom = model.mapFor(DpSize.Zero)!!.camera.zoom.roundToInt())
         compose.captureWindow(name)
     }

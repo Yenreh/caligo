@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.datasources.NetworkApiException
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.NearbyStop
@@ -83,7 +84,7 @@ class StopDetailsSheetTest {
         assertFalse(exists(hasText("No buses coming")))
 
         answer.complete(stop.copy(arrivals = listOf(bus)))
-        compose.waitUntil(5_000) { exists(hasText("Valle Grande")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { exists(hasText("Valle Grande")) }
         compose.onNodeWithText("Updated: ${hourMinuteText(now)}").assertExists()
         compose.onNodeWithText("10 min").assertExists()
         assertFalse(exists(hasText("120 m")))
@@ -93,7 +94,7 @@ class StopDetailsSheetTest {
     fun aFirstAnswerThatFailsSaysSo() {
         show(Loaded.Ready(emptyList()), refresh = { throw NetworkApiException("Connection error") }, fetchOnOpen = true)
 
-        compose.waitUntil(5_000) { exists(hasText("Could not load arrivals")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { exists(hasText("Could not load arrivals")) }
         compose.onNodeWithText("No buses coming").assertExists()
     }
 
@@ -121,11 +122,11 @@ class StopDetailsSheetTest {
         show(Loaded.Ready(emptyList()), save = { FavoriteSave.Failed }, onDismiss = { dismissed = true })
 
         compose.onNodeWithTag("save_stop").performScrollTo().performClick()
-        compose.waitUntil(5_000) { exists(hasTestTag("stop_name_dialog")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { exists(hasTestTag("stop_name_dialog")) }
         compose.onNodeWithText("Save").performClick()
 
         // The Flutter app said nothing
-        compose.waitUntil(5_000) { exists(hasText("Could not save the stop")) }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { exists(hasText("Could not save the stop")) }
         assertFalse(dismissed)
     }
 

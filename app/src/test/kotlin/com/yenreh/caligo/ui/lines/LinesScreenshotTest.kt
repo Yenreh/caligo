@@ -9,6 +9,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
+import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.entities.LineBus
@@ -100,7 +101,7 @@ class LinesScreenshotTest {
     private fun exists(matcher: SemanticsMatcher) =
         compose.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(10_000) { exists(matcher) }
+    private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
     /**
      * Until the tiles of [zoom] have come, and a moment for them to be
@@ -108,7 +109,7 @@ class LinesScreenshotTest {
      * clock moves here only when told.
      */
     private fun waitForTiles(tiles: FixtureTiles, zoom: Int) {
-        compose.waitUntil(10_000) {
+        compose.waitUntil(WAIT_TIMEOUT_MS) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
             tiles.asked.count { it.startsWith("$zoom/") } >= 6
         }
