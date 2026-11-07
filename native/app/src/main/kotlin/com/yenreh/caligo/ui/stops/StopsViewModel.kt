@@ -411,10 +411,13 @@ class StopsViewModel(
 
     /**
      * Arrivals for [favorite] inside a shared answer, or null when that
-     * answer does not cover it
+     * answer does not cover it: for an area, when nothing at all answers
+     * around it, which the Flutter app never told, so an area never
+     * counted as missing
      */
     private fun arrivalsFor(favorite: FavoriteStop, nearby: List<NearbyStop>): List<BusArrival>? {
         if (favorite.isArea) {
+            if (nearby.isEmpty()) return null
             return nearby.flatMap { it.arrivals }.sortedBy { it.arrivalTime }
         }
         return nearby.firstOrNull { it.id == favorite.stopId }?.arrivals

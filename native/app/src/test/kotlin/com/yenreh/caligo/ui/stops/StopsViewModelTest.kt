@@ -322,6 +322,37 @@ class StopsViewModelTest {
     }
 
     @Test
+    fun countsAnAreaAroundWhichNothingAnswers() = test {
+        val area = FavoriteStop(id = "station-1", name = "Station", anchorLatitude = 3.4516, anchorLongitude = -76.5320)
+        val repository = FakeStopsRepository(favorites = listOf(area), nearby = emptyList())
+        val stops = ready(repository)
+        repository.saved.clear()
+
+        stops.refreshArrivals(force = true).join()
+
+        // The Flutter app always found an area, so it never counted as missing
+        assertEquals(1, repository.saved.single().missingCount)
+        assertEquals(emptyList<BusArrival>(), stops.state.arrivals["station-1"])
+    }
+
+    @Test
+    fun anAreaWithAnyStopAnsweringIsNotMissing() = test {
+        val area = FavoriteStop(
+            id = "station-1",
+            name = "Station",
+            anchorLatitude = 3.4516,
+            anchorLongitude = -76.5320,
+            missingCount = 2,
+        )
+        val repository = FakeStopsRepository(favorites = listOf(area), nearby = listOf(nearbyStop("a")))
+        val stops = ready(repository)
+
+        stops.refreshArrivals(force = true).join()
+
+        assertEquals(0, stops.state.favorites.single().missingCount)
+    }
+
+    @Test
     fun picksUpAStopThatWasRenamed() = test {
         val repository = FakeStopsRepository(
             favorites = listOf(favorite("a", 3.4516, -76.5320)),
