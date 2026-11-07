@@ -13,6 +13,7 @@ import com.yenreh.caligo.domain.repositories.StopsRepository
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.common.loadCatching
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration.Companion.days
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,12 +22,17 @@ import kotlinx.coroutines.launch
 
 /**
  * Every MIO line and the hours each runs: the Flutter app's linesProvider
- * and lineHoursProvider. Each loads on first use and keeps its answer for
- * the app's life, the lines even a failure until [reloadLines].
+ * and lineHoursProvider. Each loads on first use. The lines keep their
+ * answer for the app's life, even a failure, until [reloadLines]; the
+ * hours keep theirs for a day, and a failure until next asked, where the
+ * Flutter provider kept either for the run.
  *
  * One per activity, shared by the screens that show lines.
  */
-class LinesViewModel(private val repository: StopsRepository) : ViewModel() {
+class LinesViewModel(
+    private val repository: StopsRepository,
+    private val now: () -> Long = System::currentTimeMillis,
+) : ViewModel() {
     private val linesState = MutableStateFlow<Loaded<List<TransitLine>>>(Loaded.Loading)
     private var linesJob: Job? = null
 
@@ -47,6 +53,9 @@ class LinesViewModel(private val repository: StopsRepository) : ViewModel() {
     private val hoursState = MutableStateFlow<Map<String, LineHours>>(emptyMap())
     private var hoursJob: Job? = null
 
+    /** When the hours last answered; null until they do, and after a failure */
+    private var hoursAt: Long? = null
+
     /**
      * Hours each line runs, by name; empty until they come. Missing hours
      * only hide a status, so a failure leaves them empty rather than an
@@ -62,17 +71,24 @@ class LinesViewModel(private val repository: StopsRepository) : ViewModel() {
      */
     val loadedHours: StateFlow<Map<String, LineHours>?> = answeredHours.asStateFlow()
 
-    /** Load the hours unless they already are */
+    /**
+     * Load the hours unless they are on their way or answered within a
+     * day, as long as the cache keeps them
+     */
     fun watchHours() {
-        if (hoursJob != null) return
+        if (hoursJob?.isActive == true) return
+        val at = hoursAt
+        if (at != null && now() - at < HOURS_MAX_AGE.inWholeMilliseconds) return
         hoursJob = viewModelScope.launch {
             val answer = try {
-                repository.getLineHours()
+                repository.getLineHours().also { hoursAt = now() }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 // Any failure: the Flutter provider turns an ApiException
-                // into no hours, and its screens read any other as none too
-                emptyMap()
+                // into no hours, and its screens read any other as none too.
+                // Hours already had stay.
+                hoursAt = null
+                hoursState.value
             }
             hoursState.value = answer
             answeredHours.value = answer
@@ -80,6 +96,9 @@ class LinesViewModel(private val repository: StopsRepository) : ViewModel() {
     }
 
     companion object {
+        /** The hours change a few times a year: as long as the cache keeps them */
+        private val HOURS_MAX_AGE = 1.days
+
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val container = (this[APPLICATION_KEY] as CaliGoApp).container

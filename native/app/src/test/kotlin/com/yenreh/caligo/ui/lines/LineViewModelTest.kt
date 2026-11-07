@@ -304,7 +304,8 @@ class LineViewModelTest {
 
 /**
  * linesProvider and lineHoursProvider: each loaded on first use and kept;
- * the lines asked for again on Retry, the hours never failing
+ * the lines asked for again on Retry, the hours never failing and asked
+ * again after a failure or a day
  */
 class LinesViewModelTest {
     @Before
@@ -338,25 +339,38 @@ class LinesViewModelTest {
     }
 
     @Test
-    fun theHoursLoadOnceAndAFailureLeavesThemEmpty() = runTest {
+    fun theHoursAreAskedAgainAfterAFailureAndOnceADayOld() = runTest {
+        var clock = 1_790_000_000_000L
         val hours = mapOf("A47" to LineHours(5.hours, 20.hours))
         val repository = FakeStopsRepository(emptyList(), emptyList()).apply {
             this.hours = hours
             hourFailure = NetworkApiException("Connection error")
         }
-        val model = LinesViewModel(repository)
+        val model = LinesViewModel(repository, now = { clock })
 
         model.watchHours()
         assertEquals(emptyMap<String, LineHours>(), model.hours.value)
 
+        // The Flutter provider kept the failure for the run
         repository.hourFailure = null
         model.watchHours()
-        assertEquals(1, repository.hourCalls)
-        assertEquals(emptyMap<String, LineHours>(), model.hours.value)
+        assertEquals(2, repository.hourCalls)
+        assertEquals(hours, model.hours.value)
 
-        val fresh = LinesViewModel(repository)
-        fresh.watchHours()
-        assertEquals(hours, fresh.hours.value)
+        // An answer stands for a day, as the cache keeps it
+        clock += 23.hours.inWholeMilliseconds
+        model.watchHours()
+        assertEquals(2, repository.hourCalls)
+        clock += 2.hours.inWholeMilliseconds
+        model.watchHours()
+        assertEquals(3, repository.hourCalls)
+
+        // Past its day, a failure leaves the last hours had
+        clock += 25.hours.inWholeMilliseconds
+        repository.hourFailure = NetworkApiException("Connection error")
+        model.watchHours()
+        assertEquals(4, repository.hourCalls)
+        assertEquals(hours, model.hours.value)
     }
 
     @Test
