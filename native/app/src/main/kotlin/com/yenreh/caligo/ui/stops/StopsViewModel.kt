@@ -95,6 +95,9 @@ class StopsViewModel(
     private var timer: Job? = null
     private var lastRefresh: Long? = null
 
+    /** The positions a move is saving, the last one asked for */
+    private var reorderSaving: Job? = null
+
     /**
      * Screens following the arrivals while on show, each wanting only the
      * stops the home screen lists or all of them
@@ -127,52 +130,77 @@ class StopsViewModel(
     /** Load the saved stops and their arrivals */
     fun loadFavorites(): Job = viewModelScope.launch { load() }
 
+    /**
+     * Read the saved stops and show them, then refresh their arrivals.
+     *
+     * Whatever changes while the read or the position is on its way, or
+     * a move still being saved, has the stops read again: the Flutter app
+     * showed what it had read before waiting, and lost those changes.
+     */
     private suspend fun load() {
         state.update { it.copy(isLoading = true, error = null) }
         try {
-            val favorites = ordered(repository.getFavorites())
-            val kept = if (state.value.arrivals.isEmpty()) keptArrivals(favorites) else null
-            state.update {
-                it.copy(favorites = favorites, arrivals = kept ?: it.arrivals, isLoading = false)
+            var position: GeoPoint? = null
+            var located = false
+            while (true) {
+                reorderSaving?.join()
+                val before = state.value.favorites
+                val read = repository.getFavorites()
+                // Only two stops or more have an order worth the location
+                if (!located && read.size >= 2) {
+                    located = true
+                    position = proximityPosition()
+                }
+                val favorites = arranged(read, position)
+                val kept = if (state.value.arrivals.isEmpty()) keptArrivals(favorites) else null
+                if (state.value.favorites !== before) continue
+                state.update {
+                    it.copy(favorites = favorites, arrivals = kept ?: it.arrivals, isLoading = false)
+                }
+                break
             }
-            if (favorites.isNotEmpty()) refresh(force = false)
+            if (state.value.favorites.isNotEmpty()) refresh(force = false)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             state.update { it.copy(error = e.asApiException(), isLoading = false) }
         }
     }
 
+    /**
+     * Order the stops on screen again, as the setting now asks. The order
+     * applies to the stops as they are once the position comes, so changes
+     * made while it is awaited stay, unlike in the Flutter app.
+     */
     private suspend fun reorder() {
-        // As the Dart code: changes made while the location comes are lost
-        val favorites = state.value.favorites
-        if (favorites.size < 2) return
-        val ordered = ordered(favorites)
-        state.update { it.copy(favorites = ordered) }
+        if (state.value.favorites.size < 2) return
+        val position = proximityPosition()
+        state.update { it.copy(favorites = arranged(it.favorites, position)) }
     }
 
-    /** Saved order, or closest first when the settings ask for it */
-    private suspend fun ordered(stops: List<FavoriteStop>): List<FavoriteStop> =
-        if (settings.value.sortStopsByProximity) sortByDistance(stops) else stops.sortedBy { it.position }
+    /** Saved order, or closest to [position] first when there is one */
+    private fun arranged(stops: List<FavoriteStop>, position: GeoPoint?): List<FavoriteStop> {
+        if (position == null) return stops.sortedBy { it.position }
+        return stops.sortedBy {
+            distanceBetween(position.latitude, position.longitude, it.anchorLatitude, it.anchorLongitude)
+        }
+    }
 
     /**
-     * Put the closest stops first when the location is already known.
+     * Where to put the closest stops first from, when the settings ask for
+     * it and the location is already allowed; null for the saved order.
      *
      * Never asks for the permission here: the dashboard has to work
      * without it, and only the nearby search is worth a prompt.
      */
-    private suspend fun sortByDistance(stops: List<FavoriteStop>): List<FavoriteStop> {
-        if (stops.size < 2) return stops
+    private suspend fun proximityPosition(): GeoPoint? {
+        if (!settings.value.sortStopsByProximity) return null
         return try {
-            if (location.checkPermission() != LocationPermission.GRANTED) return stops
-            val position = location.lastKnownPosition()
-                ?: location.currentPosition(LocationAccuracy.LOW, PROXIMITY_TIME_LIMIT)
-            stops.sortedBy {
-                distanceBetween(position.latitude, position.longitude, it.anchorLatitude, it.anchorLongitude)
-            }
+            if (location.checkPermission() != LocationPermission.GRANTED) return null
+            location.lastKnownPosition() ?: location.currentPosition(LocationAccuracy.LOW, PROXIMITY_TIME_LIMIT)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             // Location is optional here: keep the order the user saved
-            stops
+            null
         }
     }
 
@@ -502,13 +530,16 @@ class StopsViewModel(
         val numbered = stops.mapIndexed { i, stop -> stop.copy(position = i) }
         state.update { it.copy(favorites = numbered) }
 
+        // A load waits for these saves: read before them, it would undo the move
+        val earlier = reorderSaving
         return viewModelScope.launch {
+            earlier?.join()
             saved {
                 for ((i, stop) in numbered.withIndex()) {
                     if (stops[i].position != i) repository.updateFavorite(stop)
                 }
             }
-        }
+        }.also { reorderSaving = it }
     }
 
     /** List a stop on the home screen, or keep it to the stops screen */

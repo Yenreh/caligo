@@ -431,6 +431,76 @@ class StopsFavoritesTest {
     }
 
     @Test
+    fun aChangeMadeWhileALoadWaitsForTheLocationStays() = test {
+        val repository = spread().apply { applyUpdates = true }
+        // Closest first, with no last fix: a fresh one is waited for
+        val location = FakeLocationSource(permission = LocationPermission.GRANTED, current = here)
+        val stops = ready(repository, location)
+        val gate = CompletableDeferred<Unit>()
+        location.waiting = { gate.await() }
+
+        val load = stops.loadFavorites()
+        stops.setShowOnHome("a", false).join()
+        gate.complete(Unit)
+        load.join()
+
+        assertEquals(listOf("c", "b", "a"), ids(stops))
+        assertFalse(stops.state.favorites.first { it.id == "a" }.showOnHome)
+    }
+
+    @Test
+    fun aChangeSavedWhileALoadReadsIsReadAgain() = test {
+        val repository = spread().apply { applyUpdates = true }
+        val stops = ready(repository, settings = byPosition())
+        val gate = CompletableDeferred<Unit>()
+        repository.reading = { gate.await() }
+
+        val load = stops.loadFavorites()
+        repository.reading = null
+        stops.setShowOnHome("a", false).join()
+        stops.removeFavorite("c").join()
+        gate.complete(Unit)
+        load.join()
+
+        assertFalse(stops.state.favorites.first { it.id == "a" }.showOnHome)
+        assertEquals(listOf("a", "b"), ids(stops))
+    }
+
+    @Test
+    fun aMoveMadeWhileALoadReadsStays() = test {
+        val repository = spread().apply { applyUpdates = true }
+        val stops = ready(repository, settings = byPosition())
+        val gate = CompletableDeferred<Unit>()
+        repository.reading = { gate.await() }
+
+        val load = stops.loadFavorites()
+        repository.reading = null
+        stops.reorderFavorites(0, 3)
+        gate.complete(Unit)
+        load.join()
+
+        assertEquals(listOf("b", "c", "a"), ids(stops))
+    }
+
+    @Test
+    fun aChangeMadeWhileTheOrderWaitsForTheLocationStays() = test {
+        val repository = spread()
+        val location = FakeLocationSource(permission = LocationPermission.GRANTED, current = here)
+        val settings = byPosition()
+        val stops = ready(repository, location, settings)
+        val gate = CompletableDeferred<Unit>()
+        location.waiting = { gate.await() }
+
+        // Closest first, with no last fix: the order waits for a fresh one
+        settings.value = settings.value.copy(sortStopsByProximity = true)
+        stops.setShowOnHome("a", false).join()
+        gate.complete(Unit)
+
+        assertEquals(listOf("c", "b", "a"), ids(stops))
+        assertFalse(stops.state.favorites.first { it.id == "a" }.showOnHome)
+    }
+
+    @Test
     fun otherSettingsLeaveTheOrderAlone() = test {
         val location = FakeLocationSource(permission = LocationPermission.GRANTED, lastKnown = here)
         val settings = byPosition()

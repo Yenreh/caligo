@@ -134,7 +134,14 @@ class FakeStopsRepository(
     /** Stands in for the request itself, when set */
     var answer: (suspend () -> Unit)? = null
 
-    override suspend fun getFavorites() = favorites.toList()
+    /** Stands in for the read's answer on its way back, when set: what it read is already read */
+    var reading: (suspend () -> Unit)? = null
+
+    override suspend fun getFavorites(): List<FavoriteStop> {
+        val read = favorites.toList()
+        reading?.invoke()
+        return read
+    }
 
     override suspend fun getNearbyStops(latitude: Double, longitude: Double): List<NearbyStop> {
         nearbyCalls++
@@ -192,10 +199,14 @@ class FakeStopsRepository(
     /** Stands in for writing a favorite's changes, when set */
     var saving: (suspend () -> Unit)? = null
 
+    /** Whether a favorite updated changes the list, as the database would */
+    var applyUpdates = false
+
     override suspend fun updateFavorite(stop: FavoriteStop) {
         saving?.invoke()
         saveFailure?.let { throw it }
         saved.add(stop)
+        if (applyUpdates) favorites.replaceAll { if (it.id == stop.id) stop else it }
     }
 
     override suspend fun nextPosition() = (favorites.maxOfOrNull { it.position } ?: -1) + 1
