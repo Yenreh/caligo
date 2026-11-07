@@ -41,7 +41,7 @@ data class MapStopsState(
     /** The stops around [searched]: the list first, then placed */
     val results: Loaded<List<NearbyStop>>? = null,
     val selectedStopId: String? = null,
-    /** Waiting for a fix of the device, which the location button shows */
+    /** Waiting for the fix the location button asked for, which it shows */
     val locating: Boolean = false,
 )
 
@@ -68,6 +68,9 @@ class MapStopsViewModel(
     val screen: StateFlow<MapStopsState> = state.asStateFlow()
 
     private var search: Job? = null
+
+    /** The quiet fix on opening, while it is on its way */
+    private var quiet: Job? = null
 
     /** Where the map opened, to tell whether it has moved since */
     private var opened: MapCamera? = null
@@ -115,30 +118,42 @@ class MapStopsViewModel(
      * Move to where the user is, staying put when that is not known.
      *
      * The quiet call on opening, which never asks for the permission,
-     * leaves the map alone when the fix lands near where it already is;
-     * the button always moves.
+     * leaves the map alone when the fix lands near where it already is,
+     * and the button still: the Flutter button spun for it, up to 15 s.
+     * The button always moves, and takes over from a quiet call.
      */
     fun centreOnDevice(askForPermission: Boolean = true) {
+        if (!askForPermission) {
+            quiet = viewModelScope.launch { moveToDevice(quietly = true) }
+            return
+        }
         if (state.value.locating) return
+        quiet?.cancel()
         state.update { it.copy(locating = true) }
         viewModelScope.launch {
             try {
-                val position = location.currentDevicePosition(requestPermission = askForPermission)
-                val map = state.value.map ?: return@launch
-                val away = distanceBetween(
-                    map.camera.center.latitude,
-                    map.camera.center.longitude,
-                    position.latitude,
-                    position.longitude,
-                )
-                if (!askForPermission && away < RECENTRE_METRES) return@launch
-                map.move(position, PLACE_ZOOM)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                // No location: the map stays where it opened
+                moveToDevice(quietly = false)
             } finally {
                 state.update { it.copy(locating = false) }
             }
+        }
+    }
+
+    private suspend fun moveToDevice(quietly: Boolean) {
+        try {
+            val position = location.currentDevicePosition(requestPermission = !quietly)
+            val map = state.value.map ?: return
+            val away = distanceBetween(
+                map.camera.center.latitude,
+                map.camera.center.longitude,
+                position.latitude,
+                position.longitude,
+            )
+            if (quietly && away < RECENTRE_METRES) return
+            map.move(position, PLACE_ZOOM)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            // No location: the map stays where it opened
         }
     }
 

@@ -247,7 +247,10 @@ class MapStopsScreenTest {
         val location = FakeLocationSource(permission = LocationPermission.GRANTED, current = GeoPoint(3.42, -76.54))
         location.waiting = { fix.await() }
         val model = show(location = location)
+        // Still for the quiet fix on opening: only the button's own spins it
+        compose.onNodeWithTag("locating").assertDoesNotExist()
 
+        compose.onNodeWithContentDescription("My location").performClick()
         waitFor(hasTestTag("locating"))
         fix.complete(Unit)
 

@@ -145,17 +145,33 @@ class MapStopsViewModelTest {
     }
 
     @Test
-    fun locatingShowsUntilTheFixComes() = runTest {
+    fun theFixOnOpeningLeavesTheButtonStill() = runTest {
         val fix = CompletableDeferred<Unit>()
         val location = FakeLocationSource(permission = LocationPermission.GRANTED, current = home)
         location.waiting = { fix.await() }
 
         val model = viewModel(location)
-        assertTrue(model.screen.value.locating)
+        // The Flutter button spun for it, up to 15 s, though nobody asked
+        assertFalse(model.screen.value.locating)
 
         fix.complete(Unit)
         assertFalse(model.screen.value.locating)
         assertEquals(home, model.camera.center)
+    }
+
+    @Test
+    fun theButtonSpinsUntilItsFixComesEvenWhileTheQuietOneWaits() = runTest {
+        val fix = CompletableDeferred<Unit>()
+        val location = FakeLocationSource(permission = LocationPermission.GRANTED, current = nearHome)
+        location.waiting = { fix.await() }
+        val model = viewModel(location)
+
+        model.centreOnDevice()
+        assertTrue(model.screen.value.locating)
+
+        fix.complete(Unit)
+        assertFalse(model.screen.value.locating)
+        assertEquals(MapCamera(nearHome, 16.0), model.camera)
     }
 
     // The location button
