@@ -1,5 +1,7 @@
 package com.yenreh.caligo.ui.trips
 
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -25,6 +27,7 @@ import com.yenreh.caligo.domain.rideReadings
 import com.yenreh.caligo.domain.stopsWorthAsking
 import com.yenreh.caligo.domain.timeTrip
 import com.yenreh.caligo.ui.lines.LinesViewModel
+import com.yenreh.caligo.ui.map.LabMapState
 import java.net.URLEncoder
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
@@ -184,6 +187,12 @@ class PlanTripViewModel(
      * those land, mostly from the areas they just brought
      */
     private var liveAgain = false
+
+    /** Counts the options opened, so each opening frames its own map */
+    private var openings = 0
+
+    /** The open option's map, with the opening it was made for */
+    private var map: Pair<Int, LabMapState>? = null
 
     init {
         network.watch()
@@ -439,7 +448,30 @@ class PlanTripViewModel(
 
     /** Open plan [index] to its steps and the map, or close it when open */
     fun toggle(index: Int) {
+        // Each opening gets a map of its own, framing the whole trip
+        openings++
         state.update { it.copy(expanded = if (it.expanded != index) index else null) }
+    }
+
+    /**
+     * The map of the option open, for a map of [viewport]: made as it
+     * opens, framing the whole trip, and kept while it stays open, so the
+     * map turns with the screen where it was left; choosing another line
+     * only redraws it. Null with no option open.
+     */
+    fun mapFor(viewport: DpSize): LabMapState? {
+        val current = state.value
+        val option = current.open ?: return null
+        map?.let { (opening, kept) -> if (opening == openings) return kept }
+        return LabMapState.fitting(
+            tripPoints(current.from, current.to, option),
+            viewport,
+            MAP_PADDING,
+            minZoom = MAP_MIN_ZOOM,
+            maxZoom = MAP_MAX_ZOOM,
+            rotatable = false,
+            fitMaxZoom = MAP_FIT_MAX_ZOOM,
+        ).also { map = openings to it }
     }
 
     companion object {
@@ -461,6 +493,14 @@ class PlanTripViewModel(
          */
         const val REFINE_METERS = 100.0
 
+        /** The open option's map, a trip reading north up */
+        private val MAP_PADDING = 32.dp
+        private const val MAP_MIN_ZOOM = 11.0
+        private const val MAP_MAX_ZOOM = 18.0
+
+        /** No closer than this to frame a short trip */
+        private const val MAP_FIT_MAX_ZOOM = 16.0
+
         /** The planner for a screen; [lines] gives the hours, which it loads */
         fun factory(lines: LinesViewModel, destination: TripPlace?): ViewModelProvider.Factory = viewModelFactory {
             initializer {
@@ -479,6 +519,13 @@ class PlanTripViewModel(
             }
         }
     }
+}
+
+/** Every point of [option] and both places, to show it whole */
+fun tripPoints(from: TripPlace?, to: TripPlace?, option: TripOption): List<GeoPoint> = buildList {
+    from?.let { add(GeoPoint(it.latitude, it.longitude)) }
+    to?.let { add(GeoPoint(it.latitude, it.longitude)) }
+    for (ride in option.rides) for (stop in ride.stops) add(GeoPoint(stop.latitude, stop.longitude))
 }
 
 /**

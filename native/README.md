@@ -85,6 +85,16 @@ the framework `Geocoder` (`data/datasources/DeviceGeocoder`, behind an
 interface for tests), in Colombian Spanish and within Cali; a phone
 without one gets the MIO stops named after a crossing only.
 
+The planner opens from the home's bar, or from a stop's "Go here" with
+the stop as where to go (`Route.PlanTrip`). Each end opens the place
+picker (`Route.PlacePicker`), which opens the map point picker
+(`Route.MapPoint`) in turn. Navigation 3 has no results of its own: a
+picker leaves its choice in `ui/trips/PickedPlaces`, saved with the back
+stack in `AppNavigation`, and pops itself; the screen below takes it as
+it shows again. Through a rotation every screen keeps its view model; after
+the process dies the back stack, what was typed and a choice still on its
+way come back, while the planner starts again from its key and the device.
+
 ## Licenses
 
 The licenses page lists the app's GPL and the fonts' OFL, from

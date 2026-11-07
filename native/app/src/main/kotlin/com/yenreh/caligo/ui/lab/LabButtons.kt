@@ -27,10 +27,16 @@ import com.yenreh.caligo.ui.theme.LabTheme
 
 /** Text button in accent, square, as the Flutter theme's */
 @Composable
-fun LabTextButton(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
+fun LabTextButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
     TextButton(
         onClick = onClick,
         modifier = modifier,
+        enabled = enabled,
         shape = RectangleShape,
         colors = ButtonDefaults.textButtonColors(contentColor = LabTheme.palette.accent),
         content = content,

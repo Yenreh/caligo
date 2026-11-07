@@ -11,6 +11,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -25,6 +26,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.yenreh.caligo.BuildConfig
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.Station
+import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.cards.CardsRoute
 import com.yenreh.caligo.ui.cards.CardsViewModel
 import com.yenreh.caligo.ui.cards.CreateCardRoute
@@ -44,6 +46,13 @@ import com.yenreh.caligo.ui.stops.MapStopsRoute
 import com.yenreh.caligo.ui.stops.StationStopsScreen
 import com.yenreh.caligo.ui.stops.StopsRoute
 import com.yenreh.caligo.ui.stops.StopsViewModel
+import com.yenreh.caligo.ui.trips.MapPointPicker
+import com.yenreh.caligo.ui.trips.PickedPlace
+import com.yenreh.caligo.ui.trips.PickedPlaces
+import com.yenreh.caligo.ui.trips.PlacePickerRoute
+import com.yenreh.caligo.ui.trips.PlacePickerViewModel
+import com.yenreh.caligo.ui.trips.PlanTripRoute
+import com.yenreh.caligo.ui.trips.PlanTripViewModel
 
 /**
  * The app's screens on one back stack, the home at its root; back, and
@@ -53,8 +62,10 @@ import com.yenreh.caligo.ui.stops.StopsViewModel
  * for the cards, the stops and the lines: those are the activity's,
  * shared by every screen that lists them, as the Flutter providers are.
  *
- * The planner comes in a later part: its key exists, nothing pushes it
- * yet.
+ * The trip planner's pickers hand their choice back through
+ * [PickedPlaces], saved with the back stack: the place picker's place to
+ * the planner, the map's point to the place picker, each taken as the
+ * screen below shows again.
  */
 @Composable
 fun AppNavigation(
@@ -65,15 +76,24 @@ fun AppNavigation(
     mapTiles: @Composable (Settings) -> MapTileSource = { rememberAppMapTiles(it) },
     /** The view model of a line's screen, by line name: its own, or a test's */
     lineViewModel: @Composable (line: String) -> LineViewModel = { viewModel(factory = LineViewModel.factory(it)) },
+    /** The view model of a trip planner, with the activity's lines and where to go: its own, or a test's */
+    planTripViewModel: @Composable (lines: LinesViewModel, destination: TripPlace?) -> PlanTripViewModel = { lines, destination ->
+        viewModel(factory = PlanTripViewModel.factory(lines, destination))
+    },
+    /** The view model of a place picker: its own, or a test's */
+    placePickerViewModel: @Composable () -> PlacePickerViewModel = { viewModel(factory = PlacePickerViewModel.Factory) },
 ) {
     val activity: ViewModelStoreOwner = checkNotNull(LocalViewModelStoreOwner.current)
     // Read inside the entries, so they follow every change of the settings
     val current by rememberUpdatedState(settings)
+    val picked = rememberSaveable(saver = PickedPlaces.Saver) { PickedPlaces() }
     fun open(route: Route) {
         backStack.add(route)
     }
     fun back() {
         if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+        // A choice the screen below was closed before taking goes with it
+        picked.forget(planner = backStack.any { it is Route.PlanTrip }, picker = backStack.any { it is Route.PlacePicker })
     }
     // A screen closing itself once its work is done: only while it is on
     // top, so a back the user already gave is not taken twice
@@ -91,6 +111,9 @@ fun AppNavigation(
 
     fun station(station: Station) =
         open(Route.Station(station.id, station.name, station.address, station.latitude, station.longitude))
+
+    // "Go here" of a stop's details
+    fun goTo(place: TripPlace) = open(Route.PlanTrip(place.key))
 
     NavDisplay(
         backStack = backStack,
@@ -110,6 +133,7 @@ fun AppNavigation(
                         onSettings = { open(Route.Settings) },
                         onCards = { open(Route.Cards) },
                         onSearch = { open(Route.SearchStops) },
+                        onPlan = { open(Route.PlanTrip()) },
                         onStops = { open(Route.Stops) },
                     ),
                     cardsViewModel = cards(),
@@ -127,6 +151,7 @@ fun AppNavigation(
                     onStation = ::station,
                     onLine = { open(Route.Line(it.id, it.name)) },
                     map = { MapStopsRoute(current, mapTiles(current), it) },
+                    onGoHere = ::goTo,
                 )
             }
             entry<Route.SearchStops> {
@@ -138,6 +163,7 @@ fun AppNavigation(
                     onLine = { open(Route.Line(it.id, it.name)) },
                     explore = true,
                     map = { MapStopsRoute(current, mapTiles(current), it) },
+                    onGoHere = ::goTo,
                 )
             }
             entry<Route.Line> { key ->
@@ -149,6 +175,7 @@ fun AppNavigation(
                     lines(),
                     onBack = ::back,
                     viewModel = lineViewModel(key.name),
+                    onGoHere = ::goTo,
                 )
             }
             entry<Route.Station> { key ->
@@ -157,6 +184,50 @@ fun AppNavigation(
                     stops(),
                     onBack = ::back,
                     onDone = { backFrom(key) },
+                    onGoHere = ::goTo,
+                )
+            }
+            entry<Route.PlanTrip> { key ->
+                PlanTripRoute(
+                    settings = current,
+                    tiles = mapTiles(current),
+                    picked = picked,
+                    onBack = ::back,
+                    onPick = { origin, near -> open(Route.PlacePicker(origin, near?.key)) },
+                    viewModel = planTripViewModel(lines(), key.destination?.place),
+                )
+            }
+            entry<Route.PlacePicker> { key ->
+                PlacePickerRoute(
+                    origin = key.origin,
+                    stops = stops(),
+                    picked = picked,
+                    onBack = ::back,
+                    onPicked = { place ->
+                        // Only while on top: a second tap, or a back already given, picks nothing
+                        if (backStack.lastOrNull() == key) {
+                            picked.place = PickedPlace(key.origin, place)
+                            back()
+                        }
+                    },
+                    onPickOnMap = { open(Route.MapPoint(key.near)) },
+                    viewModel = placePickerViewModel(),
+                )
+            }
+            entry<Route.MapPoint> { key ->
+                val tiles = mapTiles(current)
+                MapPointPicker(
+                    near = key.near?.place,
+                    tiles = tiles,
+                    darkTiles = current.darkMap,
+                    carto = tiles.byCarto,
+                    onBack = ::back,
+                    onUse = { point ->
+                        if (backStack.lastOrNull() == key) {
+                            picked.point = point
+                            back()
+                        }
+                    },
                 )
             }
             entry<Route.Cards> {

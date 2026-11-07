@@ -190,4 +190,51 @@
         <item quantity="one">1 license</item>
         <item quantity="other">%d licenses</item>
     </plurals>
+    <!-- Trip planner -->
+    <string name="choose_origin">Where from?</string>
+    <string name="choose_destination">Where to?</string>
+    <string name="swap_places">Swap origin and destination</string>
+    <string name="update_location">Update my location</string>
+    <string name="could_not_locate">Could not get your location</string>
+    <string name="refresh_times">Update times</string>
+    <string name="open_in_google_maps">Open this search in Google Maps</string>
+    <string name="google_maps" translatable="false">Google Maps</string>
+    <string name="loading_routes">Loading MIO routes (%1$d/%2$d)</string>
+    <string name="plan_hint">Choose where you leave from and where you are going to see how to get there.</string>
+    <string name="no_trip_found">No MIO trip found between these two places at this time.</string>
+    <string name="live_unavailable">No live MIO data for some stretches: those times are approximate.</string>
+    <string name="trip_estimate_note">Live times from MIO. Anything marked ~ is approximate: no bus on its way confirms it, so the line\'s usual figures are used.</string>
+    <string name="arrive_at">Arrive %1$s</string>
+    <string name="arrive_around">Arrive ~%1$s</string>
+    <string name="transfers_none">Direct</string>
+    <plurals name="transfers_count">
+        <item quantity="one">1 transfer</item>
+        <item quantity="other">%d transfers</item>
+    </plurals>
+    <string name="walk_distance">%1$d m on foot</string>
+    <string name="next_bus_now">%1$s arriving</string>
+    <string name="bus_leaves_at">%1$s at %2$s (in %3$d min)</string>
+    <string name="no_live_bus">No live bus · about %1$d min wait</string>
+    <string name="step_walk_to">Walk %1$d min to %2$s</string>
+    <string name="step_walk_to_destination">Walk %1$d min to your destination</string>
+    <string name="step_ride">Take %1$s towards %2$s</string>
+    <string name="step_get_off">Get off at %1$s</string>
+    <string name="leaves_at">Leaves %1$s</string>
+    <string name="wait_about">Wait ~%1$d min</string>
+    <plurals name="stops_count">
+        <item quantity="one">1 stop</item>
+        <item quantity="other">%d stops</item>
+    </plurals>
+    <string name="line_choice_hint">Any of these lines will do; tap one to see its route</string>
+    <string name="go_here">Go here</string>
+    <!-- Place picker -->
+    <string name="search_place">Search a station, stop or address</string>
+    <string name="search_as_address">Search “%1$s” as an address or place</string>
+    <string name="addresses_section">Addresses and places</string>
+    <string name="address_crossing">Crossing of its two streets, approximate</string>
+    <string name="address_near_stop">MIO stop at that crossing, approximate</string>
+    <string name="address_not_found">Nothing found. Try a crossing, such as “Calle 5 con Carrera 38”, or pick the point on the map.</string>
+    <string name="stops_section">Stops</string>
+    <string name="pick_on_map">Pick on the map</string>
+    <string name="use_point">Use this point</string>
 </resources>

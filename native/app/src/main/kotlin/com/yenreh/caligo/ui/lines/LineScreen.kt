@@ -66,6 +66,7 @@ import com.yenreh.caligo.domain.entities.LineHours
 import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
+import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.common.rememberShownOnScreen
 import com.yenreh.caligo.ui.lab.LabDivider
@@ -93,7 +94,8 @@ import kotlinx.coroutines.flow.drop
 /**
  * The line screen of [line] with its own view model, the hours from the
  * activity's [lines], [tiles] as the [settings] ask, and stop details
- * that save through the activity's [stops]
+ * that save through the activity's [stops] and go to the trip planner
+ * through [onGoHere]
  */
 @Composable
 fun LineRoute(
@@ -104,6 +106,7 @@ fun LineRoute(
     lines: LinesViewModel,
     onBack: () -> Unit,
     viewModel: LineViewModel = viewModel(factory = LineViewModel.factory(line)),
+    onGoHere: ((TripPlace) -> Unit)? = null,
 ) {
     LaunchedEffect(lines) { lines.watchHours() }
     val hours by lines.hours.collectAsStateWithLifecycle()
@@ -114,7 +117,9 @@ fun LineRoute(
         darkTiles = settings.darkMap,
         carto = tiles.byCarto,
         onBack = onBack,
-        details = { open, dismiss -> StopDetailsFor(open, stops, onDismiss = dismiss, fetchOnOpen = true) },
+        details = { open, dismiss ->
+            StopDetailsFor(open, stops, onDismiss = dismiss, fetchOnOpen = true, onGoHere = onGoHere)
+        },
     )
 }
 

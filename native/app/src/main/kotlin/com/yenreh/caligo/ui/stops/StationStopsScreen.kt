@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.entities.Station
+import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.common.rememberLoader
 import com.yenreh.caligo.ui.lab.LabDivider
@@ -43,7 +44,8 @@ import kotlinx.coroutines.launch
  *
  * A station spans several platforms, and following all of them at once
  * is usually noise, so each one can be saved on its own; the star saves
- * the whole area, and closes the screen through [onDone] once saved.
+ * the whole area, and closes the screen through [onDone] once saved. A
+ * stop's details go to the trip planner through [onGoHere].
  */
 @Composable
 fun StationStopsScreen(
@@ -52,6 +54,7 @@ fun StationStopsScreen(
     onBack: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
+    onGoHere: ((TripPlace) -> Unit)? = null,
 ) {
     val p = LabTheme.palette
     val scope = rememberCoroutineScope()
@@ -121,7 +124,7 @@ fun StationStopsScreen(
         )
     }
 
-    details?.let { open -> StopDetailsFor(open, viewModel, onDismiss = { details = null }) }
+    details?.let { open -> StopDetailsFor(open, viewModel, onDismiss = { details = null }, onGoHere = onGoHere) }
 }
 
 @Composable

@@ -191,4 +191,52 @@
         <item quantity="many">%d licencias</item>
         <item quantity="other">%d licencias</item>
     </plurals>
+    <!-- Trip planner -->
+    <string name="choose_origin">¿De dónde sales?</string>
+    <string name="choose_destination">¿A dónde vas?</string>
+    <string name="swap_places">Intercambiar origen y destino</string>
+    <string name="update_location">Actualizar mi ubicación</string>
+    <string name="could_not_locate">No se pudo obtener tu ubicación</string>
+    <string name="refresh_times">Actualizar horarios</string>
+    <string name="open_in_google_maps">Abrir esta búsqueda en Google Maps</string>
+    <string name="loading_routes">Cargando las rutas del MIO (%1$d/%2$d)</string>
+    <string name="plan_hint">Elige de dónde sales y a dónde vas para ver cómo llegar.</string>
+    <string name="no_trip_found">No encontramos cómo llegar en MIO entre estos dos puntos a esta hora.</string>
+    <string name="live_unavailable">Sin datos en vivo de MIO para algunos tramos: esos tiempos son aproximados.</string>
+    <string name="trip_estimate_note">Horas en vivo de MIO. Lo marcado con ~ es aproximado: no hay un bus en camino que lo confirme, así que se usa lo que suele tardar esa ruta.</string>
+    <string name="arrive_at">Llegas %1$s</string>
+    <string name="arrive_around">Llegas ~%1$s</string>
+    <string name="transfers_none">Directo</string>
+    <plurals name="transfers_count">
+        <item quantity="one">1 transbordo</item>
+        <item quantity="many">%d transbordos</item>
+        <item quantity="other">%d transbordos</item>
+    </plurals>
+    <string name="walk_distance">%1$d m a pie</string>
+    <string name="next_bus_now">%1$s llegando</string>
+    <string name="bus_leaves_at">%1$s pasa %2$s (en %3$d min)</string>
+    <string name="no_live_bus">Sin bus en vivo · espera aprox. %1$d min</string>
+    <string name="step_walk_to">Camina %1$d min hasta %2$s</string>
+    <string name="step_walk_to_destination">Camina %1$d min hasta tu destino</string>
+    <string name="step_ride">Toma %1$s hacia %2$s</string>
+    <string name="step_get_off">Bájate en %1$s</string>
+    <string name="leaves_at">Pasa %1$s</string>
+    <string name="wait_about">Espera ~%1$d min</string>
+    <plurals name="stops_count">
+        <item quantity="one">1 parada</item>
+        <item quantity="many">%d paradas</item>
+        <item quantity="other">%d paradas</item>
+    </plurals>
+    <string name="line_choice_hint">Cualquiera de estas rutas sirve; toca una para ver su recorrido</string>
+    <string name="go_here">Ir aquí</string>
+    <!-- Place picker -->
+    <string name="search_place">Busca una estación, parada o dirección</string>
+    <string name="search_as_address">Buscar «%1$s» como dirección o lugar</string>
+    <string name="addresses_section">Direcciones y lugares</string>
+    <string name="address_crossing">Cruce de sus dos calles, aproximado</string>
+    <string name="address_near_stop">Parada del MIO en ese cruce, aproximado</string>
+    <string name="address_not_found">No encontramos nada. Prueba con un cruce, como «Calle 5 con Carrera 38», o elige el punto en el mapa.</string>
+    <string name="stops_section">Paradas</string>
+    <string name="pick_on_map">Elegir en el mapa</string>
+    <string name="use_point">Usar este punto</string>
 </resources>

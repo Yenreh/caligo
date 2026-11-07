@@ -63,16 +63,14 @@ import com.yenreh.caligo.ui.stops.StopsState
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import com.yenreh.caligo.ui.theme.LabTheme
 
-/**
- * Where the home's buttons lead. Each does nothing until its screen is
- * ported: all are but the trip planner.
- */
+/** Where the home's buttons lead; each does nothing unless given */
 class HomeActions(
     val onSettings: () -> Unit = {},
     /** The cards screen: "See all" and the bar's cards button */
     val onCards: () -> Unit = {},
     /** The add-stop screen, to look around: the bar's search button */
     val onSearch: () -> Unit = {},
+    /** The trip planner: the bar's plan button */
     val onPlan: () -> Unit = {},
     /** The stops screen: "See all" and the bar's favorites button */
     val onStops: () -> Unit = {},

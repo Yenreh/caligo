@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.KeyboardActionHandler
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.Icon
@@ -60,6 +61,8 @@ fun LabTextField(
     error: String? = null,
     label: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    /** What the keyboard's action key does, as onSubmitted; its default without */
+    onKeyboardAction: KeyboardActionHandler? = null,
 ) {
     val p = LabTheme.palette
     val interaction = remember { MutableInteractionSource() }
@@ -76,6 +79,7 @@ fun LabTextField(
         modifier = if (error != null) modifier.semantics { error(error) } else modifier,
         textStyle = style,
         keyboardOptions = keyboardOptions,
+        onKeyboardAction = onKeyboardAction,
         lineLimits = TextFieldLineLimits.SingleLine,
         interactionSource = interaction,
         cursorBrush = SolidColor(p.accent),

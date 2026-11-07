@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.StopLine
+import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.LiveClock
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.common.rememberLoader
@@ -46,6 +47,7 @@ import com.yenreh.caligo.ui.lab.LabDivider
 import com.yenreh.caligo.ui.lab.LabFilledButton
 import com.yenreh.caligo.ui.lab.LabIconButton
 import com.yenreh.caligo.ui.lab.LabLineChip
+import com.yenreh.caligo.ui.lab.LabOutlinedButton
 import com.yenreh.caligo.ui.lab.LabSectionLabel
 import com.yenreh.caligo.ui.lab.LabTooltip
 import com.yenreh.caligo.ui.theme.LabText
@@ -75,7 +77,8 @@ class StopDetailsActions(
  *
  * [fetchOnOpen] is for somewhere that knows the stop but not its buses,
  * such as a line's route: ask for them at once, with no distance to show.
- * The Flutter sheet's "Go here", to the trip planner, comes with it.
+ * [onGoHere], when given, is "Go here": the sheet closes and the trip
+ * planner opens with the stop as where to go.
  */
 @Composable
 fun StopDetailsSheet(
@@ -84,14 +87,31 @@ fun StopDetailsSheet(
     actions: StopDetailsActions,
     onDismiss: () -> Unit,
     fetchOnOpen: Boolean = false,
+    onGoHere: ((TripPlace) -> Unit)? = null,
+    anchorLatitude: Double = 0.0,
+    anchorLongitude: Double = 0.0,
 ) {
     LabBottomSheet(onDismiss = onDismiss, dragHandle = true) {
         val lines = rememberLoader(stop.id) { actions.loadLines(stop.id) }
-        StopDetailsContent(stop, isSaved, lines.state, actions, onDismiss, fetchOnOpen)
+        StopDetailsContent(
+            stop,
+            isSaved,
+            lines.state,
+            actions,
+            onDismiss,
+            fetchOnOpen,
+            onGoHere?.let { go -> { place -> onDismiss(); go(place) } },
+            anchorLatitude,
+            anchorLongitude,
+        )
     }
 }
 
-/** The sheet's content, apart so it shows without one */
+/**
+ * The sheet's content, apart so it shows without one. [onGoHere] takes the
+ * stop as a place to go: where it stands when placed, otherwise where it
+ * was found from, [anchorLatitude] and [anchorLongitude], a few metres off.
+ */
 @Composable
 fun StopDetailsContent(
     initial: NearbyStop,
@@ -100,6 +120,9 @@ fun StopDetailsContent(
     actions: StopDetailsActions,
     onDismiss: () -> Unit,
     fetchOnOpen: Boolean = false,
+    onGoHere: ((TripPlace) -> Unit)? = null,
+    anchorLatitude: Double = 0.0,
+    anchorLongitude: Double = 0.0,
 ) {
     val p = LabTheme.palette
     val scope = rememberCoroutineScope()
@@ -203,6 +226,21 @@ fun StopDetailsContent(
                 }
             }
             Spacer(Modifier.height(24.dp))
+            if (onGoHere != null) {
+                LabOutlinedButton(
+                    onClick = {
+                        onGoHere(TripPlace(stop.latitude ?: anchorLatitude, stop.longitude ?: anchorLongitude, stop.name))
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("go_here"),
+                ) {
+                    Icon(painterResource(R.drawable.ic_directions), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.go_here))
+                }
+                Spacer(Modifier.height(8.dp))
+            }
             LabFilledButton(
                 onClick = { naming = true },
                 modifier = Modifier
@@ -259,10 +297,16 @@ class OpenStop(val stop: NearbyStop, val anchorLatitude: Double, val anchorLongi
 /**
  * The details of [open], with what the activity's [StopsViewModel] knows:
  * whether it is saved already, its fresh arrivals and its lines.
- * [fetchOnOpen] as the sheet's.
+ * [fetchOnOpen] and [onGoHere] as the sheet's.
  */
 @Composable
-fun StopDetailsFor(open: OpenStop, viewModel: StopsViewModel, onDismiss: () -> Unit, fetchOnOpen: Boolean = false) {
+fun StopDetailsFor(
+    open: OpenStop,
+    viewModel: StopsViewModel,
+    onDismiss: () -> Unit,
+    fetchOnOpen: Boolean = false,
+    onGoHere: ((TripPlace) -> Unit)? = null,
+) {
     val stops by viewModel.stops.collectAsStateWithLifecycle()
     val stop = open.stop
     StopDetailsSheet(
@@ -286,5 +330,8 @@ fun StopDetailsFor(open: OpenStop, viewModel: StopsViewModel, onDismiss: () -> U
         },
         onDismiss = onDismiss,
         fetchOnOpen = fetchOnOpen,
+        onGoHere = onGoHere,
+        anchorLatitude = open.anchorLatitude,
+        anchorLongitude = open.anchorLongitude,
     )
 }

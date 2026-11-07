@@ -19,7 +19,9 @@ import com.yenreh.caligo.ui.theme.LabTheme
 
 /**
  * Square outlined icon button, named by its description, which also shows
- * as its tooltip. While [isLoading] it spins and takes no taps.
+ * as its tooltip. While [isLoading] it spins and takes no taps; not
+ * [enabled], it looks the same and takes none either, as a Flutter one
+ * without onPressed.
  */
 @Composable
 fun LabIconButton(
@@ -28,6 +30,7 @@ fun LabIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
+    enabled: Boolean = true,
     danger: Boolean = false,
     // Drawn in accent, for a toggle that is on
     active: Boolean = false,
@@ -45,7 +48,7 @@ fun LabIconButton(
             modifier = Modifier
                 .size(size)
                 .semantics { this.contentDescription = contentDescription },
-            enabled = !isLoading,
+            enabled = enabled && !isLoading,
             shape = RectangleShape,
             color = p.paper,
             border = BorderStroke(1.dp, p.rule),

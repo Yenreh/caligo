@@ -3,15 +3,20 @@ package com.yenreh.caligo.ui.stops
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.data.datasources.NetworkApiException
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.StopLine
+import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import kotlinx.coroutines.CompletableDeferred
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
@@ -36,16 +41,21 @@ class StopDetailsSheetTest {
         lines: Loaded<List<StopLine>>,
         refresh: suspend (NearbyStop) -> NearbyStop = { it },
         fetchOnOpen: Boolean = false,
+        initial: NearbyStop = stop,
+        onGoHere: ((TripPlace) -> Unit)? = null,
     ) {
         compose.setContent {
             CaliGoTheme {
                 StopDetailsContent(
-                    initial = stop,
+                    initial = initial,
                     isSaved = false,
                     lines = lines,
                     actions = StopDetailsActions(refresh = refresh, loadLines = { emptyList() }, save = { true }),
                     onDismiss = {},
                     fetchOnOpen = fetchOnOpen,
+                    onGoHere = onGoHere,
+                    anchorLatitude = 3.4500,
+                    anchorLongitude = -76.5300,
                 )
             }
         }
@@ -92,5 +102,35 @@ class StopDetailsSheetTest {
         show(Loaded.Failed(NetworkApiException("Connection error")))
 
         compose.onNodeWithText("No lines listed").assertExists()
+    }
+
+    // "Go here"
+
+    @Test
+    fun goHereTakesTheStopWhereItStandsOrWhereItWasFoundFrom() {
+        val places = mutableListOf<TripPlace>()
+        val placed = stop.copy(latitude = 3.4513, longitude = -76.5321)
+        show(Loaded.Ready(emptyList()), initial = placed, onGoHere = { places.add(it) })
+
+        compose.onNodeWithText("Go here").performScrollTo().performClick()
+
+        assertEquals(listOf(TripPlace(3.4513, -76.5321, "Plaza de Cayzedo A1")), places)
+    }
+
+    @Test
+    fun aStopNotPlacedGoesWhereItWasFoundFrom() {
+        val places = mutableListOf<TripPlace>()
+        show(Loaded.Ready(emptyList()), onGoHere = { places.add(it) })
+
+        compose.onNodeWithTag("go_here").performScrollTo().performClick()
+
+        assertEquals(listOf(TripPlace(3.4500, -76.5300, "Plaza de Cayzedo A1")), places)
+    }
+
+    @Test
+    fun withNowhereToGoThereIsNoGoHere() {
+        show(Loaded.Ready(emptyList()))
+
+        assertFalse(exists(hasText("Go here")))
     }
 }

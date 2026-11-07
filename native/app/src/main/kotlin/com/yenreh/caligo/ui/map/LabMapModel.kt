@@ -38,7 +38,8 @@ data class LabMapMarker(val id: String, val position: GeoPoint, val zIndex: Floa
 
 /**
  * A line through [points], [width] wide; with a [borderColor], drawn over
- * a line [borderWidth] wider in that colour, as flutter_map's border
+ * a line [borderWidth] wider in that colour, as flutter_map's border;
+ * [dotted] for a line of dots
  */
 @Immutable
 data class LabMapPolyline(
@@ -48,6 +49,8 @@ data class LabMapPolyline(
     val width: Dp = 4.dp,
     val borderColor: Color? = null,
     val borderWidth: Dp = 0.dp,
+    /** Round dots half their width apart, as flutter_map's StrokePattern.dotted */
+    val dotted: Boolean = false,
 )
 
 /**
@@ -158,9 +161,14 @@ class LabMapState(
             minZoom: Double = 0.0,
             maxZoom: Double = MAX_ZOOM,
             rotatable: Boolean = true,
-        ) = LabMapState(fitCamera(points, viewport, padding, minZoom, maxZoom), minZoom, maxZoom, rotatable).also {
-            it.viewport = viewport
-        }
+            /** The deepest zoom the framing takes, as initialCameraFit's own maxZoom */
+            fitMaxZoom: Double = maxZoom,
+        ) = LabMapState(
+            fitCamera(points, viewport, padding, minZoom, minOf(fitMaxZoom, maxZoom)),
+            minZoom,
+            maxZoom,
+            rotatable,
+        ).also { it.viewport = viewport }
 
         /** In degrees and zoom steps: about 0.1 mm on the ground */
         private const val NOISE = 1e-9

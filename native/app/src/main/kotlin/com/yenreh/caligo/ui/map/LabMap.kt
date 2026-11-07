@@ -53,6 +53,7 @@ import ovh.plrapps.mapcompose.api.updatePath
 import ovh.plrapps.mapcompose.core.TileStreamProvider
 import ovh.plrapps.mapcompose.ui.MapUI
 import ovh.plrapps.mapcompose.ui.layout.Forced
+import ovh.plrapps.mapcompose.ui.paths.model.PatternItem
 import ovh.plrapps.mapcompose.ui.state.MapState
 
 /**
@@ -136,9 +137,13 @@ fun LabMap(
     LaunchedEffect(map, polylines) {
         // A border is a wider line of its own, under every line
         val paths = polylines.flatMap { line ->
+            // A dot, then a gap of half its width: flutter_map's spacing of one and a half widths
+            val pattern = if (line.dotted) listOf(PatternItem.Dot, PatternItem.Gap(line.width / 2)) else null
             listOfNotNull(
-                line.borderColor?.let { MapPath("${line.id}$BORDER", line.points, it, line.width + line.borderWidth, 0f) },
-                MapPath(line.id, line.points, line.color, line.width, 1f),
+                line.borderColor?.let {
+                    MapPath("${line.id}$BORDER", line.points, it, line.width + line.borderWidth, 0f, pattern)
+                },
+                MapPath(line.id, line.points, line.color, line.width, 1f, pattern),
             )
         }
         val ids = paths.map { it.id }.toSet()
@@ -154,9 +159,22 @@ fun LabMap(
                     if (map.hasPath(path.id)) map.removePath(path.id)
                     shownLines.remove(path.id)
                 }
-                map.hasPath(path.id) -> map.updatePath(path.id, pathData = data, color = path.color, width = path.width)
+                map.hasPath(path.id) -> map.updatePath(
+                    path.id,
+                    pathData = data,
+                    color = path.color,
+                    width = path.width,
+                    pattern = path.pattern,
+                )
                 else -> {
-                    map.addPath(path.id, data, width = path.width, color = path.color, zIndex = path.zIndex)
+                    map.addPath(
+                        path.id,
+                        data,
+                        width = path.width,
+                        color = path.color,
+                        zIndex = path.zIndex,
+                        pattern = path.pattern,
+                    )
                     shownLines.add(path.id)
                 }
             }
@@ -178,6 +196,7 @@ private class MapPath(
     val color: Color,
     val width: Dp,
     val zIndex: Float,
+    val pattern: List<PatternItem>?,
 )
 
 /** Added to a line's id for the path of its border */

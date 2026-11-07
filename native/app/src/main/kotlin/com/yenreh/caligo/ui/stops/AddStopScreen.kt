@@ -63,6 +63,7 @@ import com.yenreh.caligo.R
 import com.yenreh.caligo.data.location.LocationUnavailableException
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.TransitLine
+import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.common.rememberLoader
 import com.yenreh.caligo.ui.lab.LabDivider
@@ -114,6 +115,8 @@ fun AddStopScreen(
     initialTab: Int = AddStopTabs.MAP,
     now: () -> Long = System::currentTimeMillis,
     map: @Composable (onOpen: (OpenStop) -> Unit) -> Unit = {},
+    /** "Go here" of a stop's details: the trip planner, going there */
+    onGoHere: ((TripPlace) -> Unit)? = null,
 ) {
     val p = LabTheme.palette
     val tabs = AddStopTab.entries
@@ -152,7 +155,7 @@ fun AddStopScreen(
         }
     }
 
-    details?.let { open -> StopDetailsFor(open, viewModel, onDismiss = { details = null }) }
+    details?.let { open -> StopDetailsFor(open, viewModel, onDismiss = { details = null }, onGoHere = onGoHere) }
 }
 
 /**
