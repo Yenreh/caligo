@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -97,7 +99,8 @@ fun LabChip(
     val tone = color ?: p.muted
     Row(
         modifier = modifier
-            .height(24.dp)
+            // 24 high, taller only when large text needs it
+            .heightIn(min = 24.dp)
             .border(1.dp, color ?: p.rule)
             .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -172,3 +175,10 @@ fun labSideInsets(): WindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSi
  */
 @Composable
 fun labBottomInset(): Dp = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
+
+/**
+ * Whether the text is set large, from 1.3 times up: where a part that
+ * fits as the Flutter app lays it out gives text more room
+ */
+@Composable
+fun labLargeText(): Boolean = LocalDensity.current.fontScale >= 1.3f

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
+import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.entities.LineBus
 import com.yenreh.caligo.domain.entities.LineHours
@@ -141,6 +142,7 @@ class LinesScreenshotTest {
         waitFor(hasTestTag("bus_12081"))
         waitForTiles(tiles, zoom = model.map!!.camera.zoom.roundToInt())
         compose.captureWindow(name)
+        compose.assertControlsAccessible()
     }
 
     @Test
@@ -149,6 +151,16 @@ class LinesScreenshotTest {
     @Test
     @Config(qualifiers = "+night")
     fun lineDark() = line("line_dark", dark = true)
+
+    // At font scale 2.0, the largest Android offers: nothing clipped or overlapping
+
+    @Test
+    @Config(fontScale = 2f)
+    fun lineFontScale2() = line("line_font2", dark = false)
+
+    @Test
+    @Config(fontScale = 2f)
+    fun linesTabFontScale2() = linesTab("lines_tab_font2", dark = false)
 
     // The Lines tab of the add-stop screen
 
@@ -166,6 +178,7 @@ class LinesScreenshotTest {
         }
         waitFor(hasText("04:23 – 00:19"))
         compose.captureWindow(name)
+        compose.assertControlsAccessible()
     }
 
     @Test

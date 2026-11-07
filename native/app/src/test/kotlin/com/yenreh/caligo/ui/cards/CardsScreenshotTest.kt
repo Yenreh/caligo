@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
+import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.ui.home.HomeSamples
@@ -38,6 +39,33 @@ class CardsScreenshotTest {
     @Test
     @Config(qualifiers = "+night")
     fun cardsDark() = cards("cards_dark", HomeSamples.cardsState)
+
+    /** Each control named and 48 dp to touch at least */
+    @Test
+    fun controlsAreAccessible() {
+        compose.setContent { CaliGoTheme { CardsScreen(HomeSamples.cardsState, farePrice = Settings.DEFAULT_FARE_PRICE) } }
+        compose.assertControlsAccessible()
+    }
+
+    @Test
+    fun formControlsAreAccessible() {
+        compose.setContent {
+            CaliGoTheme {
+                CardFormScreen(title = "Editar Tarjeta", buttonLabel = "Guardar Cambios", form = mine(), isSaving = false, onSubmit = {}, onBack = {})
+            }
+        }
+        compose.assertControlsAccessible()
+    }
+
+    // At font scale 2.0, the largest Android offers: nothing clipped or overlapping
+
+    @Test
+    @Config(fontScale = 2f)
+    fun cardsFontScale2() = cards("cards_font2", HomeSamples.cardsState)
+
+    @Test
+    @Config(fontScale = 2f)
+    fun createErrorFontScale2() = form("create_card_error_font2", invalid())
 
     /** The snackbar above the add button, as Flutter's Scaffold floats it */
     @Test

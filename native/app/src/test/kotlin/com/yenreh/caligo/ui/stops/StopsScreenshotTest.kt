@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.yenreh.caligo.captureScreen
+import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.GeoPoint
@@ -105,6 +106,23 @@ class StopsScreenshotTest {
     @Config(qualifiers = "+night")
     fun stopsDark() = stops("stops_dark")
 
+    /** Each control named and 48 dp to touch at least */
+    @Test
+    fun controlsAreAccessible() {
+        compose.setContent { CaliGoTheme { StopsScreen(favorites, sortedByProximity = false) } }
+        compose.assertControlsAccessible()
+    }
+
+    // At font scale 2.0, the largest Android offers: nothing clipped or overlapping
+
+    @Test
+    @Config(fontScale = 2f)
+    fun stopsFontScale2() = stops("stops_font2")
+
+    @Test
+    @Config(fontScale = 2f)
+    fun addStopFontScale2() = nearby("add_stop_nearby_font2", located())
+
     // Adding: the stops around, and location off
 
     private fun nearby(name: String, location: FakeLocationSource) {
@@ -115,6 +133,7 @@ class StopsScreenshotTest {
         }
         waitFor(hasTestTag("nearby_stops") or hasTestTag("add_stop_message"))
         compose.captureWindow(name)
+        compose.assertControlsAccessible()
     }
 
     private fun located() = FakeLocationSource(permission = LocationPermission.GRANTED, current = GeoPoint(3.4516, -76.532))

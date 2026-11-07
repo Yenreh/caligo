@@ -77,7 +77,8 @@ fun CardItem(
                 text = formatCardNumber(card.displayId),
                 modifier = Modifier.weight(1f),
                 style = LabText.mono(p, size = 16f).copy(letterSpacing = 1.5.sp),
-                maxLines = 1,
+                // One line, two with large text rather than a number cut short
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             RefreshButton(isRefreshing, onRefreshClick)
@@ -192,7 +193,7 @@ private fun CompactCard(
             Text(
                 text = formatCardNumber(card.displayId),
                 style = LabText.mono(p, size = 12f, color = p.muted),
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }

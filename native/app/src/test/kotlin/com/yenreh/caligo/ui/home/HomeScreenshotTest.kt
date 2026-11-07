@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
+import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.ui.cards.CardsState
@@ -32,6 +33,23 @@ class HomeScreenshotTest {
     @Test
     @Config(qualifiers = "+night")
     fun bothDark() = capture("home_both_dark", HomeContent.BOTH, HomeSamples.cardsState, HomeSamples.stopsState)
+
+    /** Each control named and 48 dp to touch at least */
+    @Test
+    fun controlsAreAccessible() {
+        compose.setContent { CaliGoTheme { HomeScreen(HomeSamples.settings(HomeContent.BOTH), HomeSamples.cardsState, HomeSamples.stopsState) } }
+        compose.assertControlsAccessible()
+    }
+
+    // At font scale 2.0, the largest Android offers: nothing clipped or overlapping
+
+    @Test
+    @Config(fontScale = 2f)
+    fun bothFontScale2() = capture("home_both_font2", HomeContent.BOTH, HomeSamples.cardsState, HomeSamples.stopsState)
+
+    @Test
+    @Config(fontScale = 2f)
+    fun cardsFontScale2() = capture("home_cards_font2", HomeContent.CARDS, HomeSamples.cardsState)
 
     // Cards alone, in full
 

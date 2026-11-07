@@ -34,6 +34,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yenreh.caligo.ui.theme.LabTheme
@@ -118,8 +119,14 @@ fun LabTextField(
                         ) {
                             when {
                                 !empty -> Unit
-                                label != null && !floating -> Text(label, style = style.copy(color = p.muted), maxLines = 1)
-                                hint != null -> Text(hint, style = style.copy(color = p.muted), maxLines = 1)
+                                // Cut with an ellipsis where large text leaves no room, as Flutter's hint
+                                label != null && !floating -> Text(
+                                    label,
+                                    style = style.copy(color = p.muted),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                hint != null -> Text(hint, style = style.copy(color = p.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             input()
                         }

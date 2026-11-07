@@ -486,7 +486,8 @@ private fun DirectionToggle(labels: List<String>, selected: Int, onSelected: (In
                 Text(
                     text = label,
                     textAlign = TextAlign.Center,
-                    maxLines = 2,
+                    // Flutter's two, and a third for large text
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.labelLarge.copy(color = if (chosen) p.onFill else p.ink),
                 )

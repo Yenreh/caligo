@@ -3,6 +3,7 @@ package com.yenreh.caligo.ui.stops
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -122,21 +124,28 @@ fun FavoriteStopCard(
         }
         if (stop.looksGone) {
             LabDivider()
-            Row(
+            // The button below the notice once large text leaves no room beside it
+            FlowRow(
                 modifier = Modifier.padding(start = 16.dp, top = 4.dp, end = 8.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                itemVerticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
+                Row(
                     Modifier
-                        .size(8.dp)
-                        .background(p.crit),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.stop_not_reported),
-                    modifier = Modifier.weight(1f),
-                    style = LabText.statusLine(p).copy(color = p.crit, fontSize = 13.sp),
-                )
+                        .weight(1f)
+                        .widthIn(min = NOTICE_MIN_WIDTH),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .background(p.crit),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.stop_not_reported),
+                        style = LabText.statusLine(p).copy(color = p.crit, fontSize = 13.sp),
+                    )
+                }
                 if (onRelink != null) {
                     LabTextButton(onClick = onRelink) { Text(stringResource(R.string.relink_stop)) }
                 }
@@ -224,3 +233,6 @@ private fun Countdown(arrival: BusArrival) {
         style = LabText.mono(p, size = 16f, color = if (minutes <= 2) p.ok else p.ink),
     )
 }
+
+/** The least the missing stop's notice keeps beside its button */
+private val NOTICE_MIN_WIDTH = 160.dp

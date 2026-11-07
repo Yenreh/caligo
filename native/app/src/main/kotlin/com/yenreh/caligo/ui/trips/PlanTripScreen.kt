@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
@@ -98,6 +99,7 @@ import com.yenreh.caligo.ui.lab.LabTone
 import com.yenreh.caligo.ui.lab.LabTooltip
 import com.yenreh.caligo.ui.lab.LabTopBar
 import com.yenreh.caligo.ui.lab.labBottomInset
+import com.yenreh.caligo.ui.lab.labLargeText
 import com.yenreh.caligo.ui.lab.labSideInsets
 import com.yenreh.caligo.ui.lab.rememberLabSnackbars
 import com.yenreh.caligo.ui.map.LabMap
@@ -224,26 +226,50 @@ fun PlanTripScreen(
                     }
                     val from = state.from
                     val to = state.to
-                    LabTooltip(stringResource(R.string.open_in_google_maps)) {
-                        LabTextButton(
-                            onClick = {
-                                if (from != null && to != null) {
-                                    try {
-                                        links.openUri(googleMapsDirections(from, to))
-                                    } catch (_: IllegalArgumentException) {
-                                        // As launchUrl, nothing happens where nothing opens it
-                                    } catch (_: ActivityNotFoundException) {
-                                        // The same, from older handlers
-                                    }
-                                }
-                            },
-                            enabled = from != null && to != null,
-                            modifier = Modifier.testTag("google_maps"),
-                            withIcon = true,
-                        ) {
-                            Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.google_maps))
+                    val openMaps = {
+                        if (from != null && to != null) {
+                            try {
+                                links.openUri(googleMapsDirections(from, to))
+                            } catch (_: IllegalArgumentException) {
+                                // As launchUrl, nothing happens where nothing opens it
+                            } catch (_: ActivityNotFoundException) {
+                                // The same, from older handlers
+                            }
+                        }
+                    }
+                    val mapsLabel = stringResource(R.string.open_in_google_maps)
+                    val canOpenMaps = from != null && to != null
+                    if (labLargeText()) {
+                        // Its icon alone, so large text leaves the title some room
+                        LabTooltip(mapsLabel) {
+                            IconButton(
+                                onClick = openMaps,
+                                enabled = canOpenMaps,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .testTag("google_maps"),
+                                shape = RectangleShape,
+                            ) {
+                                Icon(
+                                    painterResource(R.drawable.ic_open_in_new),
+                                    contentDescription = mapsLabel,
+                                    // A disabled TextButton's onSurface at 38 %
+                                    tint = if (canOpenMaps) p.accent else p.ink.copy(alpha = 0.38f),
+                                )
+                            }
+                        }
+                    } else {
+                        LabTooltip(mapsLabel) {
+                            LabTextButton(
+                                onClick = openMaps,
+                                enabled = canOpenMaps,
+                                modifier = Modifier.testTag("google_maps"),
+                                withIcon = true,
+                            ) {
+                                Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.google_maps))
+                            }
                         }
                     }
                     Spacer(Modifier.width(8.dp))
@@ -881,7 +907,8 @@ private fun FirstBus(ride: RideLeg, now: () -> Long) {
         Text(
             "$text · ${ride.board.name}",
             modifier = Modifier.weight(1f),
-            maxLines = 1,
+            // Flutter's one line; large text would cut the wait short
+            maxLines = if (labLargeText()) 3 else 1,
             overflow = TextOverflow.Ellipsis,
             style = LabText.mono(p, size = 12f, color = p.ink),
         )

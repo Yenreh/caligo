@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
+import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.data.datasources.AppRelease
 import com.yenreh.caligo.domain.entities.Settings
@@ -53,6 +54,20 @@ class SettingsScreenshotTest {
     @Test
     @Config(qualifiers = "+night")
     fun settingsDark() = settings("settings_dark", state)
+
+    /** Each control named and 48 dp to touch at least */
+    @Test
+    @Config(qualifiers = TALL)
+    fun controlsAreAccessible() {
+        compose.setContent { CaliGoTheme { SettingsScreen(settings, found, appVersion = "0.1.0") } }
+        compose.assertControlsAccessible()
+    }
+
+    // At font scale 2.0, the largest Android offers: nothing clipped or overlapping
+
+    @Test
+    @Config(fontScale = 2f)
+    fun settingsFontScale2() = settings("settings_font2", state)
 
     @Test
     @Config(qualifiers = TALL)

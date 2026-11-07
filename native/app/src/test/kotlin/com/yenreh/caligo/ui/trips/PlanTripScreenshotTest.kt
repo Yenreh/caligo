@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.DpSize
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
+import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.GeocodedPlace
 import com.yenreh.caligo.domain.entities.FavoriteStop
@@ -143,6 +144,7 @@ class PlanTripScreenshotTest {
         val model = trips.planner(repository(), destination = destination)
         planner(model, FixtureTiles(), dark = false)
         compose.captureWindow(name)
+        compose.assertControlsAccessible()
     }
 
     @Test
@@ -151,6 +153,16 @@ class PlanTripScreenshotTest {
     @Test
     @Config(qualifiers = "+night")
     fun optionsDark() = options("plan_trip_options_dark")
+
+    // At font scale 2.0, the largest Android offers: nothing clipped or overlapping
+
+    @Test
+    @Config(fontScale = 2f)
+    fun optionsFontScale2() = options("plan_trip_options_font2")
+
+    @Test
+    @Config(fontScale = 2f)
+    fun openFontScale2() = open("plan_trip_open_font2", dark = false)
 
     // The hint, before a place to go
 
