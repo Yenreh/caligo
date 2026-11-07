@@ -522,8 +522,10 @@ class StopsRemoteDatasourceLinesTest {
         }
 
         override suspend fun write(key: String, value: JsonElement, remember: Boolean) {
-            written[key] = value
+            // Recorded before the write shows: tests wait on [written] from
+            // another thread, then read [remembered]
             remembered.merge(key, listOf(remember)) { a, b -> a + b }
+            written[key] = value
         }
 
         override suspend fun prune(maxAge: Duration) = Unit

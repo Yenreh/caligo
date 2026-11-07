@@ -10,6 +10,7 @@ import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.LineStop
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -507,7 +508,9 @@ class StopsRemoteDatasourceTest {
 
     /** A cache in memory, filled with JSON texts by key */
     private class MemoryCache(vararg entries: Pair<String, String>) : JsonCache {
-        private val values = entries.associate { (key, text) -> key to parseJson(text) }.toMutableMap()
+        // Written in the background, polled from the test's thread
+        private val values: MutableMap<String, JsonElement> =
+            ConcurrentHashMap(entries.associate { (key, text) -> key to parseJson(text) })
 
         override suspend fun read(key: String, maxAge: Duration?): JsonElement? = values[key]
 

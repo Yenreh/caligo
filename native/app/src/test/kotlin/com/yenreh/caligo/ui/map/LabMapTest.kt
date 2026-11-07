@@ -148,6 +148,9 @@ class LabMapTest {
         val tiles = FixtureTiles()
         show(LabMapState(MapCamera(cali, 16.0)), tiles)
         waitForTile(tiles, tileOf(cali, 16))
+        // At least the 2 by 2 around the centre, on their own threads; waited
+        // for, not assumed asked within a sleep
+        compose.waitUntil(10_000) { tiles.asked.toSet().size >= 4 }
         Thread.sleep(300)
         compose.waitForIdle()
 
