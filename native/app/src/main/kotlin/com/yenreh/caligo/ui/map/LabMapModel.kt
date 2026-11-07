@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.yenreh.caligo.domain.GeoPoint
 import kotlin.math.PI
@@ -14,6 +15,9 @@ import kotlin.math.abs
 import kotlin.math.atan
 import kotlin.math.cos
 import kotlin.math.ln
+import kotlin.math.log2
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sinh
 import kotlin.math.tan
 
@@ -25,17 +29,25 @@ import kotlin.math.tan
 @Immutable
 data class MapCamera(val center: GeoPoint, val zoom: Double, val rotation: Float = 0f)
 
-/** A spot on the map that draws something and can be tapped */
+/**
+ * A spot on the map that draws something and can be tapped; a higher
+ * [zIndex] draws over a lower one
+ */
 @Immutable
-data class LabMapMarker(val id: String, val position: GeoPoint)
+data class LabMapMarker(val id: String, val position: GeoPoint, val zIndex: Float = 0f)
 
-/** A line through [points] */
+/**
+ * A line through [points], [width] wide; with a [borderColor], drawn over
+ * a line [borderWidth] wider in that colour, as flutter_map's border
+ */
 @Immutable
 data class LabMapPolyline(
     val id: String,
     val points: List<GeoPoint>,
     val color: Color,
     val width: Dp = 4.dp,
+    val borderColor: Color? = null,
+    val borderWidth: Dp = 0.dp,
 )
 
 /**
@@ -62,13 +74,14 @@ interface MapTileSource {
 /**
  * The camera of a [LabMap], followed as the map moves and moved from
  * code. Can outlive the map it drives: a new map opens where the last
- * one was left.
+ * one was left. Two fingers turn it only when [rotatable].
  */
 @Stable
 class LabMapState(
     initial: MapCamera,
     val minZoom: Double = 0.0,
     val maxZoom: Double = MAX_ZOOM,
+    val rotatable: Boolean = true,
 ) {
     /** Where the map is now; follows every gesture */
     var camera: MapCamera by mutableStateOf(initial.copy(zoom = initial.zoom.coerceIn(minZoom, maxZoom)))
@@ -76,6 +89,9 @@ class LabMapState(
 
     /** The map on screen, while there is one */
     internal var driver: Driver? = null
+
+    /** The size of the map on screen, once laid out */
+    internal var viewport: DpSize? = null
 
     /** What a [LabMap] on screen does when moved from code */
     internal interface Driver {
@@ -89,6 +105,18 @@ class LabMapState(
         val bounded = zoom.coerceIn(minZoom, maxZoom)
         camera = camera.copy(center = center, zoom = bounded)
         driver?.move(center, bounded)
+    }
+
+    /**
+     * Frame [points], [padding] in from every edge, as flutter_map's
+     * fitCamera with CameraFit.coordinates; nothing until the map is laid
+     * out, as before flutter_map's map is ready
+     */
+    fun fit(points: List<GeoPoint>, padding: Dp) {
+        val size = viewport ?: return
+        if (points.isEmpty()) return
+        val fitted = fitCamera(points, size, padding, minZoom, maxZoom)
+        move(fitted.center, fitted.zoom)
     }
 
     /** Turn the map to [degrees] clockwise from north */
@@ -119,6 +147,21 @@ class LabMapState(
         /** The deepest zoom the tile servers draw at */
         const val MAX_ZOOM = 18.0
 
+        /**
+         * A map opening on [points], [padding] in from every edge of a map
+         * of [viewport], as flutter_map's initialCameraFit
+         */
+        fun fitting(
+            points: List<GeoPoint>,
+            viewport: DpSize,
+            padding: Dp,
+            minZoom: Double = 0.0,
+            maxZoom: Double = MAX_ZOOM,
+            rotatable: Boolean = true,
+        ) = LabMapState(fitCamera(points, viewport, padding, minZoom, maxZoom), minZoom, maxZoom, rotatable).also {
+            it.viewport = viewport
+        }
+
         /** In degrees and zoom steps: about 0.1 mm on the ground */
         private const val NOISE = 1e-9
 
@@ -126,6 +169,32 @@ class LabMapState(
         private const val ROTATION_NOISE = 1e-4f
     }
 }
+
+/**
+ * The camera that shows every one of [points], not turned, in a map of
+ * [viewport] with [padding] on every side: flutter_map's
+ * CameraFit.coordinates, its zoom held between [minZoom] and [maxZoom].
+ * A single point, or points in a line, takes the deepest zoom that fits.
+ */
+fun fitCamera(points: List<GeoPoint>, viewport: DpSize, padding: Dp, minZoom: Double, maxZoom: Double): MapCamera {
+    require(points.isNotEmpty()) { "Nothing to fit" }
+    val xs = points.map { WebMercator.x(it.longitude) }
+    val ys = points.map { WebMercator.y(it.latitude) }
+    val (west, east) = xs.min() to xs.max()
+    val (north, south) = ys.min() to ys.max()
+
+    // The world is 256 dp wide at zoom 0
+    val width = max(0f, viewport.width.value - 2 * padding.value) / WORLD_DP
+    val height = max(0f, viewport.height.value - 2 * padding.value) / WORLD_DP
+    val scale = min(width / (east - west), height / (south - north))
+    val zoom = log2(scale).let { if (it.isNaN()) minZoom else it }.coerceIn(max(0.0, minZoom), maxZoom)
+
+    val center = GeoPoint(WebMercator.latitude((north + south) / 2), WebMercator.longitude((west + east) / 2))
+    return MapCamera(center, zoom)
+}
+
+/** The width of the world at zoom 0, in dp */
+private const val WORLD_DP = 256.0
 
 /** Web Mercator, on a square of side 1 with the north-west corner at 0 */
 internal object WebMercator {

@@ -33,6 +33,9 @@ import com.yenreh.caligo.ui.home.HomeActions
 import com.yenreh.caligo.ui.home.HomeRoute
 import com.yenreh.caligo.ui.licenses.LicenseRoute
 import com.yenreh.caligo.ui.licenses.LicensesRoute
+import com.yenreh.caligo.ui.lines.LineRoute
+import com.yenreh.caligo.ui.lines.LineViewModel
+import com.yenreh.caligo.ui.lines.LinesViewModel
 import com.yenreh.caligo.ui.map.MapTileSource
 import com.yenreh.caligo.ui.map.rememberAppMapTiles
 import com.yenreh.caligo.ui.settings.SettingsRoute
@@ -47,11 +50,11 @@ import com.yenreh.caligo.ui.stops.StopsViewModel
  * the predictive back gesture, pop it.
  *
  * Each screen keeps its own view models, cleared when it is popped, but
- * for the cards and the stops: those are the activity's, shared by every
- * screen that lists them, as the Flutter providers are.
+ * for the cards, the stops and the lines: those are the activity's,
+ * shared by every screen that lists them, as the Flutter providers are.
  *
- * The planner and the line screens come in later parts: their keys
- * exist, nothing pushes them yet.
+ * The planner comes in a later part: its key exists, nothing pushes it
+ * yet.
  */
 @Composable
 fun AppNavigation(
@@ -60,6 +63,8 @@ fun AppNavigation(
     backStack: NavBackStack<NavKey> = rememberNavBackStack(Route.Home),
     /** The tiles of the maps, as the settings ask: the app's, or a test's */
     mapTiles: @Composable (Settings) -> MapTileSource = { rememberAppMapTiles(it) },
+    /** The view model of a line's screen, by line name: its own, or a test's */
+    lineViewModel: @Composable (line: String) -> LineViewModel = { viewModel(factory = LineViewModel.factory(it)) },
 ) {
     val activity: ViewModelStoreOwner = checkNotNull(LocalViewModelStoreOwner.current)
     // Read inside the entries, so they follow every change of the settings
@@ -80,6 +85,9 @@ fun AppNavigation(
 
     @Composable
     fun stops(): StopsViewModel = viewModel(activity, factory = StopsViewModel.Factory)
+
+    @Composable
+    fun lines(): LinesViewModel = viewModel(activity, factory = LinesViewModel.Factory)
 
     fun station(station: Station) =
         open(Route.Station(station.id, station.name, station.address, station.latitude, station.longitude))
@@ -112,15 +120,35 @@ fun AppNavigation(
                 StopsRoute(current, stops(), onBack = ::back, onAdd = { open(Route.AddStop) })
             }
             entry<Route.AddStop> {
-                AddStopScreen(stops(), onBack = ::back, onStation = ::station, map = { MapStopsRoute(current, mapTiles(current), it) })
+                AddStopScreen(
+                    stops(),
+                    lines(),
+                    onBack = ::back,
+                    onStation = ::station,
+                    onLine = { open(Route.Line(it.id, it.name)) },
+                    map = { MapStopsRoute(current, mapTiles(current), it) },
+                )
             }
             entry<Route.SearchStops> {
                 AddStopScreen(
                     stops(),
+                    lines(),
                     onBack = ::back,
                     onStation = ::station,
+                    onLine = { open(Route.Line(it.id, it.name)) },
                     explore = true,
                     map = { MapStopsRoute(current, mapTiles(current), it) },
+                )
+            }
+            entry<Route.Line> { key ->
+                LineRoute(
+                    key.name,
+                    current,
+                    mapTiles(current),
+                    stops(),
+                    lines(),
+                    onBack = ::back,
+                    viewModel = lineViewModel(key.name),
                 )
             }
             entry<Route.Station> { key ->

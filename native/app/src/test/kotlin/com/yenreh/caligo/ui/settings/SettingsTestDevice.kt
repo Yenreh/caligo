@@ -120,9 +120,9 @@ class MemoryCache(var bytes: Long) : JsonCache {
 
     override suspend fun read(key: String, maxAge: Duration?): JsonElement? = null
 
-    override suspend fun readEntry(key: String): CacheEntry? = null
+    override suspend fun readEntry(key: String, remember: Boolean): CacheEntry? = null
 
-    override suspend fun write(key: String, value: JsonElement) = Unit
+    override suspend fun write(key: String, value: JsonElement, remember: Boolean) = Unit
 
     override suspend fun prune(maxAge: Duration) = Unit
 

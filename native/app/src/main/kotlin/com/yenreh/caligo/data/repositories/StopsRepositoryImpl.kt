@@ -38,6 +38,14 @@ class StopsRepositoryImpl(
 
     override suspend fun getLinesByStop(stopId: String) = remote.getLinesByStop(stopId)
 
+    override suspend fun getLines() = remote.getLines()
+
+    override suspend fun getLineStops(line: String) = remote.getLineStops(line)
+
+    override suspend fun getLineBuses(line: String) = remote.getLineBuses(line)
+
+    override suspend fun getLineHours() = remote.getLineHours()
+
     override suspend fun arrivalsFor(stops: List<LineStop>, maxAge: Duration): LiveArrivals =
         remote.arrivalsFor(stops, maxAge)
 

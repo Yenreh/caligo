@@ -24,6 +24,7 @@ import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
 import com.yenreh.caligo.ui.home.HomeSamples
+import com.yenreh.caligo.ui.lines.LinesViewModel
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
@@ -108,8 +109,9 @@ class StopsScreenshotTest {
 
     private fun nearby(name: String, location: FakeLocationSource) {
         val viewModel = viewModel(location)
+        val linesModel = LinesViewModel(FakeStopsRepository(emptyList(), emptyList()))
         compose.setContent {
-            CaliGoTheme { AddStopScreen(viewModel, onBack = {}, onStation = {}, initialTab = AddStopTabs.NEARBY) }
+            CaliGoTheme { AddStopScreen(viewModel, linesModel, onBack = {}, onStation = {}, initialTab = AddStopTabs.NEARBY) }
         }
         waitFor(hasTestTag("nearby_stops") or hasTestTag("add_stop_message"))
         compose.captureWindow(name)

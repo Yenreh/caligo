@@ -4,18 +4,21 @@ import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.LiveArrivals
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.FavoriteStop
+import com.yenreh.caligo.domain.entities.LineBus
+import com.yenreh.caligo.domain.entities.LineHours
 import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.StopLine
+import com.yenreh.caligo.domain.entities.TransitLine
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Stops and arrivals: the part of the Flutter app's repository the home
- * and the stop screens need. Lines, routes and trips come with their
- * screens.
+ * Stops, arrivals and lines: the part of the Flutter app's repository the
+ * home, the stop screens and the line screen need. Trips come with the
+ * planner.
  */
 interface StopsRepository {
     /** Stops saved by the user */
@@ -46,6 +49,18 @@ interface StopsRepository {
 
     /** Lines serving a stop */
     suspend fun getLinesByStop(stopId: String): List<StopLine>
+
+    /** Every MIO line */
+    suspend fun getLines(): List<TransitLine>
+
+    /** A line's route, both directions */
+    suspend fun getLineStops(line: String): List<LineStop>
+
+    /** Buses running on a line now, each with the direction of its trip when known */
+    suspend fun getLineBuses(line: String): List<LineBus>
+
+    /** Hours each line runs, by line name */
+    suspend fun getLineHours(): Map<String, LineHours>
 
     /**
      * Buses on their way to the given stops, reusing recent answers and

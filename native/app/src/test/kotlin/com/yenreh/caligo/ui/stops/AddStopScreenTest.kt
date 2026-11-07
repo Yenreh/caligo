@@ -15,13 +15,19 @@ import com.yenreh.caligo.data.datasources.NetworkApiException
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.entities.BusArrival
+import com.yenreh.caligo.domain.entities.LineHours
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.Station
+import com.yenreh.caligo.domain.entities.TransitLine
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
 import com.yenreh.caligo.ui.favorite
+import com.yenreh.caligo.ui.lines.LinesViewModel
 import com.yenreh.caligo.ui.theme.CaliGoTheme
+import java.util.Calendar
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -31,7 +37,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * The Flutter AddStopScreen's station and nearby tabs, and the stop
+ * The Flutter AddStopScreen's station, line and nearby tabs, and the stop
  * details they open, with a fake device location: the permission flow
  * as the nearby search meets it
  */
@@ -41,6 +47,13 @@ class AddStopScreenTest {
     val compose = createComposeRule()
 
     private val opened = mutableListOf<Station>()
+    private val linesOpened = mutableListOf<TransitLine>()
+
+    /** 2026-09-29 at 21:30, local time */
+    private val evening = Calendar.getInstance().apply {
+        clear()
+        set(2026, Calendar.SEPTEMBER, 29, 21, 30)
+    }.timeInMillis
 
     private val here = GeoPoint(3.4516, -76.5320)
 
@@ -70,9 +83,19 @@ class AddStopScreenTest {
             location = location,
             settings = MutableStateFlow(Settings(isLoading = false)),
         )
+        val lines = LinesViewModel(repository)
         compose.setContent {
             CaliGoTheme {
-                AddStopScreen(viewModel, onBack = {}, onStation = { opened.add(it) }, explore = explore, initialTab = tab)
+                AddStopScreen(
+                    viewModel,
+                    lines,
+                    onBack = {},
+                    onStation = { opened.add(it) },
+                    onLine = { linesOpened.add(it) },
+                    explore = explore,
+                    initialTab = tab,
+                    now = { evening },
+                )
             }
         }
         compose.waitForIdle()
@@ -94,7 +117,66 @@ class AddStopScreenTest {
 
         compose.onNodeWithText("Find stops").assertExists()
         compose.onNodeWithText("Stations").assertExists()
+        compose.onNodeWithText("Lines").assertExists()
         compose.onNodeWithText("Near me").assertExists()
+    }
+
+    // The lines
+
+    private fun withLines() = repository().apply {
+        transitLines = listOf(TransitLine(347, "A47"), TransitLine(131, "T31"), TransitLine(0, "A52"))
+        hours = mapOf(
+            // Runs past midnight: still running at 21:30
+            "T31" to LineHours(4.hours + 30.minutes, 19.minutes),
+            "A47" to LineHours(5.hours, 20.hours + 9.minutes),
+        )
+    }
+
+    @Test
+    fun theLinesShowTheirHoursAndWhetherTheyRunNow() {
+        show(withLines(), tab = LINES)
+        waitFor(hasText("04:30 – 00:19"))
+
+        compose.onNodeWithText("05:00 – 20:09").assertExists()
+        compose.onNodeWithText("Running now").assertExists()
+        compose.onNodeWithText("Not running now").assertExists()
+        // Without hours, the name alone and no status
+        assertEquals(2, compose.onAllNodes(hasText("A52"), useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun theLineSearchIgnoresCaseAndOpensALine() {
+        val repository = withLines()
+        show(repository, tab = LINES)
+        waitFor(hasText("A47"))
+
+        compose.onNodeWithTag("line_search").performTextReplacement(" t3 ")
+        waitGone(hasText("A47"))
+        compose.onNodeWithText("T31").performClick()
+
+        assertEquals(listOf("T31"), linesOpened.map { it.name })
+        // Loaded once, kept as the tabs change
+        compose.onNodeWithTag("tab_stations").performClick()
+        compose.onNodeWithTag("tab_lines").performClick()
+        waitFor(hasText("T31"))
+        assertEquals(1, repository.lineCalls)
+        assertEquals(1, repository.hourCalls)
+    }
+
+    @Test
+    fun linesThatFailOfferToRetryAndHoursThatFailOnlyHideTheStatus() {
+        val repository = withLines()
+        repository.catalogFailure = NetworkApiException("Connection error")
+        repository.hourFailure = NetworkApiException("Connection error")
+        show(repository, tab = LINES)
+        waitFor(hasText("Could not load arrivals"))
+
+        repository.catalogFailure = null
+        compose.onNodeWithText("Retry").performClick()
+
+        waitFor(hasText("T31"))
+        assertFalse(exists(hasText("Running now")))
+        assertFalse(exists(hasText("04:30 – 00:19")))
     }
 
     // The station catalog
@@ -271,5 +353,6 @@ class AddStopScreenTest {
 
     private companion object {
         const val NEARBY = AddStopTabs.NEARBY
+        const val LINES = AddStopTabs.LINES
     }
 }

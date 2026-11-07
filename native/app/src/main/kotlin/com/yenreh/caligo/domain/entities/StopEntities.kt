@@ -97,21 +97,6 @@ data class FavoriteStop(
     }
 }
 
-/** A stop along a line's route */
-data class LineStop(
-    val stopId: String,
-    val name: String,
-    val latitude: Double,
-    val longitude: Double,
-    /**
-     * Which way the route runs: each line goes out and comes back, and
-     * the service numbers the two directions 0 and 1
-     */
-    val direction: Int,
-    /** Place along the route in its direction, from 1 */
-    val sequence: Int,
-)
-
 /** A MIO station from the public catalog */
 data class Station(
     val id: Int,

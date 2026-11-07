@@ -27,6 +27,7 @@ import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
+import com.yenreh.caligo.ui.lines.LinesViewModel
 import com.yenreh.caligo.ui.map.FixtureTiles
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import kotlinx.coroutines.CompletableDeferred
@@ -286,9 +287,10 @@ class MapStopsScreenTest {
             settings = MutableStateFlow(Settings(isLoading = false)),
         )
         val model = MapStopsViewModel(repository(), FakeLocationSource(), cache, CoroutineScope(Dispatchers.Unconfined))
+        val linesModel = LinesViewModel(FakeStopsRepository(emptyList(), emptyList()))
         compose.setContent {
             CaliGoTheme {
-                AddStopScreen(stops, onBack = {}, onStation = {}, map = { onOpen ->
+                AddStopScreen(stops, linesModel, onBack = {}, onStation = {}, map = { onOpen ->
                     MapStopsScreen(model, remember { FixtureTiles() }, darkTiles = false, carto = true, onOpen = onOpen)
                 })
             }

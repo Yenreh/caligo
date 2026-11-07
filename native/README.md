@@ -53,7 +53,8 @@ never ask for it.
 ## Map
 
 `ui/map/LabMap` draws every map: raster tiles, markers and lines, with
-pan, pinch, fling, double tap and two-finger turns. It stands on
+pan, pinch, fling, double tap and, where the screen allows them,
+two-finger turns (a line's route stays north up). It stands on
 MapCompose, which draws the tiles with Compose's own canvas (no native
 code); screens use `LabMap` and `LabMapState` only, so another library
 would change that one file.

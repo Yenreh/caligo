@@ -258,10 +258,11 @@ class OpenStop(val stop: NearbyStop, val anchorLatitude: Double, val anchorLongi
 
 /**
  * The details of [open], with what the activity's [StopsViewModel] knows:
- * whether it is saved already, its fresh arrivals and its lines
+ * whether it is saved already, its fresh arrivals and its lines.
+ * [fetchOnOpen] as the sheet's.
  */
 @Composable
-fun StopDetailsFor(open: OpenStop, viewModel: StopsViewModel, onDismiss: () -> Unit) {
+fun StopDetailsFor(open: OpenStop, viewModel: StopsViewModel, onDismiss: () -> Unit, fetchOnOpen: Boolean = false) {
     val stops by viewModel.stops.collectAsStateWithLifecycle()
     val stop = open.stop
     StopDetailsSheet(
@@ -284,5 +285,6 @@ fun StopDetailsFor(open: OpenStop, viewModel: StopsViewModel, onDismiss: () -> U
             )
         },
         onDismiss = onDismiss,
+        fetchOnOpen = fetchOnOpen,
     )
 }

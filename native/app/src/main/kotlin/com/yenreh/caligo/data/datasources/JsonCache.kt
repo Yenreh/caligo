@@ -28,10 +28,15 @@ interface JsonCache {
     /** Cached value for [key], or null when missing or older than [maxAge] */
     suspend fun read(key: String, maxAge: Duration? = null): JsonElement?
 
-    /** Cached value for [key] however old, with when it was saved; null when missing */
-    suspend fun readEntry(key: String): CacheEntry?
+    /**
+     * Cached value for [key] however old, with when it was saved; null
+     * when missing. [remember] keeps it in memory for the next read, which
+     * a large value read once a run is better without.
+     */
+    suspend fun readEntry(key: String, remember: Boolean = true): CacheEntry?
 
-    suspend fun write(key: String, value: JsonElement)
+    /** Keep [value] for [key], in memory too unless not to [remember] */
+    suspend fun write(key: String, value: JsonElement, remember: Boolean = true)
 
     /**
      * Delete entries not written in [maxAge].
@@ -51,9 +56,9 @@ interface JsonCache {
     object None : JsonCache {
         override suspend fun read(key: String, maxAge: Duration?): JsonElement? = null
 
-        override suspend fun readEntry(key: String): CacheEntry? = null
+        override suspend fun readEntry(key: String, remember: Boolean): CacheEntry? = null
 
-        override suspend fun write(key: String, value: JsonElement) = Unit
+        override suspend fun write(key: String, value: JsonElement, remember: Boolean) = Unit
 
         override suspend fun prune(maxAge: Duration) = Unit
     }
@@ -73,7 +78,7 @@ class FileJsonCache(
         return entry.value
     }
 
-    override suspend fun readEntry(key: String): CacheEntry? {
+    override suspend fun readEntry(key: String, remember: Boolean): CacheEntry? {
         memory[key]?.let { return it }
         return withContext(io) {
             try {
@@ -81,7 +86,7 @@ class FileJsonCache(
                 if (!file.exists()) return@withContext null
                 val decoded = parseJson(file.readText()) as? JsonObject ?: return@withContext null
                 CacheEntry(decoded["savedAt"].long(), decoded["value"] ?: JsonNull)
-                    .also { memory[key] = it }
+                    .also { if (remember) memory[key] = it }
             } catch (_: Exception) {
                 // A cache miss is always an acceptable answer
                 null
@@ -89,9 +94,9 @@ class FileJsonCache(
         }
     }
 
-    override suspend fun write(key: String, value: JsonElement) {
+    override suspend fun write(key: String, value: JsonElement, remember: Boolean) {
         val savedAt = now()
-        memory[key] = CacheEntry(savedAt, value)
+        if (remember) memory[key] = CacheEntry(savedAt, value) else memory.remove(key)
         withContext(io) {
             try {
                 val text = buildJsonObject {

@@ -44,6 +44,21 @@
     <string name="lines_to_show">Lines to show</string>
     <string name="lines_to_show_hint">With none chosen, every line shows</string>
 
+    <!-- Lines -->
+    <string name="lines_tab">Lines</string>
+    <string name="search_line">Search line</string>
+    <string name="line_running_now">Running now</string>
+    <string name="line_not_running">Not running now</string>
+    <string name="line_runs">Runs %1$s–%2$s</string>
+    <string name="no_buses_this_way">No buses this way</string>
+    <plurals name="buses_this_way">
+        <item quantity="one">1 bus this way</item>
+        <item quantity="other">%d buses this way</item>
+    </plurals>
+    <string name="towards">To %1$s</string>
+    <string name="no_line_route">No route for this line</string>
+    <string name="update_bus_positions">Update bus positions</string>
+
     <!-- Cards -->
     <string name="update_balance">Update balance</string>
     <string name="name">NAME</string>

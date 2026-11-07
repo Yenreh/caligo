@@ -94,3 +94,22 @@ internal fun HttpAnswer.checkStatus() {
         )
     }
 }
+
+/**
+ * [text] as Dart's `Uri.encodeComponent` writes it: UTF-8, every byte
+ * percent-encoded but letters, digits and `-_.!~*'()`
+ */
+internal fun encodeUriComponent(text: String): String = buildString {
+    for (byte in text.toByteArray(Charsets.UTF_8)) {
+        val c = byte.toInt() and 0xFF
+        val char = c.toChar()
+        if (char in 'A'..'Z' || char in 'a'..'z' || char in '0'..'9' || char in UNRESERVED) {
+            append(char)
+        } else {
+            append('%').append(HEX[c shr 4]).append(HEX[c and 0xF])
+        }
+    }
+}
+
+private const val UNRESERVED = "-_.!~*'()"
+private const val HEX = "0123456789ABCDEF"

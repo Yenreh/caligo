@@ -308,9 +308,9 @@ class MapStopsViewModelTest {
 
         override suspend fun read(key: String, maxAge: Duration?) = values[key]
 
-        override suspend fun readEntry(key: String) = values[key]?.let { CacheEntry(0, it) }
+        override suspend fun readEntry(key: String, remember: Boolean) = values[key]?.let { CacheEntry(0, it) }
 
-        override suspend fun write(key: String, value: JsonElement) {
+        override suspend fun write(key: String, value: JsonElement, remember: Boolean) {
             values[key] = value
         }
 

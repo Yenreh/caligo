@@ -511,9 +511,9 @@ class StopsRemoteDatasourceTest {
 
         override suspend fun read(key: String, maxAge: Duration?): JsonElement? = values[key]
 
-        override suspend fun readEntry(key: String) = values[key]?.let { CacheEntry(System.currentTimeMillis(), it) }
+        override suspend fun readEntry(key: String, remember: Boolean) = values[key]?.let { CacheEntry(System.currentTimeMillis(), it) }
 
-        override suspend fun write(key: String, value: JsonElement) {
+        override suspend fun write(key: String, value: JsonElement, remember: Boolean) {
             values[key] = value
         }
 

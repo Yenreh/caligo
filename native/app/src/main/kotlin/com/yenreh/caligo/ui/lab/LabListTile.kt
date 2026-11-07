@@ -15,7 +15,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yenreh.caligo.ui.theme.LabTheme
@@ -26,7 +28,9 @@ import com.yenreh.caligo.ui.theme.LabTheme
  * leading and trailing centred, 16 between them and the text.
  *
  * Taps are the caller's: [modifier] carries the clickable, toggleable or
- * selectable that fits, so the row says what it does.
+ * selectable that fits, so the row says what it does. [leadingContent]
+ * takes the place of the [leading] icon, [titleStyle] of the theme's
+ * title style.
  */
 @Composable
 fun LabListTile(
@@ -38,6 +42,9 @@ fun LabListTile(
     titleWeight: FontWeight = FontWeight.Medium,
     /** Title, subtitle and leading icon in one colour, as a selected Flutter tile has them */
     contentColor: Color? = null,
+    leadingContent: (@Composable () -> Unit)? = null,
+    titleStyle: TextStyle? = null,
+    subtitleColor: Color? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val p = LabTheme.palette
@@ -48,17 +55,24 @@ fun LabListTile(
             .padding(start = 16.dp, top = 8.dp, end = 24.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (leading != null) {
+        if (leadingContent != null) {
+            leadingContent()
+            Spacer(Modifier.width(16.dp))
+        } else if (leading != null) {
             Icon(leading, contentDescription = null, modifier = Modifier.size(24.dp), tint = contentColor ?: leadingTint ?: p.muted)
             Spacer(Modifier.width(16.dp))
         }
         Column(Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = titleWeight, color = contentColor ?: p.ink),
+                style = (titleStyle ?: MaterialTheme.typography.bodyLarge.copy(fontWeight = titleWeight))
+                    .copy(color = contentColor ?: titleStyle?.color?.takeIf { it.isSpecified } ?: p.ink),
             )
             if (subtitle != null) {
-                Text(text = subtitle, style = MaterialTheme.typography.bodyMedium.copy(color = contentColor ?: p.muted))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium.copy(color = contentColor ?: subtitleColor ?: p.muted),
+                )
             }
         }
         if (trailing != null) {

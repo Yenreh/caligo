@@ -16,10 +16,13 @@ import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.CardBalance
 import com.yenreh.caligo.domain.entities.CardEntity
 import com.yenreh.caligo.domain.entities.FavoriteStop
+import com.yenreh.caligo.domain.entities.LineBus
+import com.yenreh.caligo.domain.entities.LineHours
 import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.StopLine
+import com.yenreh.caligo.domain.entities.TransitLine
 import com.yenreh.caligo.domain.repositories.CardRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import kotlin.time.Duration
@@ -189,6 +192,63 @@ class FakeStopsRepository(
     override suspend fun nextPosition() = (favorites.maxOfOrNull { it.position } ?: -1) + 1
 
     override suspend fun arrivalsFor(stops: List<LineStop>, maxAge: Duration) = LiveArrivals.NONE
+
+    // The lines: the catalog, routes, buses and hours, each counted
+
+    var transitLines: List<TransitLine> = emptyList()
+    var lineCalls = 0
+
+    /** Routes by line name; a line missing here has an empty route */
+    var routes: Map<String, List<LineStop>> = emptyMap()
+    val routesAsked = mutableListOf<String>()
+
+    /** Thrown by the routes, when set */
+    var routeFailure: Throwable? = null
+
+    /** Stands in for asking for a route, when set */
+    var routeAnswer: (suspend () -> Unit)? = null
+
+    /** Buses by line name, as the next answer gives them */
+    var buses: Map<String, List<LineBus>> = emptyMap()
+    val busesAsked = mutableListOf<String>()
+
+    /** Thrown by the buses, when set */
+    var busFailure: Throwable? = null
+
+    /** Stands in for asking for the buses, when set */
+    var busAnswer: (suspend () -> Unit)? = null
+
+    var hours: Map<String, LineHours> = emptyMap()
+    var hourCalls = 0
+
+    /** Thrown by the hours, when set */
+    var hourFailure: Throwable? = null
+
+    override suspend fun getLines(): List<TransitLine> {
+        lineCalls++
+        catalogFailure?.let { throw it }
+        return transitLines
+    }
+
+    override suspend fun getLineStops(line: String): List<LineStop> {
+        routesAsked.add(line)
+        routeAnswer?.invoke()
+        routeFailure?.let { throw it }
+        return routes[line].orEmpty()
+    }
+
+    override suspend fun getLineBuses(line: String): List<LineBus> {
+        busesAsked.add(line)
+        busAnswer?.invoke()
+        busFailure?.let { throw it }
+        return buses[line].orEmpty()
+    }
+
+    override suspend fun getLineHours(): Map<String, LineHours> {
+        hourCalls++
+        hourFailure?.let { throw it }
+        return hours
+    }
 
     override suspend fun recentArrivals(maxAge: Duration) = kept
 

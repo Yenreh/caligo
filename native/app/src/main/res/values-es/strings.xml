@@ -42,6 +42,22 @@
     <string name="lines_to_show">Rutas a mostrar</string>
     <string name="lines_to_show_hint">Sin ninguna elegida se muestran todas</string>
 
+    <!-- Lines -->
+    <string name="lines_tab">Rutas</string>
+    <string name="search_line">Buscar ruta</string>
+    <string name="line_running_now">Operando ahora</string>
+    <string name="line_not_running">No opera ahora</string>
+    <string name="line_runs">Opera %1$s–%2$s</string>
+    <string name="no_buses_this_way">Ningún bus en este sentido</string>
+    <plurals name="buses_this_way">
+        <item quantity="one">1 bus en este sentido</item>
+        <item quantity="many">%d buses en este sentido</item>
+        <item quantity="other">%d buses en este sentido</item>
+    </plurals>
+    <string name="towards">Hacia %1$s</string>
+    <string name="no_line_route">No hay recorrido para esta ruta</string>
+    <string name="update_bus_positions">Actualizar posición de los buses</string>
+
     <!-- Cards -->
     <string name="update_balance">Actualizar saldo</string>
     <string name="name">NOMBRE</string>

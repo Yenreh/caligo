@@ -21,6 +21,7 @@ import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
+import com.yenreh.caligo.ui.lines.LinesViewModel
 import com.yenreh.caligo.ui.map.FixtureTiles
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import com.yenreh.caligo.ui.theme.LabTheme
@@ -129,9 +130,10 @@ class MapStopsScreenshotTest {
         )
         val model = mapViewModel()
         val tiles = FixtureTiles(dark = dark)
+        val linesModel = LinesViewModel(FakeStopsRepository(emptyList(), emptyList()))
         compose.setContent {
             CaliGoTheme {
-                AddStopScreen(stops, onBack = {}, onStation = {}, map = { onOpen ->
+                AddStopScreen(stops, linesModel, onBack = {}, onStation = {}, map = { onOpen ->
                     MapStopsScreen(model, remember { tiles }, darkTiles = dark, carto = true, onOpen = onOpen, fadeIn = false)
                 })
             }

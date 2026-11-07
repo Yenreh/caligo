@@ -12,7 +12,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import com.yenreh.caligo.domain.GeoPoint
 import java.io.ByteArrayInputStream
 import kotlin.coroutines.cancellation.CancellationException
@@ -34,6 +37,7 @@ import ovh.plrapps.mapcompose.api.hasPath
 import ovh.plrapps.mapcompose.api.makePathDataBuilder
 import ovh.plrapps.mapcompose.api.moveMarker
 import ovh.plrapps.mapcompose.api.onMarkerClick
+import ovh.plrapps.mapcompose.api.onMarkerLongPress
 import ovh.plrapps.mapcompose.api.removeAllLayers
 import ovh.plrapps.mapcompose.api.removeMarker
 import ovh.plrapps.mapcompose.api.removePath
@@ -44,6 +48,7 @@ import ovh.plrapps.mapcompose.api.setFadeInSpeed
 import ovh.plrapps.mapcompose.api.setMapBackground
 import ovh.plrapps.mapcompose.api.setStateChangeListener
 import ovh.plrapps.mapcompose.api.snapScrollTo
+import ovh.plrapps.mapcompose.api.updateMarkerZ
 import ovh.plrapps.mapcompose.api.updatePath
 import ovh.plrapps.mapcompose.core.TileStreamProvider
 import ovh.plrapps.mapcompose.ui.MapUI
@@ -59,7 +64,8 @@ import ovh.plrapps.mapcompose.ui.state.MapState
  * canvas), so another one would only change this file.
  *
  * [markerContent] draws each of [markers], centred on its position;
- * tapping one calls [onMarkerTap] with its id.
+ * tapping one calls [onMarkerTap] with its id, holding it
+ * [onMarkerLongPress]. [polylines] go under the markers.
  */
 @Composable
 fun LabMap(
@@ -69,15 +75,18 @@ fun LabMap(
     markers: List<LabMapMarker> = emptyList(),
     markerContent: @Composable (id: String) -> Unit = {},
     onMarkerTap: (id: String) -> Unit = {},
+    onMarkerLongPress: (id: String) -> Unit = {},
     polylines: List<LabMapPolyline> = emptyList(),
     /** Tiles fade in as they come, as flutter_map's; screenshots turn it off */
     fadeIn: Boolean = true,
 ) {
-    val density = LocalDensity.current.density
+    val screen = LocalDensity.current
+    val density = screen.density
     val geometry = remember(density, tiles.tilePixels) { MapGeometry(density, tiles.tilePixels) }
     val scope = rememberCoroutineScope()
     val content by rememberUpdatedState(markerContent)
     val tap by rememberUpdatedState(onMarkerTap)
+    val hold by rememberUpdatedState(onMarkerLongPress)
 
     // A new geometry is a new map, where the last one was left
     val map = remember(geometry, state) { geometry.mapFor(state) }
@@ -89,6 +98,7 @@ fun LabMap(
         val driver = geometry.driverFor(map, scope) { state.follow(geometry.cameraOf(map)) }
         map.setStateChangeListener { if (!driver.moving) state.follow(geometry.cameraOf(this)) }
         map.onMarkerClick { id, _, _ -> tap(id) }
+        map.onMarkerLongPress { id, _, _ -> hold(id) }
         state.driver = driver
         onDispose {
             state.driver = null
@@ -113,38 +123,65 @@ fun LabMap(
             val y = WebMercator.y(marker.position.latitude)
             if (map.hasMarker(marker.id)) {
                 map.moveMarker(marker.id, x, y)
+                map.updateMarkerZ(marker.id, marker.zIndex)
             } else {
-                map.addMarker(marker.id, x, y, relativeOffset = Offset(-0.5f, -0.5f)) { content(marker.id) }
+                map.addMarker(marker.id, x, y, relativeOffset = Offset(-0.5f, -0.5f), zIndex = marker.zIndex) {
+                    content(marker.id)
+                }
                 shownMarkers.add(marker.id)
             }
         }
     }
 
     LaunchedEffect(map, polylines) {
-        val ids = polylines.map { it.id }.toSet()
+        // A border is a wider line of its own, under every line
+        val paths = polylines.flatMap { line ->
+            listOfNotNull(
+                line.borderColor?.let { MapPath("${line.id}$BORDER", line.points, it, line.width + line.borderWidth, 0f) },
+                MapPath(line.id, line.points, line.color, line.width, 1f),
+            )
+        }
+        val ids = paths.map { it.id }.toSet()
         for (id in shownLines - ids) map.removePath(id)
         shownLines.retainAll(ids)
-        for (line in polylines) {
+        for (path in paths) {
             val data = map.makePathDataBuilder().apply {
-                for (point in line.points) addPoint(WebMercator.x(point.longitude), WebMercator.y(point.latitude))
+                for (point in path.points) addPoint(WebMercator.x(point.longitude), WebMercator.y(point.latitude))
             }.build()
             when {
                 // Fewer than two points: nothing to draw
                 data == null -> {
-                    if (map.hasPath(line.id)) map.removePath(line.id)
-                    shownLines.remove(line.id)
+                    if (map.hasPath(path.id)) map.removePath(path.id)
+                    shownLines.remove(path.id)
                 }
-                map.hasPath(line.id) -> map.updatePath(line.id, pathData = data, color = line.color, width = line.width)
+                map.hasPath(path.id) -> map.updatePath(path.id, pathData = data, color = path.color, width = path.width)
                 else -> {
-                    map.addPath(line.id, data, width = line.width, color = line.color)
-                    shownLines.add(line.id)
+                    map.addPath(path.id, data, width = path.width, color = path.color, zIndex = path.zIndex)
+                    shownLines.add(path.id)
                 }
             }
         }
     }
 
-    MapUI(modifier, state = map)
+    MapUI(
+        modifier.onSizeChanged { size ->
+            state.viewport = with(screen) { DpSize(size.width.toDp(), size.height.toDp()) }
+        },
+        state = map,
+    )
 }
+
+/** One path as MapCompose draws it: a line, or the border under one */
+private class MapPath(
+    val id: String,
+    val points: List<GeoPoint>,
+    val color: Color,
+    val width: Dp,
+    val zIndex: Float,
+)
+
+/** Added to a line's id for the path of its border */
+private const val BORDER = "#border"
 
 /** About flutter_map's 100 ms fade at 60 frames a second */
 private const val FADE_IN_SPEED = 0.17f
@@ -210,7 +247,7 @@ internal class MapGeometry(private val density: Float, tilePixels: Int) {
             minimumScaleMode(Forced(scaleFor(state.minZoom)))
             maxScale(scaleFor(state.maxZoom))
         }.apply {
-            enableRotation()
+            if (state.rotatable) enableRotation()
             setMapBackground(MAP_BACKGROUND)
         }
     }

@@ -2,29 +2,37 @@ package com.yenreh.caligo.data.datasources
 
 import com.yenreh.caligo.data.json.JsonFormatException
 import com.yenreh.caligo.data.json.dartDouble
+import com.yenreh.caligo.data.json.dartIntTryParse
 import com.yenreh.caligo.data.json.dartString
 import com.yenreh.caligo.data.json.double
 import com.yenreh.caligo.data.json.doubleOrNull
 import com.yenreh.caligo.data.json.isNum
 import com.yenreh.caligo.data.json.long
+import com.yenreh.caligo.data.json.longOrNull
 import com.yenreh.caligo.data.json.parseJson
+import com.yenreh.caligo.data.json.string
 import com.yenreh.caligo.domain.ARRIVALS_REACH_METERS
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.LiveArrivals
 import com.yenreh.caligo.domain.areasCovering
 import com.yenreh.caligo.domain.entities.BusArrival
+import com.yenreh.caligo.domain.entities.LineBus
+import com.yenreh.caligo.domain.entities.LineHours
 import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.StopLine
+import com.yenreh.caligo.domain.entities.TransitLine
 import com.yenreh.caligo.domain.metersBetween
 import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -41,6 +49,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
@@ -52,9 +61,9 @@ import okhttp3.OkHttpClient
 
 /**
  * Stops around a point and the buses on their way to them, from the
- * arrivals service, and the station catalog and the lines serving a stop,
- * from the catalog server: those paths of the Flutter app's datasource.
- * The lines, routes and buses come with their screens.
+ * arrivals service; the station catalog, the lines, their routes, hours
+ * and buses, from the catalog server: those paths of the Flutter app's
+ * datasource. Its trip planning comes with the planner.
  */
 class StopsRemoteDatasource(
     client: OkHttpClient,
@@ -75,6 +84,8 @@ class StopsRemoteDatasource(
     private val ticks: () -> Long = System::nanoTime,
     /** Where shared requests and housekeeping run, past any one caller */
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    /** How often each line comes, and which were seen lately */
+    private val headways: HeadwayMemory = HeadwayMemory(cache, now),
 ) {
     private val client = client.forService(REQUEST_TIMEOUT)
 
@@ -103,12 +114,30 @@ class StopsRemoteDatasource(
     /**
      * Stop positions, from the routes or worked out earlier: a stop never
      * moves, so they are kept for good and spare the extra lookups. In
-     * the order they were learned, the oldest first to go; the routes
-     * that add to them come with the line screens.
+     * the order they were learned, the oldest first to go.
      */
     private var positions: MutableMap<String, List<Double>>? = null
     private val positionsLock = Mutex()
     private val positionsSavePending = AtomicBoolean(false)
+
+    /** Direction of a bus's current trip, the line it runs and when that was learned */
+    private class BusDirection(val direction: Int?, val line: String, val at: Long)
+
+    /** Direction of each bus's current trip, by bus number */
+    private val busDirections = ConcurrentHashMap<String, BusDirection>()
+
+    /** Last stop of each direction of a line, where its trips end, by line */
+    private val tripEnds = ConcurrentHashMap<String, Map<Int, GeoPoint>>()
+
+    /** An old catalog copy to fetch again, from [url] */
+    private class Refresh(val url: String, val remember: Boolean)
+
+    /**
+     * Old catalog copies waiting to be fetched again, and those on their
+     * way, by cache key; both guarded by [toRefresh]
+     */
+    private val toRefresh = LinkedHashMap<String, Refresh>()
+    private val refreshing = HashSet<String>()
 
     init {
         if (pruned.compareAndSet(false, true)) {
@@ -142,15 +171,16 @@ class StopsRemoteDatasource(
         val known = knownPositions()
         val stops = decoded.filterIsInstance<JsonObject>().map { placed(parseStop(it), known) }
 
-        // Whoever asked, the answer also serves trips planned nearby. The
-        // Flutter app also learns how often each line comes here; that
-        // memory comes with the trip planner.
+        // Whoever asked, the answer also serves trips planned nearby and
+        // teaches how often each line comes
+        val now = now()
         if (radius == MAX_RADIUS_METERS) {
             synchronized(recentAreas) {
-                recentAreas.addLast(Area(latitude, longitude, now(), ticks(), stops))
+                recentAreas.addLast(Area(latitude, longitude, now, ticks(), stops))
                 if (recentAreas.size > MAX_RECENT_AREAS) recentAreas.removeFirst()
             }
         }
+        scope.launch { headways.observe(stops, now) }
         return stops
     }
 
@@ -300,6 +330,20 @@ class StopsRemoteDatasource(
         return loaded
     }
 
+    /** A route places its stops exactly: kept over any trilateration */
+    private suspend fun placeFromRoute(stops: List<LineStop>) {
+        val positions = knownPositions()
+        var changed = false
+        for (stop in stops) {
+            if (stop.stopId.isEmpty()) continue
+            val known = positions[stop.stopId]
+            if (known != null && known[0] == stop.latitude && known[1] == stop.longitude) continue
+            positions[stop.stopId] = listOf(stop.latitude, stop.longitude)
+            changed = true
+        }
+        if (changed) savePositionsSoon()
+    }
+
     /** Keep the stops placed by trilateration that were not known */
     private suspend fun rememberPositions(stops: List<NearbyStop>) {
         val positions = knownPositions()
@@ -378,29 +422,226 @@ class StopsRemoteDatasource(
     }
 
     /**
+     * Every MIO line, sorted by name: the catalog's, and any line with
+     * hours that the arrivals have shown running lately. The catalog can
+     * leave out a line that runs, while the hours list some that do not.
+     * With [staleOk], a catalog past its age answers at once, as
+     * [getLineStops] does.
+     */
+    suspend fun getLines(staleOk: Boolean = false): List<TransitLine> {
+        val decoded = cachedJson("lines", LINES_URL, ROUTES_MAX_AGE, staleOk = staleOk)
+        val lines = decoded.filterIsInstance<JsonObject>()
+            .filter { it["lineId"].isNum && it["name"].isText }
+            .map { TransitLine(id = it["lineId"].long().toInt(), name = it["name"].string()) }
+            .toMutableList()
+
+        val listed = lines.map { it.name }.toSet()
+        val seen = headways.seenSince(now() - SEEN_LATELY.inWholeMilliseconds)
+        if (!listed.containsAll(seen)) {
+            try {
+                val hours = getLineHours()
+                lines += hours.keys.filter { it !in listed && it in seen }.map { TransitLine(id = 0, name = it) }
+            } catch (_: ApiException) {
+                // Without the hours, the catalog alone
+            }
+        }
+        return lines.sortedBy { it.name }
+    }
+
+    /**
+     * The stops of [line] in route order, both directions. With [staleOk],
+     * a route past its age answers at once and is fetched again in the
+     * background, for next time: routes change a few times a year, and a
+     * whole network of them expires at once.
+     */
+    suspend fun getLineStops(line: String, staleOk: Boolean = false): List<LineStop> {
+        val decoded = cachedJson(
+            "linestops_$line",
+            "$LINE_STOPS_URL/${encodeUriComponent(line)}",
+            ROUTES_MAX_AGE,
+            staleOk = staleOk,
+            // Read once a run to build the network: not worth holding twice
+            remember = false,
+        )
+        val stops = decoded.filterIsInstance<JsonObject>()
+            .filter { it["latitude"].isNum && it["longitude"].isNum }
+            .map {
+                LineStop(
+                    stopId = it["stopId"].dartString() ?: "",
+                    // The service does spell it "stopNam"
+                    name = (it["stopNam"]?.takeUnless { name -> name is JsonNull } ?: it["stopName"]).dartString() ?: "",
+                    latitude = it["latitude"].double(),
+                    longitude = it["longitude"].double(),
+                    direction = dartIntTryParse(it["orientation"].dartString() ?: "")?.toInt() ?: 0,
+                    sequence = it["stopSequence"].longOrNull()?.toInt() ?: 0,
+                )
+            }
+            .sortedWith(compareBy<LineStop> { it.direction }.thenBy { it.sequence })
+        placeFromRoute(stops)
+        return stops
+    }
+
+    /**
+     * Buses running on [line] right now, each with the direction of its
+     * trip. The positions are never cached; the directions are, until the
+     * bus nears the end of its trip.
+     */
+    suspend fun getLineBuses(line: String): List<LineBus> {
+        val buses = lineBusPositions(line)
+        val ends = endsOf(line)
+        val now = now()
+
+        fun maxAge(bus: LineBus, direction: Int?): Duration {
+            val end = direction?.let { ends[it] } ?: return BUS_DIRECTION_MAX_AGE
+            val toEnd = metersBetween(bus.latitude, bus.longitude, end.latitude, end.longitude)
+            return if (toEnd <= NEAR_TRIP_END_METERS) DIRECTION_NEAR_MAX_AGE else DIRECTION_FAR_MAX_AGE
+        }
+
+        val stale = buses.filter { bus ->
+            val known = busDirections[bus.busNumber]
+            known == null || known.line != line || now - known.at > maxAge(bus, known.direction).inWholeMilliseconds
+        }.map { it.busNumber }
+        // The service takes one bus per request: a few at a time
+        for (batch in stale.chunked(DIRECTIONS_AT_ONCE)) {
+            coroutineScope { batch.map { async { learnBusDirection(it) } }.awaitAll() }
+        }
+
+        return buses.map { bus ->
+            bus.copy(direction = busDirections[bus.busNumber]?.takeIf { it.line == line }?.direction)
+        }
+    }
+
+    /**
+     * Last stop of each direction of [line], where its trips end; empty
+     * when the route cannot be had
+     */
+    private suspend fun endsOf(line: String): Map<Int, GeoPoint> {
+        tripEnds[line]?.let { return it }
+        val ends = try {
+            // In route order, so the last stop of each direction stays
+            getLineStops(line).associate { it.direction to GeoPoint(it.latitude, it.longitude) }
+        } catch (_: ApiException) {
+            // Every bus is then asked about as often as before
+            emptyMap()
+        }
+        tripEnds[line] = ends
+        return ends
+    }
+
+    /**
+     * Ask the service which way a bus's trip runs. A failure leaves the
+     * direction unknown rather than failing the whole line.
+     */
+    private suspend fun learnBusDirection(busNumber: String) {
+        try {
+            val decoded = getJson("$BUS_INFO_URL/${encodeUriComponent(busNumber)}", catalogGuard)
+            val info = (decoded as? JsonArray)?.firstOrNull() as? JsonObject ?: return
+            busDirections[busNumber] = BusDirection(
+                direction = dartIntTryParse(info["orientation"].dartString() ?: "")?.toInt(),
+                line = info["line"].dartString() ?: "",
+                at = now(),
+            )
+        } catch (_: ApiException) {
+            // Shown without a direction; asked again on the next round
+        }
+    }
+
+    private suspend fun lineBusPositions(line: String): List<LineBus> {
+        val decoded = getJson("$LINE_BUSES_URL/${encodeUriComponent(line)}", catalogGuard) as? JsonArray
+            ?: throw ServerApiException("Unexpected buses response")
+        return decoded.filterIsInstance<JsonObject>()
+            .filter { it["gpsx"].isNum && it["gpsy"].isNum }
+            .map {
+                LineBus(
+                    busNumber = it["busNumber"].dartString() ?: "",
+                    latitude = it["gpsy"].double() / GPS_SCALE,
+                    longitude = it["gpsx"].double() / GPS_SCALE,
+                )
+            }
+    }
+
+    /** Hours each line runs, by line name */
+    suspend fun getLineHours(): Map<String, LineHours> {
+        val decoded = cachedJson("lines_hours", LINE_HOURS_URL, HOURS_MAX_AGE)
+        return buildMap {
+            for (line in decoded.filterIsInstance<JsonObject>()) {
+                if (!line["line"].isText) continue
+                val start = parseLineTime(line["startTime"].dartString()) ?: continue
+                val end = parseLineTime(line["endTime"].dartString()) ?: continue
+                put(line["line"].string(), LineHours(start, end))
+            }
+        }
+    }
+
+    /**
      * A list from the catalog server, from the cache while it is fresh.
      * Past its age it is asked for again, and the old copy still answers
-     * when that fails: the catalog changes a few times a year, and a day
-     * offline should not lose it. The Flutter app's staleOk and remember
-     * come with the routes, which alone use them.
+     * when that fails: routes and hours change a few times a year, and a
+     * day offline should not lose them. With [staleOk] the old copy
+     * answers at once and a new one is fetched in the background, for next
+     * time. [remember] is the cache's, for large lists read once a run.
      */
-    private suspend fun cachedJson(key: String, url: String, maxAge: Duration): JsonArray {
-        val entry = cache.readEntry(key)
+    private suspend fun cachedJson(
+        key: String,
+        url: String,
+        maxAge: Duration,
+        staleOk: Boolean = false,
+        remember: Boolean = true,
+    ): JsonArray {
+        val entry = cache.readEntry(key, remember)
         val kept = entry?.value as? JsonArray
-        if (kept != null && now() - entry.savedAt <= maxAge.inWholeMilliseconds) return kept
+        if (kept != null) {
+            if (now() - entry.savedAt <= maxAge.inWholeMilliseconds) return kept
+            if (staleOk) {
+                refreshLater(key, url, remember)
+                return kept
+            }
+        }
 
         return try {
-            fetchList(key, url)
+            fetchList(key, url, remember)
         } catch (e: ApiException) {
             kept ?: throw e
         }
     }
 
-    private suspend fun fetchList(key: String, url: String): JsonArray {
+    private suspend fun fetchList(key: String, url: String, remember: Boolean = true): JsonArray {
         val decoded = getJson(url, catalogGuard) as? JsonArray
             ?: throw ServerApiException("Unexpected catalog response")
-        cache.write(key, decoded)
+        cache.write(key, decoded, remember)
         return decoded
+    }
+
+    /** Fetch [key] again in the background, behind the others waiting */
+    private fun refreshLater(key: String, url: String, remember: Boolean) {
+        synchronized(toRefresh) {
+            if (key in refreshing) return
+            toRefresh[key] = Refresh(url, remember)
+        }
+        refreshNext()
+    }
+
+    private fun refreshNext() {
+        while (true) {
+            val (key, job) = synchronized(toRefresh) {
+                if (refreshing.size >= REFRESH_AT_ONCE || toRefresh.isEmpty()) return
+                val key = toRefresh.keys.first()
+                val job = toRefresh.remove(key)!!
+                refreshing.add(key)
+                key to job
+            }
+            scope.launch {
+                try {
+                    fetchList(key, job.url, job.remember)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    // The old copy stays, and is tried again next time it is read
+                } finally {
+                    synchronized(toRefresh) { refreshing.remove(key) }
+                    refreshNext()
+                }
+            }
+        }
     }
 
     private fun parseStop(json: JsonObject): NearbyStop {
@@ -490,6 +731,41 @@ class StopsRemoteDatasource(
 
         private const val STATIONS_URL = "https://wsmio.siur.com.co:8083/apiMIO/jaxrs/stations"
         private const val LINES_BY_STOP_URL = "https://wsmio.siur.com.co:8083/apiMIO/jaxrs/linesByStop"
+        private const val LINES_URL = "https://wsmio.siur.com.co:8083/apiMIO/jaxrs/lines"
+        private const val LINE_STOPS_URL = "https://wsmio.siur.com.co:8083/apiMIO/jaxrs/linestops"
+        private const val LINE_BUSES_URL = "https://wsmio.siur.com.co:8083/apiMIO/jaxrs/operations"
+        private const val LINE_HOURS_URL = "https://wsmio.siur.com.co:8083/apiMIO/jaxrs/linesOperation"
+        private const val BUS_INFO_URL = "https://wsmio.siur.com.co:8083/apiMIO/jaxrs/busInfo"
+
+        /**
+         * A bus keeps the direction of its trip until it turns around at the
+         * trip's last stop, and the service takes one bus per request: far
+         * from that stop the direction is asked again only now and then, near
+         * it every couple of minutes. Without the route to tell, every ten.
+         */
+        private val DIRECTION_FAR_MAX_AGE = 45.minutes
+        private val DIRECTION_NEAR_MAX_AGE = 2.minutes
+        private val BUS_DIRECTION_MAX_AGE = 10.minutes
+        private const val NEAR_TRIP_END_METERS = 400.0
+
+        /** Bus directions asked for at once */
+        private const val DIRECTIONS_AT_ONCE = 4
+
+        /** Routes change a few times a year, and the hours with them */
+        private val ROUTES_MAX_AGE = 7.days
+        private val HOURS_MAX_AGE = 1.days
+
+        /** A line the catalog leaves out is taken as running when the arrivals showed it this recently */
+        private val SEEN_LATELY = 14.days
+
+        /** The service sends bus positions as degrees times ten million */
+        private const val GPS_SCALE = 1e7
+
+        /**
+         * Old catalog copies fetched again in the background at once: a
+         * week-old route still plans fine, and the service is shared
+         */
+        private const val REFRESH_AT_ONCE = 2
 
         /** The catalog changes a few times a year at most */
         private val STATIONS_MAX_AGE = 7.days
@@ -523,5 +799,17 @@ class StopsRemoteDatasource(
         private val CACHE_LIFETIME = 45.days
 
         private val pruned = AtomicBoolean(false)
+
+        /** `value is String` */
+        private val JsonElement?.isText: Boolean get() = this is JsonPrimitive && isString
+
+        /** "05:00:00" into a time of day, as LineHours.parseTime; null when it does not read as one */
+        internal fun parseLineTime(value: String?): Duration? {
+            val parts = value?.split(':') ?: return null
+            if (parts.size < 2) return null
+            val hours = dartIntTryParse(parts[0]) ?: return null
+            val minutes = dartIntTryParse(parts[1]) ?: return null
+            return hours.hours + minutes.minutes
+        }
     }
 }
