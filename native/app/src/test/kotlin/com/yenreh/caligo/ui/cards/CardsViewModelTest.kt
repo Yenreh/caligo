@@ -286,6 +286,29 @@ class CardsViewModelTest {
     }
 
     @Test
+    fun aCreateWhoseReadAfterFailsAnswersFalse() = test {
+        val repository = FakeCardRepository(listOf(card("a")))
+        val cards = ready(repository)
+        // The position comes from a read before the save: only the one after fails
+        repository.saving = { repository.loadFailure = IllegalStateException("disk gone") }
+
+        assertFalse(cards.createCard(id = "b", name = "B").await())
+
+        assertNotNull(cards.state.error)
+    }
+
+    @Test
+    fun anUpdateWhoseReadAfterFailsAnswersFalse() = test {
+        val repository = FakeCardRepository(listOf(card("a")))
+        val cards = ready(repository)
+        repository.loadFailure = IllegalStateException("disk gone")
+
+        assertFalse(cards.updateCard(cards.state.cards.single().copy(name = "New")).await())
+
+        assertNotNull(cards.state.error)
+    }
+
+    @Test
     fun aNewCardLandsAtTheEndOfAListReordered() = test {
         // Dart gave it position 0, so it sorted by name among the first
         val repository = ordered()

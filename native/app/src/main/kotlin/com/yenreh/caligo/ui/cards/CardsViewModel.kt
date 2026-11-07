@@ -93,21 +93,24 @@ class CardsViewModel(
 
     fun loadCards(): Job = viewModelScope.launch { load() }
 
-    private suspend fun load() {
+    /** Read the cards; false, with [CardsState.error] set, when that fails */
+    private suspend fun load(): Boolean {
         set { it.copy(isLoading = true, error = null, failedAction = null) }
-        try {
+        return try {
             val cards = repository.getAllCards()
             set { it.copy(cards = cards, isLoading = false) }
+            true
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             set { it.copy(error = e.toString(), failedAction = null, isLoading = false) }
+            false
         }
     }
 
     /**
      * Save a new card at the end of the list, then read them all again.
-     * True once saved; false, with [CardsState.error] set, if the save
-     * failed.
+     * True once saved and read; false, with [CardsState.error] set, if
+     * either failed.
      */
     fun createCard(
         id: String,
@@ -136,7 +139,11 @@ class CardsViewModel(
         saving { repository.updateCard(card) }
     }
 
-    /** [save], then the cards read again; any failure in [CardsState.error] */
+    /**
+     * [save], then the cards read again; any failure in [CardsState.error].
+     * A read that fails after the save fails it too: the list on screen
+     * would not show the card, and the screen should not close on it.
+     */
     private suspend fun saving(save: suspend () -> Unit): Boolean {
         try {
             save()
@@ -145,9 +152,7 @@ class CardsViewModel(
             set { it.copy(error = e.toString(), failedAction = null) }
             return false
         }
-        // A failed read reports itself, and the save stands
-        load()
-        return true
+        return load()
     }
 
     /**

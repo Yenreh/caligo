@@ -44,8 +44,14 @@ class FakeCardRepository(
     var failure: Throwable? = null
     var answer: (suspend () -> Unit)? = null
 
+    /** Thrown by every read, while set */
+    var loadFailure: Throwable? = null
+
     /** In the datasource's order: by position, then by name */
-    override suspend fun getAllCards() = cards.sortedWith(compareBy<CardEntity> { it.position }.thenBy { it.name })
+    override suspend fun getAllCards(): List<CardEntity> {
+        loadFailure?.let { throw it }
+        return cards.sortedWith(compareBy<CardEntity> { it.position }.thenBy { it.name })
+    }
 
     override suspend fun refreshCardBalance(card: CardEntity): CardBalance {
         asked.add(card.id)
