@@ -5,6 +5,7 @@ import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.RideLeg
 import com.yenreh.caligo.domain.entities.TripOption
+import com.yenreh.caligo.domain.entities.WalkLeg
 import java.util.Calendar
 import kotlin.time.Duration.Companion.minutes
 import org.junit.Assert.assertEquals
@@ -84,6 +85,15 @@ class TripTimingTest {
         assertEquals(7.minutes, timed.firstRide!!.wait)
         assertFalse(timed.firstRide!!.liveWait)
         assertFalse(timed.isLive)
+    }
+
+    @Test
+    fun aWalkAloneIsNotLive() {
+        val walk = TripOption(listOf(WalkLeg.between(3.45, -76.53, 3.451, -76.53)), startsAt = start)
+
+        // The Flutter option was live, every one of its no rides being so:
+        // its arrival read as exact, though a walk is an estimate
+        assertFalse(walk.isLive)
     }
 
     @Test

@@ -166,8 +166,11 @@ class TripOption(
     /** When the trip ends, once timed, epoch milliseconds */
     val arrivesAt: Long? get() = startsAt?.let { it + duration.inWholeMilliseconds }
 
-    /** Every wait and ride timed against a bus on its way */
-    val isLive: Boolean get() = rides.all { it.liveWait && it.liveRide }
+    /**
+     * Every wait and ride timed against a bus on its way. A walk alone is
+     * not: its time is an estimate, which the Flutter app showed as exact.
+     */
+    val isLive: Boolean get() = rides.isNotEmpty() && rides.all { it.liveWait && it.liveRide }
 
     val firstRide: RideLeg? get() = rides.firstOrNull()
 
