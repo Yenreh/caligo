@@ -6,10 +6,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -452,22 +454,28 @@ private fun RouteStopRow(stop: LineStop, selected: Boolean, onClick: () -> Unit)
     )
 }
 
-/** Two-way switch between a line's directions, named by where each ends */
+/**
+ * Two-way switch between a line's directions, named by where each ends.
+ * Both cells as tall as the taller, so the fill covers its whole half
+ * when one end's name takes two lines: the Flutter Row centred a shorter
+ * cell, leaving paper above and below it.
+ */
 @Composable
 private fun DirectionToggle(labels: List<String>, selected: Int, onSelected: (Int) -> Unit, modifier: Modifier = Modifier) {
     val p = LabTheme.palette
     Row(
         modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .border(1.dp, p.rule)
             .padding(1.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
         labels.forEachIndexed { i, label ->
             val chosen = i == selected
             Box(
                 Modifier
                     .weight(1f)
+                    .fillMaxHeight()
                     .background(if (chosen) p.fill else p.paper)
                     .clickable(enabled = !chosen, role = Role.Button) { onSelected(i) }
                     .semantics { this.selected = chosen }
