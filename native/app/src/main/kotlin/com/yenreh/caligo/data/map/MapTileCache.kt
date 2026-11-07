@@ -29,21 +29,27 @@ class CachedTile(val metadata: TileMetadata, val bytes: ByteArray)
  * One file per tile, named by a UUID v5 of its URL without the API key:
  * the key says nothing about the image, and keeping it in the name would
  * throw the whole cache away whenever it changes. Over [maxBytes], the
- * tiles read longest ago go once per run, in the background from the
- * first use, as flutter_map trims at start.
+ * tiles read longest ago go, in the background: from the first use, as
+ * flutter_map trims at start, and again whenever the tiles written since
+ * pass it, which flutter_map left for the next start.
  */
 class MapTileCache(
     private val directory: File,
     private val maxBytes: Long = MAX_BYTES,
+    /** Runs a trim off the thread that asked for a tile */
+    private val inBackground: (() -> Unit) -> Unit = { thread(name = "map-tile-trim", isDaemon = true, block = it) },
 ) {
-    private val trimmed = AtomicBoolean(false)
+    private val trimming = AtomicBoolean(false)
+
+    /** What the tiles take, as last counted plus what was written since; -1 before the first count */
+    private val counted = AtomicLong(-1)
 
     /** Write files get a name of their own, so two writers never share one */
     private val writes = AtomicLong()
 
     /** The kept tile for [url], however old; null when none, or unreadable */
     fun get(url: String): CachedTile? {
-        trimSoon()
+        trimIfDue()
         val file = fileFor(url)
         if (!file.isFile) return null
         return try {
@@ -60,14 +66,20 @@ class MapTileCache(
      * Not Modified answer, only the metadata changes
      */
     fun put(url: String, metadata: TileMetadata, bytes: ByteArray?) {
-        trimSoon()
+        trimIfDue()
         val file = fileFor(url)
         try {
             val tile = bytes ?: get(url)?.bytes ?: return
             directory.mkdirs()
+            val before = if (file.isFile) file.length() else 0
             val temporary = File(directory, "${file.name}.${writes.incrementAndGet()}.tmp")
             temporary.writeBytes(encode(metadata, tile))
-            if (!temporary.renameTo(file)) temporary.delete()
+            if (!temporary.renameTo(file)) {
+                temporary.delete()
+                return
+            }
+            // Once counted, the tiles written are added, and past the ceiling trimmed
+            if (counted.get() >= 0 && counted.addAndGet(file.length() - before) > maxBytes) trimIfDue()
         } catch (_: Exception) {
             // Without the disk, the tile is simply fetched again next time
         }
@@ -83,32 +95,54 @@ class MapTileCache(
     /** Throw every tile away */
     fun clear() {
         directory.deleteRecursively()
-    }
-
-    /** Trim once per run, off the thread that asked for a tile */
-    private fun trimSoon() {
-        if (trimmed.compareAndSet(false, true)) thread(name = "map-tile-trim", isDaemon = true) { trim() }
+        counted.set(0)
     }
 
     /**
-     * Over the ceiling, drop the tiles read longest ago until it is met,
-     * the largest first among those read at the same time
+     * Trim in the background, one at a time: on the first use, to count
+     * the tiles, and whenever those written since take them past the
+     * ceiling. During a run it leaves a tenth of room, so the next tiles
+     * do not trim again one by one.
      */
-    internal fun trim() {
+    private fun trimIfDue() {
+        val bytes = counted.get()
+        if (bytes in 0..maxBytes) return
+        val target = if (bytes < 0) maxBytes else maxBytes - maxBytes / 10
+        if (!trimming.compareAndSet(false, true)) return
+        inBackground {
+            try {
+                trim(target)
+            } finally {
+                trimming.set(false)
+            }
+        }
+    }
+
+    /**
+     * Over [target], drop the tiles read longest ago until it is met, the
+     * largest first among those read at the same time
+     */
+    internal fun trim(target: Long = maxBytes) {
         try {
-            val files = directory.listFiles()?.filter { it.isFile && it.name != SIZE_MONITOR } ?: return
+            val files = directory.listFiles()?.filter { it.isFile && it.name != SIZE_MONITOR }.orEmpty()
             val total = files.sumOf { it.length() }
-            if (total <= maxBytes) return
+            if (total <= target) {
+                counted.set(total)
+                return
+            }
             val sorted = files.map { Triple(it, it.length(), lastRead(it)) }
                 .sortedWith(compareBy<Triple<File, Long, Long>> { it.third }.thenByDescending { it.second })
             var deleted = 0L
             for ((file, size) in sorted) {
-                if (deleted >= total - maxBytes) break
+                if (deleted >= total - target) break
                 deleted += size
                 file.delete()
             }
+            counted.set(total - deleted)
         } catch (_: Exception) {
-            // Trimming is housekeeping: failing to do it changes nothing
+            // Trimming is housekeeping: failing to do it changes nothing.
+            // Counted as empty, so it is tried again only past the ceiling.
+            counted.compareAndSet(-1, 0)
         }
     }
 

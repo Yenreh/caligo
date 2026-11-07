@@ -175,6 +175,36 @@ class MapTileCacheTest {
     }
 
     @Test
+    fun passingTheCeilingDuringARunTrimsAgain() {
+        // Trims run as they are asked for, so the test needs no thread
+        val cache = MapTileCache(folder, maxBytes = 2100, inBackground = { it() })
+        // The first use counts what is there: nothing
+        assertNull(cache.get(url))
+        val urls = (1..3).map { "$url?$it" }
+        for ((i, u) in urls.withIndex()) {
+            cache.put(u, TileMetadata(1, null, null), ByteArray(1000))
+            File(folder, MapTileCache.tileKey(u)).setLastModified(1_000_000L * (i + 1))
+        }
+
+        // flutter_map trimmed at start only: the third tile went past it for the run
+        assertTrue(cache.sizeInBytes() <= 2100)
+        assertNull(cache.get(urls[0]))
+        assertTrue(cache.get(urls[2]) != null)
+    }
+
+    @Test
+    fun underTheCeilingNothingIsCountedAgain() {
+        var trims = 0
+        val cache = MapTileCache(folder, maxBytes = 10_000, inBackground = { trims++; it() })
+
+        cache.get(url)
+        for (i in 1..3) cache.put("$url?$i", TileMetadata(1, null, null), ByteArray(1000))
+        cache.get(url)
+
+        assertEquals(1, trims)
+    }
+
+    @Test
     fun theFirstUseTrimsInTheBackground() {
         val writer = cache()
         for (i in 1..3) writer.put("$url?$i", TileMetadata(1, null, null), ByteArray(1000))
