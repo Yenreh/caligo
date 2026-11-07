@@ -14,21 +14,21 @@ bundled copy ages between releases, so the background refresh stays.
 ## Updating from inside the app
 
 Today the app asks GitHub for the latest release only when told to, and
-opens the APK for the phone's ABI in the browser: it downloads, the file
-is opened, and Android installs it over the old one, asking the first
-time to let the browser install apps. The app holds no permission to
-install anything, on purpose.
+opens its APK in the browser: it downloads, the file is opened, and
+Android installs it over the old one, asking the first time to let the
+browser install apps. The app holds no permission to install anything,
+on purpose.
 
 The app could download the APK itself and hand it to Android's installer
 (`PackageInstaller`, what stores use): **Update**, a progress bar, and
 Android's "Update this app?" dialog; the first time, Android asks to let
 CaliGo install apps. It takes the `REQUEST_INSTALL_PACKAGES` permission
-and about 80 lines of Kotlin on the geocoder's bridge, plus the download
-in Dart: no packages, nothing paid. Android only takes an update signed
-with the same key, so a tampered APK cannot replace the app, but the app
-could then install things, which the current design avoids. It still
-asks to confirm: from Android 12 an app that installed itself can
-sometimes skip that, not reliably.
+and about 80 lines of Kotlin, the download with OkHttp, which the app
+already has: no new libraries, nothing paid. Android only takes an
+update signed with the same key, so a tampered APK cannot replace the
+app, but the app could then install things, which the current design
+avoids. It still asks to confirm: from Android 12 an app that installed
+itself can sometimes skip that, not reliably.
 
 Other ways, for reference: Google Play gives truly automatic updates for
 US$25 once, but a new personal account needs 12 testers opted in for 14
