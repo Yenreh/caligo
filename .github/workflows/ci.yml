@@ -1,0 +1,55 @@
+name: CI
+
+# Every change checked on GitHub's own runner before it reaches main: the
+# same build as a release, without signing or publishing. No CARTO key:
+# the build falls back to OpenStreetMap tiles.
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          # GitHub's own cache: the default one is a proprietary component
+          # under Gradle's terms of use
+          cache-provider: basic
+
+      - name: Android SDK platform
+        # The platform the version catalog compiles against, if the runner
+        # image lacks it
+        run: |
+          SDK=$(sed -n 's/^compileSdk = "\(.*\)"/\1/p' gradle/libs.versions.toml)
+          MINOR=$(sed -n 's/^compileMinorApi = "\(.*\)"/\1/p' gradle/libs.versions.toml)
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-$SDK.$MINOR" > /dev/null
+
+      - name: Test, lint and build
+        # Release builds without a key.properties are signed with the debug key
+        run: ./gradlew test lint assembleRelease
+
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports
+          path: |
+            app/build/reports/
+            app/build/test-results/
