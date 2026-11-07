@@ -118,7 +118,7 @@ fun MapCredits(open: Boolean, onToggle: () -> Unit, tiles: LabPalette, carto: Bo
     @Composable
     fun Link(label: String, url: String) {
         Text(
-            text = "© $label",
+            text = stringResource(R.string.map_credit, label),
             style = LabText.mono(p, size = 12f, color = p.accent),
             modifier = Modifier
                 .clickable { links.openUri(url) }
@@ -135,8 +135,8 @@ fun MapCredits(open: Boolean, onToggle: () -> Unit, tiles: LabPalette, carto: Bo
                     .border(1.dp, p.rule)
                     .padding(horizontal = 13.dp, vertical = 7.dp),
             ) {
-                Link("OpenStreetMap contributors", "https://openstreetmap.org/copyright")
-                if (carto) Link("CARTO", "https://carto.com/attributions")
+                Link(stringResource(R.string.map_credit_osm), "https://openstreetmap.org/copyright")
+                if (carto) Link(stringResource(R.string.map_credit_carto), "https://carto.com/attributions")
                 // The stops, routes and buses drawn on top are theirs
                 Link(AppInfo.DATA_SOURCE, AppInfo.DATA_SOURCE_URL)
             }

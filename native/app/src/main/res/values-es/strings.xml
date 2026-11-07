@@ -103,7 +103,7 @@
     <string name="delete">Eliminar</string>
     <string name="cancel">Cancelar</string>
     <string name="delete_card_title">Eliminar Tarjeta</string>
-    <string name="delete_card_message">¿Estás seguro de que quieres eliminar \"%1$s\"? Esta acción no se puede deshacer.</string>
+    <string name="delete_card_message">¿Estás seguro de que quieres eliminar «%1$s»? Esta acción no se puede deshacer.</string>
 
     <!-- Card form -->
     <string name="create_card_title">Crear Nueva Tarjeta</string>

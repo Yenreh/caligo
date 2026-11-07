@@ -454,7 +454,7 @@ private fun UpdateCheck(state: SettingsState, actions: SettingsActions) {
 @Composable
 private fun RepoLink(onClick: () -> Unit) {
     val p = LabTheme.palette
-    LabTooltip("github.com/Yenreh") {
+    LabTooltip(stringResource(R.string.author_link)) {
         Row(
             Modifier
                 .clickable(role = Role.Button, onClick = onClick)

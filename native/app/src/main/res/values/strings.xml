@@ -156,6 +156,10 @@
     <string name="near_stop">Near %1$s</string>
     <string name="reset_north">Face north</string>
     <string name="map_credits">Map credits</string>
+    <!-- The credits as the tile and data providers ask for them, in any language -->
+    <string name="map_credit" translatable="false">© %1$s</string>
+    <string name="map_credit_osm" translatable="false">OpenStreetMap contributors</string>
+    <string name="map_credit_carto" translatable="false">CARTO</string>
     <string name="dark_map">Dark map</string>
     <string name="dark_map_desc">Dark tiles on the stops map, whatever the app theme</string>
     <string name="sharp_map">Sharp map</string>
@@ -188,6 +192,7 @@
     <string name="data_from">Data: %1$s</string>
     <string name="licenses">Open source licenses</string>
     <string name="made_by" translatable="false">by Yenreh</string>
+    <string name="author_link" translatable="false">github.com/Yenreh</string>
     <string name="check_updates">Check for updates</string>
     <string name="no_releases_yet">No releases published yet</string>
     <string name="update_available">Version %1$s is available</string>
@@ -196,6 +201,8 @@
     <string name="download_update">Download %1$s</string>
     <string name="update_install_hint">Open the downloaded file to install it over this version; your data stays.</string>
 
+    <!-- The app's own license entry, in English as the license page is -->
+    <string name="license_app_notice" translatable="false">Free software under the GNU General Public License, version 3 or any later version.</string>
     <!-- Licenses, as Flutter's Material localizations word them -->
     <string name="licenses_page_title">Licenses</string>
     <plurals name="license_count">

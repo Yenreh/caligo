@@ -31,7 +31,10 @@ object LicenseCatalog {
             val assets = context.assets
             val registered = REGISTERED.map { (name, file) ->
                 val text = assets.open(file).bufferedReader().use { it.readText() }
-                PackageLicenses(name, listOf(if (name == AppInfo.NAME) appLicense(text) else text))
+                PackageLicenses(
+                    name,
+                    listOf(if (name == AppInfo.NAME) appLicense(context.getString(R.string.license_app_notice), text) else text),
+                )
             }
             val libraries = context.resources.openRawResource(R.raw.aboutlibraries)
                 .bufferedReader().use { libraries(it.readText()) }
@@ -48,9 +51,7 @@ object LicenseCatalog {
     )
 
     /** The GPL text names no one: say whose program it covers */
-    internal fun appLicense(gpl: String) =
-        "${AppInfo.NAME}\n${AppInfo.COPYRIGHT}\n\n" +
-            "Free software under the GNU General Public License, version 3 or any later version.\n\n$gpl"
+    internal fun appLicense(notice: String, gpl: String) = "${AppInfo.NAME}\n${AppInfo.COPYRIGHT}\n\n$notice\n\n$gpl"
 
     /**
      * Each library of an AboutLibraries report, by the name its POM gives
