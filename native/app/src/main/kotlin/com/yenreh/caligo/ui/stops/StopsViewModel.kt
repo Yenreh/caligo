@@ -98,6 +98,9 @@ class StopsViewModel(
     /** The positions a move is saving, the last one asked for */
     private var reorderSaving: Job? = null
 
+    /** A fresh fix on its way, to put the closest stops first */
+    private var locating: Job? = null
+
     /**
      * Screens following the arrivals while on show, each wanting only the
      * stops the home screen lists or all of them
@@ -167,9 +170,9 @@ class StopsViewModel(
     }
 
     /**
-     * Order the stops on screen again, as the setting now asks. The order
-     * applies to the stops as they are once the position comes, so changes
-     * made while it is awaited stay, unlike in the Flutter app.
+     * Order the stops on screen again, as the setting now asks. An order
+     * that waits for a fix applies to the stops as they are once it comes,
+     * so changes made meanwhile stay, unlike in the Flutter app.
      */
     private suspend fun reorder() {
         if (state.value.favorites.size < 2) return
@@ -188,6 +191,9 @@ class StopsViewModel(
     /**
      * Where to put the closest stops first from, when the settings ask for
      * it and the location is already allowed; null for the saved order.
+     * Without a last fix the saved order shows meanwhile, and the stops
+     * are ordered once a fresh one comes: the Flutter app held the list
+     * back until then, up to [PROXIMITY_TIME_LIMIT].
      *
      * Never asks for the permission here: the dashboard has to work
      * without it, and only the nearby search is worth a prompt.
@@ -196,11 +202,27 @@ class StopsViewModel(
         if (!settings.value.sortStopsByProximity) return null
         return try {
             if (location.checkPermission() != LocationPermission.GRANTED) return null
-            location.lastKnownPosition() ?: location.currentPosition(LocationAccuracy.LOW, PROXIMITY_TIME_LIMIT)
+            location.lastKnownPosition().also { if (it == null) orderOnceLocated() }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             // Location is optional here: keep the order the user saved
             null
+        }
+    }
+
+    /** Ask for a rough fix, and put the closest stops first once it comes */
+    private fun orderOnceLocated() {
+        if (locating?.isActive == true) return
+        locating = viewModelScope.launch {
+            val position = try {
+                location.currentPosition(LocationAccuracy.LOW, PROXIMITY_TIME_LIMIT)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                return@launch
+            }
+            // On the stops as they are by then; unless the setting changed meanwhile
+            if (!settings.value.sortStopsByProximity) return@launch
+            state.update { it.copy(favorites = arranged(it.favorites, position)) }
         }
     }
 
@@ -681,7 +703,7 @@ class StopsViewModel(
             }
         }
 
-        /** No fix at once for the order: the dashboard waits no longer for it */
+        /** No fix at once for the order: the closest first wait no longer for one */
         private val PROXIMITY_TIME_LIMIT = 8.seconds
 
         /** As the Flutter app reports an error that is not an ApiException */

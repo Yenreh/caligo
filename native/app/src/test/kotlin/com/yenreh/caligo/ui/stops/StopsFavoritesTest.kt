@@ -393,6 +393,24 @@ class StopsFavoritesTest {
     }
 
     @Test
+    fun noLastFixShowsTheSavedOrderAtOnceAndReordersWhenOneComes() = test {
+        val repository = spread()
+        val location = FakeLocationSource(permission = LocationPermission.GRANTED, current = here)
+        val gate = CompletableDeferred<Unit>()
+        location.waiting = { gate.await() }
+
+        // The Flutter app held the list back until the fix, up to 8 s
+        val stops = ready(repository, location)
+
+        assertEquals(listOf("a", "b", "c"), ids(stops))
+        assertFalse(stops.state.isLoading)
+        // The arrivals did not wait either
+        assertTrue(repository.nearbyCalls > 0)
+        gate.complete(Unit)
+        assertEquals(listOf("c", "b", "a"), ids(stops))
+    }
+
+    @Test
     fun noFixAtAllKeepsTheSavedOrder() = test {
         val location = FakeLocationSource(permission = LocationPermission.GRANTED)
 
