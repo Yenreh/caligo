@@ -50,7 +50,9 @@ import kotlinx.coroutines.launch
  *
  * [onReorder] takes Flutter's indexes: the new index counts the item
  * itself when it moves down. Until [items] changes after a drop, the list
- * keeps showing the order the drag left.
+ * keeps showing the order the drag left. Without [dragEnabled], as
+ * Flutter's list without its drag handles, nothing is held, while screen
+ * readers keep their moves.
  */
 @Composable
 fun <T> LabReorderableList(
@@ -60,6 +62,7 @@ fun <T> LabReorderableList(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     listState: LazyListState = rememberLazyListState(),
+    dragEnabled: Boolean = true,
     itemContent: @Composable (item: T) -> Unit,
 ) {
     val p = LabTheme.palette
@@ -114,8 +117,12 @@ fun <T> LabReorderableList(
     val toEnd = stringResource(R.string.reorder_item_to_end)
 
     LazyColumn(
-        modifier = modifier.pointerInput(drag) {
-            detectHoldAndDrag(onStart = drag::start, onDrag = drag::move, onEnd = drag::end)
+        modifier = if (dragEnabled) {
+            modifier.pointerInput(drag) {
+                detectHoldAndDrag(onStart = drag::start, onDrag = drag::move, onEnd = drag::end)
+            }
+        } else {
+            modifier
         },
         state = listState,
         contentPadding = contentPadding,

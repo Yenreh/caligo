@@ -24,6 +24,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.yenreh.caligo.BuildConfig
 import com.yenreh.caligo.domain.entities.Settings
+import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.ui.cards.CardsRoute
 import com.yenreh.caligo.ui.cards.CardsViewModel
 import com.yenreh.caligo.ui.cards.CreateCardRoute
@@ -33,6 +34,9 @@ import com.yenreh.caligo.ui.home.HomeRoute
 import com.yenreh.caligo.ui.licenses.LicenseRoute
 import com.yenreh.caligo.ui.licenses.LicensesRoute
 import com.yenreh.caligo.ui.settings.SettingsRoute
+import com.yenreh.caligo.ui.stops.AddStopScreen
+import com.yenreh.caligo.ui.stops.StationStopsScreen
+import com.yenreh.caligo.ui.stops.StopsRoute
 import com.yenreh.caligo.ui.stops.StopsViewModel
 
 /**
@@ -43,8 +47,8 @@ import com.yenreh.caligo.ui.stops.StopsViewModel
  * for the cards and the stops: those are the activity's, shared by every
  * screen that lists them, as the Flutter providers are.
  *
- * The stops, search, planner, line and station screens come in later
- * parts: their keys exist, nothing pushes them yet.
+ * The planner and the line screens come in later parts: their keys
+ * exist, nothing pushes them yet.
  */
 @Composable
 fun AppNavigation(
@@ -69,6 +73,12 @@ fun AppNavigation(
     @Composable
     fun cards(): CardsViewModel = viewModel(activity, factory = CardsViewModel.Factory)
 
+    @Composable
+    fun stops(): StopsViewModel = viewModel(activity, factory = StopsViewModel.Factory)
+
+    fun station(station: Station) =
+        open(Route.Station(station.id, station.name, station.address, station.latitude, station.longitude))
+
     NavDisplay(
         backStack = backStack,
         modifier = modifier,
@@ -86,9 +96,28 @@ fun AppNavigation(
                     actions = HomeActions(
                         onSettings = { open(Route.Settings) },
                         onCards = { open(Route.Cards) },
+                        onSearch = { open(Route.SearchStops) },
+                        onStops = { open(Route.Stops) },
                     ),
                     cardsViewModel = cards(),
-                    stopsViewModel = { viewModel(activity, factory = StopsViewModel.Factory) },
+                    stopsViewModel = { stops() },
+                )
+            }
+            entry<Route.Stops> {
+                StopsRoute(current, stops(), onBack = ::back, onAdd = { open(Route.AddStop) })
+            }
+            entry<Route.AddStop> {
+                AddStopScreen(stops(), onBack = ::back, onStation = ::station)
+            }
+            entry<Route.SearchStops> {
+                AddStopScreen(stops(), onBack = ::back, onStation = ::station, explore = true)
+            }
+            entry<Route.Station> { key ->
+                StationStopsScreen(
+                    Station(key.id, key.name, key.address, key.latitude, key.longitude),
+                    stops(),
+                    onBack = ::back,
+                    onDone = { backFrom(key) },
                 )
             }
             entry<Route.Cards> {

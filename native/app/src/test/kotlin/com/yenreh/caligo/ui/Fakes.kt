@@ -4,6 +4,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import com.yenreh.caligo.data.datasources.ServerApiException
+import com.yenreh.caligo.data.location.LocationAccuracy
+import com.yenreh.caligo.data.location.LocationPermission
+import com.yenreh.caligo.data.location.LocationPermissionException
+import com.yenreh.caligo.data.location.LocationServiceDisabledException
+import com.yenreh.caligo.data.location.LocationSource
+import com.yenreh.caligo.data.location.LocationTimeoutException
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.LiveArrivals
 import com.yenreh.caligo.domain.entities.BusArrival
@@ -12,6 +18,8 @@ import com.yenreh.caligo.domain.entities.CardEntity
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.entities.NearbyStop
+import com.yenreh.caligo.domain.entities.Station
+import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.repositories.CardRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import kotlin.time.Duration
@@ -77,13 +85,27 @@ class FakeCardRepository(
     }
 }
 
-/** Repository that records how the arrivals were asked for */
+/**
+ * Repository that records how the arrivals were asked for. Updates are
+ * recorded in [saved] and leave the favorites as they were, as the Dart
+ * test's fake; a favorite added or removed is, and changes the list.
+ */
 class FakeStopsRepository(
-    private val favorites: List<FavoriteStop>,
+    favorites: List<FavoriteStop>,
     private val nearby: List<NearbyStop>,
     /** Where the stops stand, for those whose place is known */
     private val positions: Map<String, GeoPoint> = emptyMap(),
+    var stations: List<Station> = emptyList(),
+    /** Lines by stop id */
+    var lines: Map<String, List<StopLine>> = emptyMap(),
 ) : StopsRepository {
+    private val favorites = favorites.toMutableList()
+    val added = mutableListOf<FavoriteStop>()
+    val removed = mutableListOf<String>()
+    var stationCalls = 0
+
+    /** Thrown by the catalog, when set */
+    var catalogFailure: Throwable? = null
     var nearbyCalls = 0
     val askedAround = mutableListOf<GeoPoint>()
     val saved = mutableListOf<FavoriteStop>()
@@ -98,7 +120,7 @@ class FakeStopsRepository(
     /** Stands in for the request itself, when set */
     var answer: (suspend () -> Unit)? = null
 
-    override suspend fun getFavorites() = favorites
+    override suspend fun getFavorites() = favorites.toList()
 
     override suspend fun getNearbyStops(latitude: Double, longitude: Double): List<NearbyStop> {
         nearbyCalls++
@@ -111,16 +133,41 @@ class FakeStopsRepository(
     override suspend fun stopPositions(stopIds: Iterable<String>): Map<String, GeoPoint> =
         stopIds.mapNotNull { id -> positions[id]?.let { id to it } }.toMap()
 
-    override suspend fun addFavorite(stop: FavoriteStop) = Unit
+    override suspend fun addFavorite(stop: FavoriteStop) {
+        saveFailure?.let { throw it }
+        // As the database refuses a second row with the same id
+        check(favorites.none { it.id == stop.id }) { "UNIQUE constraint failed: favorite_stops.stop_id" }
+        added.add(stop)
+        favorites.add(stop)
+    }
 
-    override suspend fun removeFavorite(stopId: String) = Unit
+    override suspend fun removeFavorite(stopId: String) {
+        saveFailure?.let { throw it }
+        removed.add(stopId)
+        favorites.removeAll { it.id == stopId }
+    }
+
+    override suspend fun getStations(): List<Station> {
+        stationCalls++
+        catalogFailure?.let { throw it }
+        return stations
+    }
+
+    override suspend fun getLinesByStop(stopId: String): List<StopLine> {
+        catalogFailure?.let { throw it }
+        return lines[stopId].orEmpty()
+    }
+
+    /** Stands in for writing a favorite's changes, when set */
+    var saving: (suspend () -> Unit)? = null
 
     override suspend fun updateFavorite(stop: FavoriteStop) {
+        saving?.invoke()
         saveFailure?.let { throw it }
         saved.add(stop)
     }
 
-    override suspend fun nextPosition() = 0
+    override suspend fun nextPosition() = (favorites.maxOfOrNull { it.position } ?: -1) + 1
 
     override suspend fun arrivalsFor(stops: List<LineStop>, maxAge: Duration) = LiveArrivals.NONE
 
@@ -128,6 +175,50 @@ class FakeStopsRepository(
 
     override suspend fun keepArrivals(arrivals: Map<String, List<BusArrival>>) {
         kept = arrivals
+    }
+}
+
+/**
+ * The device location, set by hand: whether location is on, the
+ * permission and what asking for it answers, the last fix and the fresh
+ * one. Records what was asked for.
+ */
+class FakeLocationSource(
+    var enabled: Boolean = true,
+    var permission: LocationPermission = LocationPermission.DENIED,
+    /** What the prompt answers; the permission becomes it */
+    var answer: LocationPermission = LocationPermission.GRANTED,
+    var lastKnown: GeoPoint? = null,
+    var current: GeoPoint? = null,
+) : LocationSource {
+    var requests = 0
+    val currentAsked = mutableListOf<Pair<LocationAccuracy, Duration>>()
+
+    /** Stands in for waiting on a fix, when set */
+    var waiting: (suspend () -> Unit)? = null
+
+    override fun isServiceEnabled() = enabled
+
+    override fun checkPermission() =
+        if (permission == LocationPermission.DENIED_FOREVER) LocationPermission.DENIED else permission
+
+    override suspend fun requestPermission(): LocationPermission {
+        requests++
+        permission = answer
+        return answer
+    }
+
+    override suspend fun lastKnownPosition(): GeoPoint? {
+        if (permission != LocationPermission.GRANTED) throw LocationPermissionException()
+        return lastKnown
+    }
+
+    override suspend fun currentPosition(accuracy: LocationAccuracy, timeLimit: Duration): GeoPoint {
+        currentAsked.add(accuracy to timeLimit)
+        if (permission != LocationPermission.GRANTED) throw LocationPermissionException()
+        if (!enabled) throw LocationServiceDisabledException()
+        waiting?.invoke()
+        return current ?: throw LocationTimeoutException(timeLimit)
     }
 }
 

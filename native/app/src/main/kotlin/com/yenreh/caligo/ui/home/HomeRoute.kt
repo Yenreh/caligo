@@ -1,7 +1,6 @@
 package com.yenreh.caligo.ui.home
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -10,9 +9,9 @@ import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.ui.cards.CardsViewModel
 import com.yenreh.caligo.ui.cards.ListenCardRefresh
 import com.yenreh.caligo.ui.cards.RefreshBalancesOnOpen
-import com.yenreh.caligo.ui.common.rememberShownOnScreen
 import com.yenreh.caligo.ui.lab.rememberLabSnackbars
 import com.yenreh.caligo.ui.stops.StopsViewModel
+import com.yenreh.caligo.ui.stops.WatchArrivals
 
 /**
  * The home with its data: what the Flutter MainScreen decides beyond
@@ -37,7 +36,7 @@ fun HomeRoute(
     val snackbars = rememberLabSnackbars()
 
     RefreshBalancesOnOpen(settings, cards, cardsViewModel)
-    WatchArrivals(stopsModel)
+    WatchArrivals(stopsModel, homeOnly = true)
     ListenCardRefresh(cardsViewModel, snackbars)
 
     HomeScreen(
@@ -51,21 +50,4 @@ fun HomeRoute(
         actions = actions,
         snackbars = snackbars,
     )
-}
-
-/**
- * Arrivals on their pace while the home is in view: no polling the
- * service in the background or under another screen. Back in view,
- * whatever changed meanwhile is asked for.
- */
-@Composable
-private fun WatchArrivals(viewModel: StopsViewModel?) {
-    val shown = rememberShownOnScreen()
-    DisposableEffect(viewModel, shown) {
-        val home = Any()
-        val watched = viewModel?.takeIf { shown }
-        watched?.startAutoRefresh(home, homeOnly = true)
-        watched?.refreshArrivals()
-        onDispose { watched?.stopAutoRefresh(home) }
-    }
 }

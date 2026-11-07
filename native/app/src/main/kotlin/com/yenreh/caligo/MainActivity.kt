@@ -22,6 +22,8 @@ class MainActivity : ComponentActivity() {
         // the chosen theme and home content
         installSplashScreen().setKeepOnScreenCondition { container.settings.settings.value.isLoading }
         super.onCreate(savedInstanceState)
+        // The location permission is asked from here, whatever screen wants it
+        container.location.attach(this)
         enableEdgeToEdge()
         setContent {
             val settings by container.settings.settings.collectAsStateWithLifecycle()

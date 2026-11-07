@@ -111,3 +111,15 @@ data class LineStop(
     /** Place along the route in its direction, from 1 */
     val sequence: Int,
 )
+
+/** A MIO station from the public catalog */
+data class Station(
+    val id: Int,
+    val name: String,
+    val address: String,
+    val latitude: Double,
+    val longitude: Double,
+)
+
+/** A line serving a stop */
+data class StopLine(val shortName: String, val name: String)

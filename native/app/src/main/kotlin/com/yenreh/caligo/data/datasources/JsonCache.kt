@@ -14,6 +14,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
+/** A value as kept, with when it was saved, in epoch milliseconds */
+class CacheEntry(val savedAt: Long, val value: JsonElement)
+
 /**
  * Small JSON cache backed by memory and by a file each, `<key>.json`
  * holding `{"savedAt": <epoch ms>, "value": ...}` as the Flutter app's.
@@ -24,6 +27,9 @@ import kotlinx.serialization.json.put
 interface JsonCache {
     /** Cached value for [key], or null when missing or older than [maxAge] */
     suspend fun read(key: String, maxAge: Duration? = null): JsonElement?
+
+    /** Cached value for [key] however old, with when it was saved; null when missing */
+    suspend fun readEntry(key: String): CacheEntry?
 
     suspend fun write(key: String, value: JsonElement)
 
@@ -45,6 +51,8 @@ interface JsonCache {
     object None : JsonCache {
         override suspend fun read(key: String, maxAge: Duration?): JsonElement? = null
 
+        override suspend fun readEntry(key: String): CacheEntry? = null
+
         override suspend fun write(key: String, value: JsonElement) = Unit
 
         override suspend fun prune(maxAge: Duration) = Unit
@@ -57,9 +65,7 @@ class FileJsonCache(
     private val now: () -> Long = System::currentTimeMillis,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : JsonCache {
-    private class Entry(val savedAt: Long, val value: JsonElement)
-
-    private val memory = ConcurrentHashMap<String, Entry>()
+    private val memory = ConcurrentHashMap<String, CacheEntry>()
 
     override suspend fun read(key: String, maxAge: Duration?): JsonElement? {
         val entry = readEntry(key) ?: return null
@@ -67,14 +73,14 @@ class FileJsonCache(
         return entry.value
     }
 
-    private suspend fun readEntry(key: String): Entry? {
+    override suspend fun readEntry(key: String): CacheEntry? {
         memory[key]?.let { return it }
         return withContext(io) {
             try {
                 val file = fileFor(key)
                 if (!file.exists()) return@withContext null
                 val decoded = parseJson(file.readText()) as? JsonObject ?: return@withContext null
-                Entry(decoded["savedAt"].long(), decoded["value"] ?: JsonNull)
+                CacheEntry(decoded["savedAt"].long(), decoded["value"] ?: JsonNull)
                     .also { memory[key] = it }
             } catch (_: Exception) {
                 // A cache miss is always an acceptable answer
@@ -85,7 +91,7 @@ class FileJsonCache(
 
     override suspend fun write(key: String, value: JsonElement) {
         val savedAt = now()
-        memory[key] = Entry(savedAt, value)
+        memory[key] = CacheEntry(savedAt, value)
         withContext(io) {
             try {
                 val text = buildJsonObject {

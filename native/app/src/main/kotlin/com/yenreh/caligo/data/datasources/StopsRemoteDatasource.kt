@@ -3,6 +3,7 @@ package com.yenreh.caligo.data.datasources
 import com.yenreh.caligo.data.json.JsonFormatException
 import com.yenreh.caligo.data.json.dartDouble
 import com.yenreh.caligo.data.json.dartString
+import com.yenreh.caligo.data.json.double
 import com.yenreh.caligo.data.json.doubleOrNull
 import com.yenreh.caligo.data.json.isNum
 import com.yenreh.caligo.data.json.long
@@ -14,6 +15,8 @@ import com.yenreh.caligo.domain.areasCovering
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.entities.NearbyStop
+import com.yenreh.caligo.domain.entities.Station
+import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.metersBetween
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration
@@ -41,8 +44,9 @@ import okhttp3.OkHttpClient
 
 /**
  * Stops around a point and the buses on their way to them, from the
- * arrivals service: the arrivals path of the Flutter app's datasource.
- * The line catalog, routes, buses and stations come with their screens.
+ * arrivals service, and the station catalog and the lines serving a stop,
+ * from the catalog server: those paths of the Flutter app's datasource.
+ * The lines, routes and buses come with their screens.
  */
 class StopsRemoteDatasource(
     client: OkHttpClient,
@@ -53,6 +57,7 @@ class StopsRemoteDatasource(
      * alone on its own when it pushes back
      */
     private val arrivalsGuard: ServiceGuard = ServiceGuard(),
+    private val catalogGuard: ServiceGuard = ServiceGuard(),
     private val now: () -> Long = System::currentTimeMillis,
     /**
      * Monotonic nanoseconds, to age the answers. Dart's clock counts
@@ -224,6 +229,56 @@ class StopsRemoteDatasource(
         }
     }
 
+    /** The full MIO station catalog, used to add favorites without GPS */
+    suspend fun getStations(): List<Station> {
+        val decoded = cachedJson("stations", STATIONS_URL, STATIONS_MAX_AGE)
+        return decoded.filterIsInstance<JsonObject>()
+            .filter { it["latitude"].isNum && it["longitude"].isNum }
+            .map {
+                Station(
+                    id = it["id"].long().toInt(),
+                    name = it["name"].dartString() ?: "",
+                    address = it["address"].dartString() ?: "",
+                    latitude = it["latitude"].double(),
+                    longitude = it["longitude"].double(),
+                )
+            }
+    }
+
+    /** Lines serving a stop, useful when no bus is on its way */
+    suspend fun getLinesByStop(stopId: String): List<StopLine> {
+        val decoded = cachedJson("lines_$stopId", "$LINES_BY_STOP_URL/$stopId", LINES_MAX_AGE)
+        return decoded.filterIsInstance<JsonObject>()
+            .map { StopLine(shortName = it["shortName"].dartString() ?: "", name = it["name"].dartString() ?: "") }
+            .filter { it.shortName.isNotEmpty() }
+    }
+
+    /**
+     * A list from the catalog server, from the cache while it is fresh.
+     * Past its age it is asked for again, and the old copy still answers
+     * when that fails: the catalog changes a few times a year, and a day
+     * offline should not lose it. The Flutter app's staleOk and remember
+     * come with the routes, which alone use them.
+     */
+    private suspend fun cachedJson(key: String, url: String, maxAge: Duration): JsonArray {
+        val entry = cache.readEntry(key)
+        val kept = entry?.value as? JsonArray
+        if (kept != null && now() - entry.savedAt <= maxAge.inWholeMilliseconds) return kept
+
+        return try {
+            fetchList(key, url)
+        } catch (e: ApiException) {
+            kept ?: throw e
+        }
+    }
+
+    private suspend fun fetchList(key: String, url: String): JsonArray {
+        val decoded = getJson(url, catalogGuard) as? JsonArray
+            ?: throw ServerApiException("Unexpected catalog response")
+        cache.write(key, decoded)
+        return decoded
+    }
+
     private fun parseStop(json: JsonObject): NearbyStop {
         val buses = json["buses"]
         val stopName = json["nombreParada"].dartString() ?: ""
@@ -308,6 +363,15 @@ class StopsRemoteDatasource(
     companion object {
         const val ARRIVALS_URL =
             "https://servicios.siur.com.co/buscarutas/api/paradas_con_buses_proximos_a_llegar.php"
+
+        private const val STATIONS_URL = "https://wsmio.siur.com.co:8083/apiMIO/jaxrs/stations"
+        private const val LINES_BY_STOP_URL = "https://wsmio.siur.com.co:8083/apiMIO/jaxrs/linesByStop"
+
+        /** The catalog changes a few times a year at most */
+        private val STATIONS_MAX_AGE = 7.days
+
+        /** Which lines serve a stop is stable too */
+        private val LINES_MAX_AGE = 30.days
 
         /** The arrivals service rejects anything above this radius */
         const val MAX_RADIUS_METERS = 300

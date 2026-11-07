@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,14 +30,16 @@ import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.ui.common.watchLiveClock
 import com.yenreh.caligo.ui.lab.LabChip
 import com.yenreh.caligo.ui.lab.LabDivider
+import com.yenreh.caligo.ui.lab.LabIconButton
 import com.yenreh.caligo.ui.lab.LabLineChip
 import com.yenreh.caligo.ui.lab.LabPanel
+import com.yenreh.caligo.ui.lab.LabTextButton
 import com.yenreh.caligo.ui.theme.LabText
 import com.yenreh.caligo.ui.theme.LabTheme
 
 /**
- * One favorite stop with its next buses, as the home lists it. Renaming,
- * removing, relinking and the home toggle come with the stops screen.
+ * One favorite stop with its next buses. The stops screen adds its
+ * actions: each one null hides its button, as the home has none.
  */
 @Composable
 fun FavoriteStopCard(
@@ -47,31 +50,74 @@ fun FavoriteStopCard(
     // A refresh on its way, which tells an empty card apart from one
     // still waiting for its first answer
     isLoading: Boolean = false,
+    onRemove: (() -> Unit)? = null,
+    onRename: (() -> Unit)? = null,
+    // Offered when the stop went missing
+    onRelink: (() -> Unit)? = null,
+    // Flips whether the home screen lists the stop
+    onToggleHome: (() -> Unit)? = null,
 ) {
     val p = LabTheme.palette
     val list = arrivals?.let(stop::pick)
     val muted = MaterialTheme.typography.bodyMedium.copy(color = p.muted)
+    val hasActions = onRename != null || onRemove != null || onToggleHome != null
 
     LabPanel(modifier = modifier.testTag("favorite_stop"), accentTop = true, padding = PaddingValues(0.dp)) {
-        Column(Modifier.padding(16.dp, 12.dp, 16.dp, 12.dp)) {
-            Text(
-                text = stop.displayName,
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            stop.secondaryName?.let {
-                Spacer(Modifier.height(2.dp))
+        Row(
+            modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = if (hasActions) 12.dp else 16.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
                 Text(
-                    text = it,
-                    style = LabText.statusLine(p).copy(fontSize = 13.sp),
-                    maxLines = 1,
+                    text = stop.displayName,
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp),
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                stop.secondaryName?.let {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = it,
+                        style = LabText.statusLine(p).copy(fontSize = 13.sp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (stop.lines.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    LabChip(stop.lines.joinToString(" · "))
+                }
+                if (onToggleHome != null && !stop.showOnHome) {
+                    Spacer(Modifier.height(6.dp))
+                    LabChip(stringResource(R.string.hidden_from_home).uppercase())
+                }
             }
-            if (stop.lines.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                LabChip(stop.lines.joinToString(" · "))
+            if (onToggleHome != null) {
+                Spacer(Modifier.width(8.dp))
+                LabIconButton(
+                    icon = painterResource(if (stop.showOnHome) R.drawable.ic_home else R.drawable.ic_home_outlined),
+                    contentDescription = stringResource(
+                        if (stop.showOnHome) R.string.hide_from_home else R.string.show_on_home,
+                    ),
+                    onClick = onToggleHome,
+                    active = stop.showOnHome,
+                )
+            }
+            if (onRename != null) {
+                Spacer(Modifier.width(6.dp))
+                LabIconButton(
+                    icon = painterResource(R.drawable.ic_edit),
+                    contentDescription = stringResource(R.string.edit_stop),
+                    onClick = onRename,
+                )
+            }
+            if (onRemove != null) {
+                Spacer(Modifier.width(6.dp))
+                LabIconButton(
+                    icon = painterResource(R.drawable.ic_star),
+                    contentDescription = stringResource(R.string.remove_stop),
+                    onClick = onRemove,
+                )
             }
         }
         if (stop.looksGone) {
@@ -91,6 +137,9 @@ fun FavoriteStopCard(
                     modifier = Modifier.weight(1f),
                     style = LabText.statusLine(p).copy(color = p.crit, fontSize = 13.sp),
                 )
+                if (onRelink != null) {
+                    LabTextButton(onClick = onRelink) { Text(stringResource(R.string.relink_stop)) }
+                }
             }
         }
         LabDivider()

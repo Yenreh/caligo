@@ -22,7 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -41,7 +41,9 @@ import com.yenreh.caligo.ui.theme.LabTheme
  * the title in serif and the 2dp masthead rule along the bottom, drawn
  * inside the bar's 56dp as a Flutter shape border is. [subtitle] goes
  * under the title, as the license page puts its count. [actions] sit at
- * the end, as an AppBar's, flush with the edge.
+ * the end, as an AppBar's, flush with the edge. [bottom] goes under the
+ * bar, as an AppBar's tabs, the rule along the bottom of both and over
+ * them, as a Flutter shape border paints.
  */
 @Composable
 fun LabTopBar(
@@ -49,20 +51,39 @@ fun LabTopBar(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    bottom: (@Composable () -> Unit)? = null,
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val p = LabTheme.palette
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .background(p.bg)
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-            .height(56.dp)
-            .drawBehind {
+            .drawWithContent {
+                drawContent()
                 val rule = 2.dp.toPx()
                 val y = size.height - rule / 2
                 drawLine(p.ink, Offset(0f, y), Offset(size.width, y), rule)
             },
+    ) {
+        Bar(title, onBack, subtitle, actions)
+        bottom?.invoke()
+    }
+}
+
+@Composable
+private fun Bar(
+    title: String,
+    onBack: () -> Unit,
+    subtitle: String?,
+    actions: (@Composable RowScope.() -> Unit)?,
+) {
+    val p = LabTheme.palette
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Flutter's leading slot is 56 wide, the button 48 in its middle

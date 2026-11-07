@@ -24,11 +24,16 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
-/** The arrivals cases of test/stops_remote_datasource_test.dart */
+/** The arrivals and catalog cases of test/stops_remote_datasource_test.dart */
 class StopsRemoteDatasourceTest {
     private var service: MockService? = null
+
+    @get:Rule
+    val temporary = TemporaryFolder()
 
     @After
     fun close() {
@@ -289,11 +294,92 @@ class StopsRemoteDatasourceTest {
         assertEquals(3.4520, service.requested.single().queryParameter("latitud")!!.toDouble(), 1e-9)
     }
 
+    // The catalog: stations and the lines of a stop
+
+    @Test
+    fun parsesTheLinesServingAStop() = runTest {
+        val service = arrivals { _, url ->
+            assertTrue(url.encodedPath.endsWith("/linesByStop/512081"))
+            ok("""[{"lineId":282,"shortName":"P82","name":"TERMINAL CALIPSO"},{"shortName":"","name":"X"}]""")
+        }
+
+        val lines = service.datasource().getLinesByStop("512081")
+
+        assertEquals(1, lines.size)
+        assertEquals("P82", lines.first().shortName)
+        assertEquals("TERMINAL CALIPSO", lines.first().name)
+        assertEquals(
+            "https://wsmio.siur.com.co:8083/apiMIO/jaxrs/linesByStop/512081",
+            service.requested.single().toString(),
+        )
+    }
+
+    @Test
+    fun parsesTheStationCatalog() = runTest {
+        val service = arrivals { _, _ -> ok(STATIONS_BODY) }
+
+        val stations = service.datasource().getStations()
+
+        assertEquals(1, stations.size)
+        assertEquals("Estación Alamos", stations.first().name)
+        assertEquals("Av 3N - Cl 52N", stations.first().address)
+        assertEquals(3.484246, stations.first().latitude, 0.000001)
+    }
+
+    @Test
+    fun servesTheStationCatalogFromCacheOnTheSecondCall() = runTest {
+        val service = arrivals { _, _ -> ok(STATIONS_BODY) }
+        val cache = FileJsonCache(temporary.newFolder("cache"))
+        val datasource = service.datasource(cache)
+
+        datasource.getStations()
+        val second = datasource.getStations()
+
+        assertEquals(1, service.calls)
+        assertEquals("Estación Alamos", second.single().name)
+    }
+
+    @Test
+    fun anOldCopyAnswersWhenTheCatalogCannotBeReached() = runTest {
+        val folder = temporary.newFolder("cache")
+        // Saved eight days ago: past the catalog's week
+        val old = FileJsonCache(folder, now = { System.currentTimeMillis() - 8L * 24 * 3600 * 1000 })
+        old.write("stations", parseJson(STATIONS_BODY))
+        val service = arrivals { _, _ -> dropped() }
+
+        val stations = service.datasource(FileJsonCache(folder)).getStations()
+
+        assertEquals(listOf("Estación Alamos"), stations.map { it.name })
+        assertTrue(service.calls > 0)
+    }
+
+    @Test
+    fun anOldCopyIsAskedForAgainWhenTheCatalogAnswers() = runTest {
+        val folder = temporary.newFolder("cache")
+        val old = FileJsonCache(folder, now = { System.currentTimeMillis() - 8L * 24 * 3600 * 1000 })
+        old.write("stations", parseJson("[]"))
+        val service = arrivals { _, _ -> ok(STATIONS_BODY) }
+
+        val stations = service.datasource(FileJsonCache(folder)).getStations()
+
+        assertEquals(1, service.calls)
+        assertEquals(1, stations.size)
+    }
+
+    @Test
+    fun withoutACopyACatalogFailureIsTheCallersToHandle() = runTest {
+        val service = arrivals { _, _ -> status(404) }
+
+        assertThrowsSuspend<ServerApiException> { service.datasource().getStations() }
+    }
+
     /** A cache in memory, filled with JSON texts by key */
     private class MemoryCache(vararg entries: Pair<String, String>) : JsonCache {
         private val values = entries.associate { (key, text) -> key to parseJson(text) }.toMutableMap()
 
         override suspend fun read(key: String, maxAge: Duration?): JsonElement? = values[key]
+
+        override suspend fun readEntry(key: String) = values[key]?.let { CacheEntry(System.currentTimeMillis(), it) }
 
         override suspend fun write(key: String, value: JsonElement) {
             values[key] = value
@@ -303,6 +389,11 @@ class StopsRemoteDatasourceTest {
     }
 
     private companion object {
+        const val STATIONS_BODY = """
+[{"id":1,"name":"Estación Alamos","address":"Av 3N - Cl 52N",
+  "neighborhood":"Ciudad Los Alamos","commune":2,
+  "longitude":-76.5133880103,"latitude":3.4842460459}]"""
+
         const val ARRIVALS_URL =
             "https://servicios.siur.com.co/buscarutas/api/paradas_con_buses_proximos_a_llegar.php"
 

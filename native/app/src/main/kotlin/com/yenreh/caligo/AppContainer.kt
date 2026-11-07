@@ -11,6 +11,7 @@ import com.yenreh.caligo.data.datasources.JsonCache
 import com.yenreh.caligo.data.datasources.StopsLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsRemoteDatasource
 import com.yenreh.caligo.data.datasources.UpdateChecker
+import com.yenreh.caligo.data.location.AndroidLocationSource
 import com.yenreh.caligo.data.repositories.CardRepositoryImpl
 import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.repositories.CardRepository
@@ -53,6 +54,9 @@ class AppContainer(context: Context) {
         StopsRemoteDatasource(http, cache, scope = scope),
         cache,
     )
+
+    /** The device location, asked from the activity on screen */
+    val location = AndroidLocationSource(context)
 
     val backup = Backup(database, cardRepository, stopsRepository, settings)
 

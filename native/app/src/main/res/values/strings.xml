@@ -17,6 +17,33 @@
     <string name="plan_trip">Plan a trip</string>
     <string name="favorites_short">Favorites</string>
 
+    <!-- Stops -->
+    <string name="could_not_load_arrivals">Could not load arrivals</string>
+    <string name="add_stop">Add stop</string>
+    <string name="no_stops_nearby">No stops within 300 m</string>
+    <string name="meters_away">%1$d m</string>
+    <string name="hidden_from_home">Not on home</string>
+    <string name="hide_from_home">Hide from home</string>
+    <string name="show_on_home">Show on home</string>
+    <string name="edit_stop">Edit stop</string>
+    <string name="remove_stop">Remove stop</string>
+    <string name="relink_stop">Link to another stop</string>
+    <string name="station_catalog">Stations</string>
+    <string name="nearby_stops">Near me</string>
+    <string name="search_station">Search station</string>
+    <string name="location_unavailable">Turn on location to find nearby stops.</string>
+    <string name="location_denied_forever">Enable the location permission in system settings.</string>
+    <string name="save_this_area">Save this area</string>
+    <string name="custom_name_label">Custom name</string>
+    <string name="custom_name_hint">Leave it empty to use the real name</string>
+    <string name="update_arrivals">Update arrivals</string>
+    <string name="lines_serving">Lines</string>
+    <string name="no_lines_for_stop">No lines listed</string>
+    <string name="save_as_favorite">Save as favorite</string>
+    <string name="stop_already_saved">That stop is already saved</string>
+    <string name="lines_to_show">Lines to show</string>
+    <string name="lines_to_show_hint">With none chosen, every line shows</string>
+
     <!-- Cards -->
     <string name="update_balance">Update balance</string>
     <string name="name">NAME</string>

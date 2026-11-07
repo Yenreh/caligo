@@ -8,18 +8,30 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.data.datasources.ApiException
+import com.yenreh.caligo.data.location.LocationAccuracy
+import com.yenreh.caligo.data.location.LocationPermission
+import com.yenreh.caligo.data.location.LocationPermissionException
+import com.yenreh.caligo.data.location.LocationSource
+import com.yenreh.caligo.data.location.currentDevicePosition
 import com.yenreh.caligo.domain.ARRIVALS_REACH_METERS
+import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.areasCovering
 import com.yenreh.caligo.domain.distanceBetween
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.NearbyStop
+import com.yenreh.caligo.domain.entities.Settings
+import com.yenreh.caligo.domain.entities.Station
+import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.metersBetween
 import com.yenreh.caligo.domain.repositories.StopsRepository
+import com.yenreh.caligo.ui.common.Loaded
+import com.yenreh.caligo.ui.common.loadCatching
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -29,7 +41,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -45,17 +60,23 @@ data class StopsState(
     val lastUpdated: Long? = null,
 )
 
+/** Stops around the user, with the position they were found from */
+data class NearbyResult(val stops: List<NearbyStop>, val latitude: Double, val longitude: Double)
+
 /**
- * Favorite stops and their upcoming buses: the part of the Flutter app's
- * StopsNotifier the home screen uses. Adding, editing, reordering and
- * relinking come with the stops screen.
+ * Favorite stops and their upcoming buses, the Flutter app's
+ * StopsNotifier, with the lookups its providers make for the stop
+ * screens: around the device, around a point, the station catalog, the
+ * lines of a stop.
  *
- * Kept in the order the user saved them. Closest first, the default
- * setting, needs the device location, which comes in phase 4; until then
- * the saved order stands, as in the Flutter app without the permission.
+ * In the order the user saved them, or closest first when the settings
+ * ask for it and the location is already allowed: only the nearby search
+ * is worth a permission prompt.
  *
  * One per activity, shared by the screens that list stops. Each action
  * returns the [Job] doing it, as the Dart methods return their Future.
+ * A save that fails leaves the stops as they were: in the Flutter app it
+ * was an error nobody caught.
  */
 class StopsViewModel(
     private val repository: StopsRepository,
@@ -64,6 +85,9 @@ class StopsViewModel(
     private val now: () -> Long = System::currentTimeMillis,
     /** Each time the saved stops change elsewhere, as an import does */
     reloads: Flow<Unit> = emptyFlow(),
+    private val location: LocationSource = NoLocation,
+    /** The app's settings, for the order of the stops */
+    private val settings: StateFlow<Settings> = MutableStateFlow(Settings(isLoading = false)),
 ) : ViewModel() {
     private val state = MutableStateFlow(StopsState(isLoading = true))
     val stops: StateFlow<StopsState> = state.asStateFlow()
@@ -83,6 +107,11 @@ class StopsViewModel(
     private val homeOnly get() = watchers.isNotEmpty() && watchers.values.all { it }
 
     init {
+        // Reorder in place when the setting flips (or finishes loading):
+        // the arrivals do not change with the order
+        viewModelScope.launch {
+            settings.map { it.sortStopsByProximity }.distinctUntilChanged().drop(1).collect { reorder() }
+        }
         viewModelScope.launch {
             ready()
             load()
@@ -113,8 +142,39 @@ class StopsViewModel(
         }
     }
 
-    /** The saved order; closest first needs the location, in phase 4 */
-    private fun ordered(stops: List<FavoriteStop>) = stops.sortedBy { it.position }
+    private suspend fun reorder() {
+        // As the Dart code: changes made while the location comes are lost
+        val favorites = state.value.favorites
+        if (favorites.size < 2) return
+        val ordered = ordered(favorites)
+        state.update { it.copy(favorites = ordered) }
+    }
+
+    /** Saved order, or closest first when the settings ask for it */
+    private suspend fun ordered(stops: List<FavoriteStop>): List<FavoriteStop> =
+        if (settings.value.sortStopsByProximity) sortByDistance(stops) else stops.sortedBy { it.position }
+
+    /**
+     * Put the closest stops first when the location is already known.
+     *
+     * Never asks for the permission here: the dashboard has to work
+     * without it, and only the nearby search is worth a prompt.
+     */
+    private suspend fun sortByDistance(stops: List<FavoriteStop>): List<FavoriteStop> {
+        if (stops.size < 2) return stops
+        return try {
+            if (location.checkPermission() != LocationPermission.GRANTED) return stops
+            val position = location.lastKnownPosition()
+                ?: location.currentPosition(LocationAccuracy.LOW, PROXIMITY_TIME_LIMIT)
+            stops.sortedBy {
+                distanceBetween(position.latitude, position.longitude, it.anchorLatitude, it.anchorLongitude)
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            // Location is optional here: keep the order the user saved
+            stops
+        }
+    }
 
     /**
      * Arrivals from the last run, without the buses already gone. A list
@@ -360,6 +420,152 @@ class StopsViewModel(
         return nearby.firstOrNull { it.id == favorite.stopId }?.arrivals
     }
 
+    /** Point a favorite at another stop, keeping its label and place */
+    fun relinkFavorite(id: String, stop: NearbyStop): Job = viewModelScope.launch {
+        val favorite = state.value.favorites.firstOrNull { it.id == id } ?: return@launch
+        if (!saved { repository.updateFavorite(favorite.copy(stopId = stop.id, name = stop.name, missingCount = 0)) }) {
+            return@launch
+        }
+        load()
+    }
+
+    /**
+     * Save a stop, or an area when [stopId] is null. True once saved, and
+     * the stops loaded again with their arrivals, as the Dart future ends.
+     */
+    fun addFavorite(
+        id: String,
+        name: String,
+        anchorLatitude: Double,
+        anchorLongitude: Double,
+        stopId: String? = null,
+        customName: String? = null,
+    ): Deferred<Boolean> = viewModelScope.async {
+        val added = saved {
+            val position = repository.nextPosition()
+            repository.addFavorite(
+                FavoriteStop(
+                    id = id,
+                    name = name,
+                    anchorLatitude = anchorLatitude,
+                    anchorLongitude = anchorLongitude,
+                    position = position,
+                    stopId = stopId,
+                    customName = customName?.trim()?.takeIf { it.isNotEmpty() },
+                ),
+            )
+        }
+        if (added) load()
+        added
+    }
+
+    /**
+     * Change what the user chose for a stop: its own label, dropped when
+     * [customName] is empty, and the lines it shows, all when empty
+     */
+    fun editFavorite(id: String, customName: String?, lines: List<String>): Job = viewModelScope.launch {
+        val stop = state.value.favorites.firstOrNull { it.id == id } ?: return@launch
+        val updated = stop.copy(customName = customName?.trim()?.takeIf { it.isNotEmpty() }, lines = lines)
+        if (!saved { repository.updateFavorite(updated) }) return@launch
+        // Nothing to fetch: the arrivals kept already hold every line
+        state.update { current -> current.copy(favorites = current.favorites.map { if (it.id == id) updated else it }) }
+    }
+
+    /**
+     * Move a favorite as a drag leaves it, with the indexes a reorderable
+     * list reports. Only meaningful in the saved order: sorted by
+     * proximity, the next load would undo it. The list shows the new
+     * order at once; the positions are saved after.
+     */
+    fun reorderFavorites(oldIndex: Int, newIndex: Int): Job {
+        val stops = state.value.favorites.toMutableList()
+        val moved = stops.removeAt(oldIndex)
+        stops.add(if (newIndex > oldIndex) newIndex - 1 else newIndex, moved)
+
+        val numbered = stops.mapIndexed { i, stop -> stop.copy(position = i) }
+        state.update { it.copy(favorites = numbered) }
+
+        return viewModelScope.launch {
+            saved {
+                for ((i, stop) in numbered.withIndex()) {
+                    if (stops[i].position != i) repository.updateFavorite(stop)
+                }
+            }
+        }
+    }
+
+    /** List a stop on the home screen, or keep it to the stops screen */
+    fun setShowOnHome(id: String, show: Boolean): Job = viewModelScope.launch {
+        val stop = state.value.favorites.firstOrNull { it.id == id }
+        if (stop == null || stop.showOnHome == show) return@launch
+
+        val updated = stop.copy(showOnHome = show)
+        if (!saved { repository.updateFavorite(updated) }) return@launch
+        state.update { current -> current.copy(favorites = current.favorites.map { if (it.id == id) updated else it }) }
+    }
+
+    /** Remove a saved stop */
+    fun removeFavorite(stopId: String): Job = viewModelScope.launch {
+        if (!saved { repository.removeFavorite(stopId) }) return@launch
+        state.update { current ->
+            current.copy(
+                favorites = current.favorites.filter { it.id != stopId },
+                arrivals = current.arrivals - stopId,
+            )
+        }
+    }
+
+    /** Whether [save] went through; a failure is swallowed, as the Flutter app left it */
+    private suspend fun saved(save: suspend () -> Unit): Boolean = try {
+        save()
+        true
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        false
+    }
+
+    // What the Flutter providers beside the notifier look up
+
+    /** Stops near the device, asking for the permission when needed: nearbyStopsProvider */
+    suspend fun nearbyStops(): NearbyResult {
+        val position = location.currentDevicePosition()
+        val stops = repository.getNearbyStops(position.latitude, position.longitude)
+        return NearbyResult(stops, position.latitude, position.longitude)
+    }
+
+    /** Stops around a point from a single request: nearbyAtPointProvider */
+    suspend fun nearbyAt(latitude: Double, longitude: Double): List<NearbyStop> =
+        repository.getNearbyStops(latitude, longitude)
+
+    /** Lines serving a stop: linesByStopProvider */
+    suspend fun linesByStop(stopId: String): List<StopLine> = repository.getLinesByStop(stopId)
+
+    /** Fresh arrivals for a stop being looked at: refreshStopArrivals */
+    suspend fun refreshStop(stop: NearbyStop, anchorLatitude: Double, anchorLongitude: Double): NearbyStop =
+        refreshStopArrivals(repository, stop, anchorLatitude, anchorLongitude)
+
+    private val stationsState = MutableStateFlow<Loaded<List<Station>>>(Loaded.Loading)
+    private var stationsJob: Job? = null
+
+    /**
+     * The MIO station catalog, used to add favorites without GPS:
+     * stationsProvider, which loads on first use, [watchStations], and
+     * keeps its answer, even a failure, for the app's life until
+     * [reloadStations]
+     */
+    val stations: StateFlow<Loaded<List<Station>>> = stationsState.asStateFlow()
+
+    /** Load the catalog unless it already is */
+    fun watchStations() {
+        if (stationsJob == null) reloadStations()
+    }
+
+    /** Ask for the catalog again, the last answer on show meanwhile */
+    fun reloadStations() {
+        stationsJob?.cancel()
+        stationsJob = viewModelScope.launch { stationsState.value = loadCatching { repository.getStations() } }
+    }
+
     /**
      * Refresh arrivals while [watcher], a screen listing them, is on show,
      * at the pace [nextRefreshDelay] sets.
@@ -427,6 +633,9 @@ class StopsViewModel(
             }
         }
 
+        /** No fix at once for the order: the dashboard waits no longer for it */
+        private val PROXIMITY_TIME_LIMIT = 8.seconds
+
         /** As the Flutter app reports an error that is not an ApiException */
         private fun Exception.asApiException() = this as? ApiException ?: ApiException(toString())
 
@@ -437,8 +646,42 @@ class StopsViewModel(
                     container.stopsRepository,
                     ready = { container.startup.join() },
                     reloads = container.backup.imported,
+                    location = container.location,
+                    settings = container.settings.settings,
                 )
             }
         }
     }
+}
+
+/**
+ * Fresh arrivals for a stop being looked at, from a single request.
+ *
+ * Asks around the stop itself when its position is known, and around
+ * the point it was found from otherwise. The service leaves out stops
+ * with no bus on the way, so a stop missing from the answer has none.
+ */
+suspend fun refreshStopArrivals(
+    repository: StopsRepository,
+    stop: NearbyStop,
+    anchorLatitude: Double,
+    anchorLongitude: Double,
+): NearbyStop {
+    val nearby = repository.getNearbyStops(stop.latitude ?: anchorLatitude, stop.longitude ?: anchorLongitude)
+    val match = nearby.firstOrNull { it.id == stop.id }
+    return stop.copy(arrivals = match?.arrivals ?: emptyList())
+}
+
+/** No location at all: the permission never given */
+private object NoLocation : LocationSource {
+    override fun isServiceEnabled() = false
+
+    override fun checkPermission() = LocationPermission.DENIED
+
+    override suspend fun requestPermission() = LocationPermission.DENIED
+
+    override suspend fun lastKnownPosition(): GeoPoint = throw LocationPermissionException()
+
+    override suspend fun currentPosition(accuracy: LocationAccuracy, timeLimit: Duration): GeoPoint =
+        throw LocationPermissionException()
 }

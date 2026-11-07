@@ -6,12 +6,15 @@ import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.entities.NearbyStop
+import com.yenreh.caligo.domain.entities.Station
+import com.yenreh.caligo.domain.entities.StopLine
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
 /**
  * Stops and arrivals: the part of the Flutter app's repository the home
- * screen needs. Lines, stations, routes and trips come with their screens.
+ * and the stop screens need. Lines, routes and trips come with their
+ * screens.
  */
 interface StopsRepository {
     /** Stops saved by the user */
@@ -30,6 +33,12 @@ interface StopsRepository {
 
     /** Stops around a position, with their upcoming buses */
     suspend fun getNearbyStops(latitude: Double, longitude: Double): List<NearbyStop>
+
+    /** MIO station catalog */
+    suspend fun getStations(): List<Station>
+
+    /** Lines serving a stop */
+    suspend fun getLinesByStop(stopId: String): List<StopLine>
 
     /**
      * Buses on their way to the given stops, reusing recent answers and

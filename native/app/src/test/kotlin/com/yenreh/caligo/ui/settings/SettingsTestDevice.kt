@@ -6,6 +6,7 @@ import com.yenreh.caligo.data.Backup
 import com.yenreh.caligo.data.MockService
 import com.yenreh.caligo.data.SettingsStore
 import com.yenreh.caligo.data.datasources.AppDatabase
+import com.yenreh.caligo.data.datasources.CacheEntry
 import com.yenreh.caligo.data.datasources.CardLocalDatasource
 import com.yenreh.caligo.data.datasources.CardRemoteDatasource
 import com.yenreh.caligo.data.datasources.JsonCache
@@ -113,6 +114,8 @@ class MemoryCache(var bytes: Long) : JsonCache {
     var cleared = 0
 
     override suspend fun read(key: String, maxAge: Duration?): JsonElement? = null
+
+    override suspend fun readEntry(key: String): CacheEntry? = null
 
     override suspend fun write(key: String, value: JsonElement) = Unit
 

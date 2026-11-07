@@ -41,6 +41,15 @@ It is imported once and renamed to `import.done.json`; one that fails to
 import stays, and is tried again on the next launch. An import is all or
 nothing: a file with a fault changes nothing.
 
+## Location
+
+The framework's `LocationManager`, no Play services, behind
+`data/location/LocationSource` so tests use a fake: coarse or fine while in
+use, asked for from `MainActivity` the first time the add screen's "Near
+me" tab shows. The stops screen and the home put the closest stops first
+when the setting asks for it and the permission is already given; they
+never ask for it.
+
 ## Licenses
 
 The licenses page lists the app's GPL and the fonts' OFL, from

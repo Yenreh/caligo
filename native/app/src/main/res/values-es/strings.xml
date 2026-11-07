@@ -15,6 +15,33 @@
     <string name="plan_trip">Planear viaje</string>
     <string name="favorites_short">Favoritos</string>
 
+    <!-- Stops -->
+    <string name="could_not_load_arrivals">No se pudieron cargar las llegadas</string>
+    <string name="add_stop">Agregar parada</string>
+    <string name="no_stops_nearby">No hay paradas a menos de 300 m</string>
+    <string name="meters_away">%1$d m</string>
+    <string name="hidden_from_home">No aparece en inicio</string>
+    <string name="hide_from_home">Ocultar del inicio</string>
+    <string name="show_on_home">Mostrar en inicio</string>
+    <string name="edit_stop">Editar parada</string>
+    <string name="remove_stop">Quitar parada</string>
+    <string name="relink_stop">Vincular a otra parada</string>
+    <string name="station_catalog">Estaciones</string>
+    <string name="nearby_stops">Cerca de mí</string>
+    <string name="search_station">Buscar estación</string>
+    <string name="location_unavailable">Activa la ubicación para encontrar paradas cercanas.</string>
+    <string name="location_denied_forever">Habilita el permiso de ubicación en los ajustes del sistema.</string>
+    <string name="save_this_area">Guardar esta zona</string>
+    <string name="custom_name_label">Nombre personalizado</string>
+    <string name="custom_name_hint">Déjalo vacío para usar el nombre real</string>
+    <string name="update_arrivals">Actualizar llegadas</string>
+    <string name="lines_serving">Rutas</string>
+    <string name="no_lines_for_stop">Sin rutas registradas</string>
+    <string name="save_as_favorite">Guardar como favorita</string>
+    <string name="stop_already_saved">Esa parada ya está guardada</string>
+    <string name="lines_to_show">Rutas a mostrar</string>
+    <string name="lines_to_show_hint">Sin ninguna elegida se muestran todas</string>
+
     <!-- Cards -->
     <string name="update_balance">Actualizar saldo</string>
     <string name="name">NOMBRE</string>
