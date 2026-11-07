@@ -1,12 +1,15 @@
 package com.yenreh.caligo.ui.cards
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.ui.home.HomeSamples
+import com.yenreh.caligo.ui.lab.LabTone
+import com.yenreh.caligo.ui.lab.rememberLabSnackbars
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import org.junit.Rule
 import org.junit.Test
@@ -35,6 +38,17 @@ class CardsScreenshotTest {
     @Test
     @Config(qualifiers = "+night")
     fun cardsDark() = cards("cards_dark", HomeSamples.cardsState)
+
+    /** The snackbar above the add button, as Flutter's Scaffold floats it */
+    @Test
+    fun cardsSnackbarLight() {
+        compose.setContent {
+            val snackbars = rememberLabSnackbars()
+            CaliGoTheme { CardsScreen(HomeSamples.cardsState, farePrice = Settings.DEFAULT_FARE_PRICE, snackbars = snackbars) }
+            LaunchedEffect(Unit) { snackbars.show("Saldo actualizado", LabTone.OK) }
+        }
+        compose.captureWindow("cards_snackbar_light")
+    }
 
     @Test
     fun cardsEmptyLight() = cards("cards_empty_light", CardsState())

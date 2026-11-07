@@ -197,7 +197,11 @@ fun StopsScreen(
                     ),
                 )
             },
-            snackbarHost = { LabSnackbarHost(snackbars, Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) },
+            // Above the button, as Flutter's Scaffold puts a floating snackbar,
+        // the button below it already clear of the system bars
+        snackbarHost = {
+            LabSnackbarHost(snackbars, Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)))
+        },
         ) { padding ->
             val body = Modifier
                 .padding(padding)
