@@ -433,6 +433,27 @@ class StopsFavoritesTest {
     }
 
     @Test
+    fun aFixLandingWhileTheStopsAreReadAgainKeepsItsOrder() = test {
+        val repository = spread().apply { applyUpdates = true }
+        val location = FakeLocationSource(permission = LocationPermission.GRANTED, current = here)
+        val stops = ready(repository, location)
+        val first = CompletableDeferred<Unit>()
+        val second = CompletableDeferred<Unit>()
+        val reads = ArrayDeque(listOf(first, second))
+        repository.reading = { reads.removeFirstOrNull()?.await() }
+
+        val load = stops.loadFavorites()
+        // A change while the stops are read has them read again, and the fix
+        // asked for on the first read lands during the second
+        stops.setShowOnHome("a", false).join()
+        first.complete(Unit)
+        second.complete(Unit)
+        load.join()
+
+        assertEquals(listOf("c", "b", "a"), ids(stops))
+    }
+
+    @Test
     fun noFixAtAllKeepsTheSavedOrder() = test {
         val location = FakeLocationSource(permission = LocationPermission.GRANTED)
 

@@ -115,6 +115,9 @@ class StopsViewModel(
     /** A fresh fix on its way, to put the closest stops first */
     private var locating: Job? = null
 
+    /** The last fix [locating] brought, for a read it lands in the middle of */
+    private var fix: GeoPoint? = null
+
     /**
      * Screens following the arrivals while on show, each wanting only the
      * stops the home screen lists or all of them
@@ -168,7 +171,8 @@ class StopsViewModel(
                     located = true
                     position = proximityPosition()
                 }
-                val favorites = arranged(read, position)
+                // A fix landing meanwhile has reordered the stops on screen: kept
+                val favorites = arranged(read, position ?: fix.takeIf { settings.value.sortStopsByProximity })
                 val kept = if (state.value.arrivals.isEmpty()) keptArrivals(favorites) else null
                 if (state.value.favorites !== before) continue
                 state.update {
@@ -236,6 +240,7 @@ class StopsViewModel(
             }
             // On the stops as they are by then; unless the setting changed meanwhile
             if (!settings.value.sortStopsByProximity) return@launch
+            fix = position
             state.update { it.copy(favorites = arranged(it.favorites, position)) }
         }
     }
