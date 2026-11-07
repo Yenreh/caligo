@@ -128,7 +128,8 @@ class LineScreenTest {
         val repository = repository()
         repository.routeFailure = NetworkApiException("Connection error")
         show(repository)
-        waitFor(hasText("Could not load arrivals"))
+        // The Flutter screen said the arrivals failed
+        waitFor(hasText("Could not load the route"))
 
         repository.routeFailure = null
         compose.onNodeWithText("Retry").performClick()

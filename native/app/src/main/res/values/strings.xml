@@ -59,6 +59,7 @@
     </plurals>
     <string name="towards">To %1$s</string>
     <string name="no_line_route">No route for this line</string>
+    <string name="could_not_load_route">Could not load the route</string>
     <string name="update_bus_positions">Update bus positions</string>
 
     <!-- Cards -->

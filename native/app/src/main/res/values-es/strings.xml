@@ -58,6 +58,7 @@
     </plurals>
     <string name="towards">Hacia %1$s</string>
     <string name="no_line_route">No hay recorrido para esta ruta</string>
+    <string name="could_not_load_route">No se pudo cargar el recorrido</string>
     <string name="update_bus_positions">Actualizar posición de los buses</string>
 
     <!-- Cards -->

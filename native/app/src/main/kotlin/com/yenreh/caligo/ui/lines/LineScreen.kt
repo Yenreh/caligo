@@ -210,7 +210,8 @@ fun LineScreen(
                 Loaded.Loading -> CircularProgressIndicator(Modifier.size(36.dp), color = p.accent, strokeWidth = 4.dp)
                 is Loaded.Failed -> LabEmptyState(
                     icon = painterResource(R.drawable.ic_cloud_off),
-                    message = stringResource(R.string.could_not_load_arrivals),
+                    // The Flutter screen said the arrivals failed
+                    message = stringResource(R.string.could_not_load_route),
                     actionLabel = stringResource(R.string.retry),
                     onAction = viewModel::reloadStops,
                     secondaryAction = true,
