@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -62,6 +61,8 @@ import com.yenreh.caligo.ui.lab.LabSnackbars
 import com.yenreh.caligo.ui.lab.LabTone
 import com.yenreh.caligo.ui.lab.LabTooltip
 import com.yenreh.caligo.ui.lab.LabTopBar
+import com.yenreh.caligo.ui.lab.labBottomInset
+import com.yenreh.caligo.ui.lab.labSideInsets
 import com.yenreh.caligo.ui.lab.rememberLabSnackbars
 import com.yenreh.caligo.ui.theme.LabTheme
 import kotlin.time.Duration.Companion.seconds
@@ -281,13 +282,14 @@ private fun FavoritesList(
     onEdit: (String) -> Unit,
     onRelink: (String) -> Unit,
 ) {
-    val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
+    val bottom = labBottomInset()
     LabReorderableList(
         items = stops.favorites,
         key = { it.id },
         onReorder = actions.onReorder,
         modifier = Modifier
             .fillMaxSize()
+            .windowInsetsPadding(labSideInsets())
             .testTag("stops_list"),
         // Room at the end for the button floating over the list
         contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp + bottom),

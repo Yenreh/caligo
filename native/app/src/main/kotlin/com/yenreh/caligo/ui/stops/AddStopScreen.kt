@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,8 +17,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
@@ -73,6 +71,8 @@ import com.yenreh.caligo.ui.lab.LabLineChip
 import com.yenreh.caligo.ui.lab.LabListTile
 import com.yenreh.caligo.ui.lab.LabTextField
 import com.yenreh.caligo.ui.lab.LabTopBar
+import com.yenreh.caligo.ui.lab.labBottomInset
+import com.yenreh.caligo.ui.lab.labSideInsets
 import com.yenreh.caligo.ui.lines.LinesViewModel
 import com.yenreh.caligo.ui.lines.hhmm
 import com.yenreh.caligo.ui.theme.LabText
@@ -212,7 +212,11 @@ private fun StationsTab(viewModel: StopsViewModel, query: TextFieldState, onStat
     LaunchedEffect(viewModel) { viewModel.watchStations() }
     val stations by viewModel.stations.collectAsStateWithLifecycle()
 
-    Column(Modifier.fillMaxSize()) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(labSideInsets()),
+    ) {
         LabTextField(
             state = query,
             style = MaterialTheme.typography.bodyLarge.copy(color = p.ink),
@@ -242,7 +246,12 @@ private fun StationsTab(viewModel: StopsViewModel, query: TextFieldState, onStat
                     } else {
                         state.value.filter { needle in it.name.lowercase() || needle in it.address.lowercase() }
                     }
-                    LazyColumn(Modifier.fillMaxSize().testTag("stations")) {
+                    LazyColumn(
+                        Modifier
+                            .fillMaxSize()
+                            .testTag("stations"),
+                        contentPadding = PaddingValues(bottom = labBottomInset()),
+                    ) {
                         itemsIndexed(shown) { i, station ->
                             if (i > 0) LabDivider()
                             LabListTile(
@@ -279,7 +288,11 @@ private fun LinesTab(viewModel: LinesViewModel, query: TextFieldState, onLine: (
     val hours by viewModel.hours.collectAsStateWithLifecycle()
     val at = now()
 
-    Column(Modifier.fillMaxSize()) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(labSideInsets()),
+    ) {
         LabTextField(
             state = query,
             style = MaterialTheme.typography.bodyLarge.copy(color = p.ink),
@@ -306,13 +319,11 @@ private fun LinesTab(viewModel: LinesViewModel, query: TextFieldState, onLine: (
                 is Loaded.Ready -> {
                     val needle = query.text.toString().trim().uppercase()
                     val shown = if (needle.isEmpty()) state.value else state.value.filter { needle in it.name.uppercase() }
-                    val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
-                        .calculateBottomPadding()
                     LazyColumn(
                         Modifier
                             .fillMaxSize()
                             .testTag("lines"),
-                        contentPadding = PaddingValues(bottom = bottom),
+                        contentPadding = PaddingValues(bottom = labBottomInset()),
                     ) {
                         itemsIndexed(shown) { i, line ->
                             if (i > 0) LabDivider()
@@ -381,8 +392,7 @@ private fun NearbyTab(viewModel: StopsViewModel, onOpen: (OpenStop) -> Unit) {
         is Loaded.Ready -> {
             val result = state.value
             val pull = rememberPullToRefreshState()
-            val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
-                .calculateBottomPadding()
+            val bottom = labBottomInset()
             // Asked again in the background: the spinner goes at once, the
             // list stays until the new one comes
             PullToRefreshBox(
@@ -403,6 +413,7 @@ private fun NearbyTab(viewModel: StopsViewModel, onOpen: (OpenStop) -> Unit) {
                 LazyColumn(
                     Modifier
                         .fillMaxSize()
+                        .windowInsetsPadding(labSideInsets())
                         .testTag("nearby_stops"),
                     contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp + bottom),
                 ) {

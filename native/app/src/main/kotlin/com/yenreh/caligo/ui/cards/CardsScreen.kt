@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,6 +50,8 @@ import com.yenreh.caligo.ui.lab.LabSnackbarHost
 import com.yenreh.caligo.ui.lab.LabSnackbars
 import com.yenreh.caligo.ui.lab.LabTooltip
 import com.yenreh.caligo.ui.lab.LabTopBar
+import com.yenreh.caligo.ui.lab.labBottomInset
+import com.yenreh.caligo.ui.lab.labSideInsets
 import com.yenreh.caligo.ui.lab.rememberLabSnackbars
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import com.yenreh.caligo.ui.theme.LabTheme
@@ -123,14 +124,15 @@ fun CardsScreen(
                 modifier = body.testTag("cards_empty"),
             )
             else -> {
-                val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues()
-                    .calculateBottomPadding()
+                val bottom = labBottomInset()
                 LabReorderableList(
                     items = cards.cards,
                     // The number repeats if two cards share it; the internal id never does
                     key = { it.internalId },
                     onReorder = actions.onReorder,
-                    modifier = body.testTag("cards_list"),
+                    modifier = body
+                        .windowInsetsPadding(labSideInsets())
+                        .testTag("cards_list"),
                     // Room at the end for the button floating over the list
                     contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp + bottom),
                 ) { card ->

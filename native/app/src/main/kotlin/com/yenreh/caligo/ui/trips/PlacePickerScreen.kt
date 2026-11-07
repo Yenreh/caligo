@@ -5,12 +5,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -51,6 +48,8 @@ import com.yenreh.caligo.ui.lab.LabSnackbarHost
 import com.yenreh.caligo.ui.lab.LabTextField
 import com.yenreh.caligo.ui.lab.LabTone
 import com.yenreh.caligo.ui.lab.LabTopBar
+import com.yenreh.caligo.ui.lab.labBottomInset
+import com.yenreh.caligo.ui.lab.labSideInsets
 import com.yenreh.caligo.ui.lab.rememberLabSnackbars
 import com.yenreh.caligo.ui.stops.Chevron
 import com.yenreh.caligo.ui.stops.StopsViewModel
@@ -135,7 +134,7 @@ fun PlacePickerScreen(
     val shownFavorites = filter.favorites(favorites)
     val shownStations = filter.stations(stations)
     val shownStops = remember(state.typed, network) { filter.stops(network) }
-    val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
+    val bottom = labBottomInset()
 
     // Read here, as LazyListScope builds rows without composing
     val searchAsAddress = stringResource(R.string.search_as_address, state.typed)
@@ -151,7 +150,8 @@ fun PlacePickerScreen(
             Modifier
                 .padding(padding)
                 .consumeWindowInsets(padding)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .windowInsetsPadding(labSideInsets()),
         ) {
             LabTextField(
                 state = query,

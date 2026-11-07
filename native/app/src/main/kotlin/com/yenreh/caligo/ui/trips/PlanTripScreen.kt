@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -99,6 +97,8 @@ import com.yenreh.caligo.ui.lab.LabTextButton
 import com.yenreh.caligo.ui.lab.LabTone
 import com.yenreh.caligo.ui.lab.LabTooltip
 import com.yenreh.caligo.ui.lab.LabTopBar
+import com.yenreh.caligo.ui.lab.labBottomInset
+import com.yenreh.caligo.ui.lab.labSideInsets
 import com.yenreh.caligo.ui.lab.rememberLabSnackbars
 import com.yenreh.caligo.ui.map.LabMap
 import com.yenreh.caligo.ui.map.LabMapMarker
@@ -672,12 +672,13 @@ private fun Options(
     onChooseLine: (plan: Int, ride: Int, line: String) -> Unit,
 ) {
     val p = LabTheme.palette
-    val bottom = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
+    val bottom = labBottomInset()
     // Rows before the options, to bring an opened one to the top
     val before = (if (results.replanning) 1 else 0) + (if (results.liveFailed) 1 else 0)
     LazyColumn(
         Modifier
             .fillMaxSize()
+            .windowInsetsPadding(labSideInsets())
             .testTag("options"),
         state = list,
         contentPadding = PaddingValues(bottom = bottom),

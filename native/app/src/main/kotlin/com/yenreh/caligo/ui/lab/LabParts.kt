@@ -8,9 +8,14 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -153,3 +158,17 @@ fun LabTooltip(text: String, modifier: Modifier = Modifier, content: @Composable
         )
     }
 }
+
+/**
+ * The system bars and display cutout at the screen's sides, which
+ * landscape puts there: a screen part pads itself by them to keep clear
+ */
+@Composable
+fun labSideInsets(): WindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
+
+/**
+ * The system bars' room under a list's last row, as a Flutter ListView
+ * pads itself by the MediaQuery's
+ */
+@Composable
+fun labBottomInset(): Dp = WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()

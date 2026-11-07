@@ -1,6 +1,7 @@
 package com.yenreh.caligo.ui.stops
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +40,8 @@ import com.yenreh.caligo.ui.lab.LabDivider
 import com.yenreh.caligo.ui.lab.LabSnackbarHost
 import com.yenreh.caligo.ui.lab.LabTooltip
 import com.yenreh.caligo.ui.lab.LabTopBar
+import com.yenreh.caligo.ui.lab.labBottomInset
+import com.yenreh.caligo.ui.lab.labSideInsets
 import com.yenreh.caligo.ui.lab.rememberLabSnackbars
 import com.yenreh.caligo.ui.theme.LabTheme
 import kotlinx.coroutines.launch
@@ -101,7 +104,12 @@ fun StationStopsScreen(
             }
             is Loaded.Failed -> Centered(stringResource(R.string.could_not_load_arrivals), body)
             is Loaded.Ready if state.value.isEmpty() -> Centered(stringResource(R.string.no_stops_nearby), body)
-            is Loaded.Ready -> LazyColumn(body.testTag("station_stops")) {
+            is Loaded.Ready -> LazyColumn(
+                body
+                    .windowInsetsPadding(labSideInsets())
+                    .testTag("station_stops"),
+                contentPadding = PaddingValues(bottom = labBottomInset()),
+            ) {
                 itemsIndexed(state.value) { i, stop ->
                     if (i > 0) LabDivider()
                     NearbyStopRow(stop, onClick = { details = OpenStop(stop, station.latitude, station.longitude) })

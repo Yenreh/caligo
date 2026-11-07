@@ -3,11 +3,13 @@ package com.yenreh.caligo.ui.stops
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +39,8 @@ import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.lab.LabDivider
+import com.yenreh.caligo.ui.lab.labBottomInset
+import com.yenreh.caligo.ui.lab.labSideInsets
 import com.yenreh.caligo.ui.map.CompassNeedle
 import com.yenreh.caligo.ui.map.HaloIcon
 import com.yenreh.caligo.ui.map.LabMap
@@ -253,7 +257,9 @@ fun MapStopsScreen(
                 is Loaded.Ready -> LazyColumn(
                     Modifier
                         .fillMaxSize()
+                        .windowInsetsPadding(labSideInsets())
                         .testTag("map_stops"),
+                    contentPadding = PaddingValues(bottom = labBottomInset()),
                 ) {
                     itemsIndexed(results.value) { i, stop ->
                         if (i > 0) LabDivider()
