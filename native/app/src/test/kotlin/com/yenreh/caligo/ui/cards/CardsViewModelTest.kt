@@ -297,7 +297,7 @@ class CardsViewModelTest {
 
     @Test
     fun aNumberAlreadySavedIsSavedAgain() = test {
-        // Only the edit screen checks for a number taken, as in Dart
+        // The view model leaves the check for a number taken to the screens
         val repository = FakeCardRepository(listOf(card("a")))
         val cards = ready(repository)
 

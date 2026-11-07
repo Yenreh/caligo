@@ -160,6 +160,19 @@ class CardFormRouteTest {
     }
 
     @Test
+    fun aNumberAlreadySavedIsRefusedOnCreateToo() {
+        create()
+        type("card_id", " 06051868 ")
+        type("card_name", "Again")
+
+        submit()
+
+        compose.onNodeWithText("A card with this ID already exists").assertExists()
+        assertEquals(1, ids.count { it == "06051868" })
+        assertEquals(0, done)
+    }
+
+    @Test
     fun theButtonSpinsAndHoldsWhileSaving() {
         create()
         val gate = CompletableDeferred<Unit>()

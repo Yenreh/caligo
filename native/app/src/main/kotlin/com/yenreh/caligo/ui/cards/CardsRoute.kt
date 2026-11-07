@@ -56,8 +56,9 @@ fun CardsRoute(
 }
 
 /**
- * The create screen: once the number and the name are there, the card is
- * saved and the screen closes through [onDone]. The new card's balance is
+ * The create screen: once the number and the name are there, and the
+ * number is not saved already, the card is saved and the screen closes
+ * through [onDone]. The new card's balance is
  * not asked for here; the refresh on opening, if still due, does it.
  */
 @Composable
@@ -77,7 +78,10 @@ fun CreateCardRoute(
         form = form,
         isSaving = save.isSaving,
         onSubmit = {
-            if (!save.isSaving && form.validate()) {
+            // A number already saved is refused, as the edit screen does:
+            // two cards with one number would share deletes and balances
+            val cards = viewModel.cards.value.cards
+            if (!save.isSaving && form.validate { number -> cards.any { it.id == number } }) {
                 save.run {
                     viewModel.createCard(
                         id = form.trimmedId,
