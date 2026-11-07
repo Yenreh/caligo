@@ -221,10 +221,14 @@ class CardsViewModel(
         }
     }
 
-    /** Ask for the balance of the card numbered [cardId] */
+    /**
+     * Ask for the balance of the card numbered [cardId]. Nothing while
+     * every card refreshes, which asks for this one in its turn: the
+     * Flutter app sent both.
+     */
     fun refreshCardBalance(cardId: String): Job {
         // Only one refresh at a time
-        if (state.value.refreshingCardId != null) return DONE
+        if (state.value.refreshingCardId != null || state.value.isRefreshingAll) return DONE
         val card = state.value.cards.firstOrNull { it.id == cardId } ?: return DONE
 
         set {

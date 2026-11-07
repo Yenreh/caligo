@@ -219,6 +219,24 @@ class CardsViewModelTest {
     }
 
     @Test
+    fun oneCardWaitsWhileEveryCardRefreshes() = test {
+        val repository = FakeCardRepository(listOf(card("a"), card("b")))
+        val cards = ready(repository)
+        val gate = CompletableDeferred<Unit>()
+        repository.answer = { gate.await() }
+
+        val all = cards.refreshAllBalances()
+        cards.refreshCardBalance("b").join()
+
+        // Not asked twice: the refresh of all of them asks for it in turn
+        assertNull(cards.state.refreshingCardId)
+        assertEquals(listOf("a"), repository.asked)
+        gate.complete(Unit)
+        all.join()
+        assertEquals(listOf("a", "b"), repository.asked)
+    }
+
+    @Test
     fun readsTheCardsAgainEachTimeTheyChangeElsewhere() = test {
         val repository = FakeCardRepository(listOf(card("a")))
         val reloads = MutableSharedFlow<Unit>()
