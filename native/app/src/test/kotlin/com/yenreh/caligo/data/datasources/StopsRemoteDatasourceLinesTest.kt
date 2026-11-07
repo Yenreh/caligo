@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
@@ -180,7 +181,8 @@ class StopsRemoteDatasourceLinesTest {
     }
 
     @Test
-    fun aBusOnAnotherLineGetsNoDirectionAndIsAskedAgain() = runTest {
+    fun aBusOnAnotherLineGetsNoDirectionAndIsAskedAgainAfterTenMinutes() = runTest {
+        var clock = 1_790_000_000_000L
         val infoCalls = AtomicInteger()
         val service = answering { _, url ->
             val path = url.encodedPath
@@ -193,11 +195,16 @@ class StopsRemoteDatasourceLinesTest {
                 else -> status(404, "Not Found")
             }
         }
-        val datasource = service.datasource()
+        val datasource = service.datasource(now = { clock })
 
         assertNull(datasource.getLineBuses("A47").single().direction)
-        datasource.getLineBuses("A47")
+        // The Flutter app asked it again every round, 30 s apart
+        clock += 30.seconds.inWholeMilliseconds
+        assertNull(datasource.getLineBuses("A47").single().direction)
+        assertEquals(1, infoCalls.get())
 
+        clock += 10.minutes.inWholeMilliseconds
+        datasource.getLineBuses("A47")
         assertEquals(2, infoCalls.get())
     }
 

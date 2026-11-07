@@ -515,8 +515,12 @@ class StopsRemoteDatasource(
         }
 
         val stale = buses.filter { bus ->
-            val known = busDirections[bus.busNumber]
-            known == null || known.line != line || now - known.at > maxAge(bus, known.direction).inWholeMilliseconds
+            val known = busDirections[bus.busNumber] ?: return@filter true
+            // A bus the service puts on another line says nothing of this
+            // one's trip ends: asked again as a bus without the route, not
+            // every round as in the Flutter app
+            val maxAge = if (known.line != line) BUS_DIRECTION_MAX_AGE else maxAge(bus, known.direction)
+            now - known.at > maxAge.inWholeMilliseconds
         }.map { it.busNumber }
         // The service takes one bus per request: a few at a time
         for (batch in stale.chunked(DIRECTIONS_AT_ONCE)) {
