@@ -101,6 +101,9 @@ fun HomeScreen(
     // Condensed cards leave room for the stops below them
     val compactCards = showsCards && showsStops && cards.cards.size > 1
     val isEmpty = (!showsCards || cards.cards.isEmpty()) && homeStops.isEmpty()
+    // Whatever the home lists, still on its way: no "nothing saved" before it is known
+    val cardsLoading = showsCards && cards.isLoading && cards.cards.isEmpty()
+    val stopsLoading = showsStops && stops?.isLoading == true && homeStops.isEmpty()
 
     LiveClock {
         Scaffold(
@@ -118,7 +121,7 @@ fun HomeScreen(
                 .consumeWindowInsets(padding)
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
             when {
-                cards.isLoading && cards.cards.isEmpty() && showsCards -> Column(body) {
+                cardsLoading || (isEmpty && stopsLoading) -> Column(body) {
                     Masthead(actions.onSettings)
                     Box(
                         Modifier

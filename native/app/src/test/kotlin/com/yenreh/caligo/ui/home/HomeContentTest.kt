@@ -1,6 +1,8 @@
 package com.yenreh.caligo.ui.home
 
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -46,6 +48,20 @@ class HomeContentTest {
     @Test
     fun cardsLoadingShowProgressInsteadOfTheHint() {
         show(HomeContent.CARDS, cards = CardsState(isLoading = true))
+        compose.onAllNodesWithTag("home_empty").assertCountEquals(0)
+    }
+
+    @Test
+    fun stopsLoadingShowProgressInsteadOfTheHint() {
+        show(HomeContent.STOPS, stops = StopsState(isLoading = true))
+        compose.onAllNodesWithTag("home_empty").assertCountEquals(0)
+        compose.onAllNodesWithText("No saved stops").assertCountEquals(0)
+        compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertCountEquals(1)
+    }
+
+    @Test
+    fun noCardsWithTheStopsStillLoadingShowProgressToo() {
+        show(HomeContent.BOTH, stops = StopsState(isLoading = true))
         compose.onAllNodesWithTag("home_empty").assertCountEquals(0)
     }
 
