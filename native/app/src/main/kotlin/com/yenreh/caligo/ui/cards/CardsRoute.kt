@@ -58,8 +58,8 @@ fun CardsRoute(
 /**
  * The create screen: once the number and the name are there, and the
  * number is not saved already, the card is saved and the screen closes
- * through [onDone]. The new card's balance is
- * not asked for here; the refresh on opening, if still due, does it.
+ * through [onDone]. The new card's balance is not asked for here; the
+ * refresh on opening, if still due, does it.
  */
 @Composable
 fun CreateCardRoute(
