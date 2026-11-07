@@ -239,7 +239,7 @@ class StopsViewModel(
                         batch.map { group ->
                             async {
                                 try {
-                                    refreshGroup(group, results, healed)
+                                    refreshGroup(group, results, healed) { e -> failure = failure ?: e.asApiException() }
                                 } catch (e: Exception) {
                                     if (e is CancellationException) throw e
                                     // A failed request says nothing about the stops themselves
@@ -279,10 +279,17 @@ class StopsViewModel(
         if (autoRefreshing) scheduleNext()
     }
 
+    /**
+     * Ask for [group] and hand each favorite its arrivals. A favorite's own
+     * second request failing goes to [failed] and leaves that favorite as
+     * it was; the rest of the group still takes the shared answer, where
+     * the Flutter app left it all stale.
+     */
     private suspend fun refreshGroup(
         group: Group,
         results: MutableMap<String, List<BusArrival>>,
         healed: MutableMap<String, FavoriteStop>,
+        failed: (Exception) -> Unit,
     ) {
         val nearby = repository.getNearbyStops(group.latitude, group.longitude)
 
@@ -298,7 +305,14 @@ class StopsViewModel(
                 distanceBetween(group.latitude, group.longitude, favorite.anchorLatitude, favorite.anchorLongitude) > 1
 
             if (arrivals == null && elsewhere) {
-                seen = repository.getNearbyStops(favorite.anchorLatitude, favorite.anchorLongitude)
+                try {
+                    seen = repository.getNearbyStops(favorite.anchorLatitude, favorite.anchorLongitude)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    // Says nothing about the stop itself
+                    failed(e)
+                    continue
+                }
                 arrivals = arrivalsFor(favorite, seen)
             }
 

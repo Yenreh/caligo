@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.yenreh.caligo.data.datasources.ApiException
+import com.yenreh.caligo.data.datasources.NetworkApiException
 import com.yenreh.caligo.data.json.JsonTypeException
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.entities.BusArrival
@@ -489,6 +490,39 @@ class StopsViewModelTest {
         stops.refreshArrivals(force = true).join()
         assertEquals(1, repository.nearbyCalls)
         assertNull(stops.state.error)
+    }
+
+    @Test
+    fun aFavoritesOwnRequestFailingLeavesTheRestOfItsGroupFresh() = test {
+        fun bus(line: String) =
+            BusArrival(line = line, destination = "X", arrivalTime = at(2026, 9, 28, 12, 0), vehicleId = line)
+        val elsewhere = GeoPoint(3.4517, -76.5320)
+        // b, saved a few metres off, is asked about on its own; a and c share the first answer
+        val nearby = mutableListOf(nearbyStop("a", listOf(bus("A1"))), nearbyStop("c", listOf(bus("C1"))))
+        val repository = FakeStopsRepository(
+            favorites = listOf(
+                favorite("a", 3.4516, -76.5320),
+                favorite("b", elsewhere.latitude, elsewhere.longitude),
+                favorite("c", 3.4516, -76.5320),
+            ),
+            nearby = nearby,
+        )
+        val stops = ready(repository)
+        val missing = stops.state.favorites.first { it.id == "b" }.missingCount
+
+        nearby[0] = nearbyStop("a", listOf(bus("A2")))
+        nearby[1] = nearbyStop("c", listOf(bus("C2")))
+        repository.answer = {
+            if (repository.askedAround.last() == elsewhere) throw NetworkApiException("No connection")
+        }
+        stops.refreshArrivals(force = true).join()
+
+        assertNotNull(stops.state.error)
+        // The Flutter app stopped at b: c kept its earlier buses
+        assertEquals(listOf("A2"), stops.state.arrivals["a"]?.map { it.line })
+        assertEquals(listOf("C2"), stops.state.arrivals["c"]?.map { it.line })
+        // A failed request says nothing about b itself
+        assertEquals(missing, stops.state.favorites.first { it.id == "b" }.missingCount)
     }
 
     @Test
