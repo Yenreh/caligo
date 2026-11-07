@@ -22,6 +22,17 @@ val cartoKey: String = providers.environmentVariable("CARTO_KEY").orNull?.takeIf
     }?.trim()
     ?: ""
 
+/** The version every release is named by, from VERSION at the repository root */
+val appVersionName: String = providers.fileContents(rootProject.layout.projectDirectory.file("VERSION"))
+    .asText.get().trim()
+
+/**
+ * Above every Flutter release's (ABI x 1000 + the workflow run: 2008 for
+ * 4.6.0), so this app installs over them: 100000 plus the release
+ * workflow's run number, 100000 when built locally
+ */
+val appVersionCode: Int = 100_000 + (providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 0)
+
 android {
     namespace = "com.yenreh.caligo"
     compileSdk {
@@ -31,12 +42,11 @@ android {
     }
 
     defaultConfig {
-        // Installs beside CaliGo until the port replaces it
-        applicationId = "com.yenreh.caligo.next"
+        applicationId = "com.yenreh.caligo"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         buildConfigField("String", "CARTO_KEY", "\"$cartoKey\"")
     }
 

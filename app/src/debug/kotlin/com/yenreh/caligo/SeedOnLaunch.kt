@@ -11,7 +11,7 @@ private const val TAG = "CaliGoSeed"
  * anything, and renamed to `import.done.json`. A file that fails to
  * import stays, to be tried again on the next launch.
  *
- * `adb push backup.json /sdcard/Android/data/com.yenreh.caligo.next/files/import.json`
+ * `adb push backup.json /sdcard/Android/data/com.yenreh.caligo/files/import.json`
  */
 internal fun seedOnLaunch(app: CaliGoApp) {
     val folder = app.getExternalFilesDir(null) ?: return

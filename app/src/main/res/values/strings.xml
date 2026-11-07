@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Launcher label; CaliGo Next installs beside CaliGo until the port replaces it -->
-    <string name="app_name" translatable="false">CaliGo Next</string>
+    <!-- Launcher label -->
+    <string name="app_name" translatable="false">CaliGo</string>
     <string name="settings">Settings</string>
 
     <!-- Home -->

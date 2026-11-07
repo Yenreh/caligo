@@ -80,11 +80,12 @@ class AppMapTilesTest {
         tiles().tile(16, 18835, 32139)
 
         val sent = service.headers.single()
-        // CaliGo's package, the one the key is limited to, never CaliGo Next's
+        // CaliGo's package, the one the key is limited to, and the app's own
         assertEquals("com.yenreh.caligo", sent["X-Android-Package"])
+        assertEquals("com.yenreh.caligo", BuildConfig.APPLICATION_ID)
         assertEquals("9B:AD:EB:EF:73:AF:2E:F5:95:AF:94:F9:00:B0:34:45:B3:E5:44:C2", sent["X-Android-Cert"])
         assertTrue(sent["User-Agent"]!!.startsWith("CaliGo/"))
-        assertTrue("com.yenreh.caligo.next" !in sent["User-Agent"]!!)
+        assertTrue("(com.yenreh.caligo;" in sent["User-Agent"]!!)
     }
 
     @Test

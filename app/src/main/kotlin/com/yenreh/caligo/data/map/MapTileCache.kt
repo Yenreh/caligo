@@ -24,7 +24,7 @@ class CachedTile(val metadata: TileMetadata, val bytes: ByteArray)
 /**
  * Disk cache for the map tiles, in the files flutter_map's built-in
  * caching provider writes, where the Flutter app kept them
- * (`cache/fm_cache`): the port reads that app's tiles as they are.
+ * (`cache/fm_cache`): the app reads the tiles that one left as they are.
  *
  * One file per tile, named by a UUID v5 of its URL without the API key:
  * the key says nothing about the image, and keeping it in the name would

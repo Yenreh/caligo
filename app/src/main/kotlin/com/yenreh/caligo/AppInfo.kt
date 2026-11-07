@@ -9,8 +9,7 @@ object AppInfo {
 
     /**
      * Android application ID of CaliGo, also how the map introduces itself
-     * to the tile servers. CaliGo Next installs under its own ID until it
-     * takes this one; the tile servers know CaliGo's.
+     * to the tile servers, which know only this one.
      */
     const val PACKAGE_ID = "com.yenreh.caligo"
 

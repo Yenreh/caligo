@@ -32,9 +32,9 @@ import okhttp3.OkHttpClient
 /**
  * Everything below the screens, made once per process and wired by hand.
  *
- * Files sit where the Flutter app kept them, so the final port, under
- * its package name, reads that app's data as is: `caligo.db` among the
- * databases, `settings.json` and the cache in `app_flutter`.
+ * Files sit where the Flutter app kept them, so installed over it, under
+ * the same package name, the app reads that data as is: `caligo.db` among
+ * the databases, `settings.json` and the cache in `app_flutter`.
  */
 class AppContainer(private val context: Context) {
     /** Outlives every screen: shared requests, saves, housekeeping */
