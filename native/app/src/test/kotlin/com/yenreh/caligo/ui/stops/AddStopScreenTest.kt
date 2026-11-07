@@ -263,10 +263,11 @@ class AddStopScreenTest {
     }
 
     @Test
-    fun noFixInTimeSaysTheArrivalsFailed() {
+    fun noFixInTimeSaysSo() {
         show(repository(), FakeLocationSource(permission = LocationPermission.GRANTED), tab = NEARBY)
 
-        waitFor(hasText("Could not load arrivals"))
+        // Not "Could not load arrivals", as the Flutter app put it
+        waitFor(hasText("Could not get your location in time"))
     }
 
     @Test

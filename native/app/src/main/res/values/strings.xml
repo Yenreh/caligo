@@ -201,6 +201,7 @@
     <string name="swap_places">Swap origin and destination</string>
     <string name="update_location">Update my location</string>
     <string name="could_not_locate">Could not get your location</string>
+    <string name="location_timeout">Could not get your location in time</string>
     <string name="refresh_times">Update times</string>
     <string name="open_in_google_maps">Open this search in Google Maps</string>
     <string name="google_maps" translatable="false">Google Maps</string>

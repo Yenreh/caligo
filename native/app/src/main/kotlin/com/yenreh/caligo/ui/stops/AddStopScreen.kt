@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yenreh.caligo.R
+import com.yenreh.caligo.data.location.LocationTimeoutException
 import com.yenreh.caligo.data.location.LocationUnavailableException
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.TransitLine
@@ -361,6 +362,8 @@ private fun NearbyTab(viewModel: StopsViewModel, onOpen: (OpenStop) -> Unit) {
                 icon = R.drawable.ic_location_off,
                 text = stringResource(
                     when {
+                        // The Flutter app said the arrivals failed
+                        error is LocationTimeoutException -> R.string.location_timeout
                         error !is LocationUnavailableException -> R.string.could_not_load_arrivals
                         error.permanentlyDenied -> R.string.location_denied_forever
                         else -> R.string.location_unavailable

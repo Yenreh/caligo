@@ -619,7 +619,7 @@ class StopsFavoritesTest {
             stops.nearbyStops()
             fail("Expected no fix")
         } catch (e: Exception) {
-            // Not a LocationUnavailableException: the tab says the arrivals failed
+            // Not a LocationUnavailableException: the tab says the fix did not come
             assertFalse(e is LocationUnavailableException)
         }
     }

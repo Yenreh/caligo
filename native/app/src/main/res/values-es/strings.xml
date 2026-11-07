@@ -202,6 +202,7 @@
     <string name="swap_places">Intercambiar origen y destino</string>
     <string name="update_location">Actualizar mi ubicación</string>
     <string name="could_not_locate">No se pudo obtener tu ubicación</string>
+    <string name="location_timeout">No se pudo obtener tu ubicación a tiempo</string>
     <string name="refresh_times">Actualizar horarios</string>
     <string name="open_in_google_maps">Abrir esta búsqueda en Google Maps</string>
     <string name="loading_routes">Cargando las rutas del MIO (%1$d/%2$d)</string>
