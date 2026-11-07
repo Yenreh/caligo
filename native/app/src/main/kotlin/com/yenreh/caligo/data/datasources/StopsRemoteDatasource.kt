@@ -809,7 +809,7 @@ class StopsRemoteDatasource(
         /** How far north and east of the point the extra readings are taken */
         private const val VANTAGE_OFFSET_METERS = 120.0
 
-        /** Files nobody has written in this long are swept once per run */
+        /** Files nobody has read or written in this long are swept once per run */
         private val CACHE_LIFETIME = 45.days
 
         private val pruned = AtomicBoolean(false)

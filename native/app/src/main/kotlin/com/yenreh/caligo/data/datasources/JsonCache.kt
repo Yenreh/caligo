@@ -39,10 +39,12 @@ interface JsonCache {
     suspend fun write(key: String, value: JsonElement, remember: Boolean = true)
 
     /**
-     * Delete entries not written in [maxAge].
+     * Delete entries neither read nor written in [maxAge].
      *
      * One file per stop would otherwise pile up for as long as the app is
      * installed, since every stop whose lines were looked up leaves one.
+     * The Flutter app went by the last write, so what was read every day
+     * went all the same.
      */
     suspend fun prune(maxAge: Duration)
 
@@ -85,6 +87,8 @@ class FileJsonCache(
                 val file = fileFor(key)
                 if (!file.exists()) return@withContext null
                 val decoded = parseJson(file.readText()) as? JsonObject ?: return@withContext null
+                // Read now: kept from the sweep, which goes by the file's time
+                file.setLastModified(now())
                 CacheEntry(decoded["savedAt"].long(), decoded["value"] ?: JsonNull)
                     .also { if (remember) memory[key] = it }
             } catch (_: Exception) {
