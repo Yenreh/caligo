@@ -174,7 +174,8 @@ class AddStopScreenTest {
         repository.catalogFailure = NetworkApiException("Connection error")
         repository.hourFailure = NetworkApiException("Connection error")
         show(repository, tab = LINES)
-        waitFor(hasText("Could not load arrivals"))
+        // Not "Could not load arrivals", as the Flutter app put it
+        waitFor(hasText("Could not load the lines"))
 
         repository.catalogFailure = null
         compose.onNodeWithText("Retry").performClick()
@@ -203,7 +204,8 @@ class AddStopScreenTest {
         val repository = repository()
         repository.catalogFailure = NetworkApiException("Connection error")
         show(repository)
-        waitFor(hasText("Could not load arrivals"))
+        // Not "Could not load arrivals", as the Flutter app put it
+        waitFor(hasText("Could not load the stations"))
 
         repository.catalogFailure = null
         compose.onNodeWithText("Retry").performClick()

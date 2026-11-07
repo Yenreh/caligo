@@ -120,6 +120,21 @@ class StationStopsScreenTest {
     }
 
     @Test
+    fun anAreaTheDiskFailsToSaveSaysSoAndStaysOpen() {
+        val repository = FakeStopsRepository(emptyList(), platforms)
+        repository.saveFailure = IllegalStateException("disk full")
+        show(repository)
+
+        compose.onNodeWithTag("save_area").performClick()
+        waitFor(hasTestTag("stop_name_dialog"))
+        compose.onNodeWithText("Save").performClick()
+
+        // The Flutter app said nothing
+        waitFor(hasText("Could not save the area"))
+        assertTrue(done.isEmpty())
+    }
+
+    @Test
     fun aStopWhoseIdARelinkedFavoriteHoldsSaysSo() {
         val relinked = favorite("520101", 3.37, -76.53).copy(stopId = "520999", customName = "Casa")
         val repository = FakeStopsRepository(listOf(relinked), platforms)

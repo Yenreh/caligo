@@ -1,6 +1,7 @@
 package com.yenreh.caligo.ui.stops
 
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -43,6 +44,8 @@ class StopDetailsSheetTest {
         fetchOnOpen: Boolean = false,
         initial: NearbyStop = stop,
         onGoHere: ((TripPlace) -> Unit)? = null,
+        save: suspend (String) -> FavoriteSave = { FavoriteSave.Saved },
+        onDismiss: () -> Unit = {},
     ) {
         compose.setContent {
             CaliGoTheme {
@@ -50,8 +53,8 @@ class StopDetailsSheetTest {
                     initial = initial,
                     isSaved = false,
                     lines = lines,
-                    actions = StopDetailsActions(refresh = refresh, loadLines = { emptyList() }, save = { FavoriteSave.Saved }),
-                    onDismiss = {},
+                    actions = StopDetailsActions(refresh = refresh, loadLines = { emptyList() }, save = save),
+                    onDismiss = onDismiss,
                     fetchOnOpen = fetchOnOpen,
                     onGoHere = onGoHere,
                     anchorLatitude = 3.4500,
@@ -102,6 +105,22 @@ class StopDetailsSheetTest {
         show(Loaded.Failed(NetworkApiException("Connection error")))
 
         compose.onNodeWithText("No lines listed").assertExists()
+    }
+
+    // Saving
+
+    @Test
+    fun aStopTheDiskFailsToSaveSaysSoAndStaysOpen() {
+        var dismissed = false
+        show(Loaded.Ready(emptyList()), save = { FavoriteSave.Failed }, onDismiss = { dismissed = true })
+
+        compose.onNodeWithTag("save_stop").performScrollTo().performClick()
+        compose.waitUntil(5_000) { exists(hasTestTag("stop_name_dialog")) }
+        compose.onNodeWithText("Save").performClick()
+
+        // The Flutter app said nothing
+        compose.waitUntil(5_000) { exists(hasText("Could not save the stop")) }
+        assertFalse(dismissed)
     }
 
     // "Go here"

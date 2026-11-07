@@ -43,10 +43,14 @@
     <string name="stop_id_taken">%1$s se guardó desde esta parada y ahora sigue otra. Quítala para guardar esta.</string>
     <string name="lines_to_show">Rutas a mostrar</string>
     <string name="lines_to_show_hint">Sin ninguna elegida se muestran todas</string>
+    <string name="could_not_load_stations">No se pudieron cargar las estaciones</string>
+    <string name="could_not_save_stop">No se pudo guardar la parada</string>
+    <string name="could_not_save_area">No se pudo guardar la zona</string>
 
     <!-- Lines -->
     <string name="lines_tab">Rutas</string>
     <string name="search_line">Buscar ruta</string>
+    <string name="could_not_load_lines">No se pudieron cargar las rutas</string>
     <string name="line_running_now">Operando ahora</string>
     <string name="line_not_running">No opera ahora</string>
     <string name="line_runs">Opera %1$s–%2$s</string>

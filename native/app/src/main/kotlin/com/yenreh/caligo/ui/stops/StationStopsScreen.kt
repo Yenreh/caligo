@@ -38,6 +38,7 @@ import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.common.rememberLoader
 import com.yenreh.caligo.ui.lab.LabDivider
 import com.yenreh.caligo.ui.lab.LabSnackbarHost
+import com.yenreh.caligo.ui.lab.LabTone
 import com.yenreh.caligo.ui.lab.LabTooltip
 import com.yenreh.caligo.ui.lab.LabTopBar
 import com.yenreh.caligo.ui.lab.labBottomInset
@@ -71,6 +72,7 @@ fun StationStopsScreen(
     var details by remember { mutableStateOf<OpenStop?>(null) }
     val snackbars = rememberLabSnackbars()
     val areaSaved = stringResource(R.string.area_already_saved)
+    val areaFailed = stringResource(R.string.could_not_save_area)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -137,7 +139,7 @@ fun StationStopsScreen(
                         FavoriteSave.Saved -> onDone()
                         // The Flutter app said nothing
                         is FavoriteSave.Taken -> snackbars.show(areaSaved)
-                        FavoriteSave.Failed -> Unit
+                        FavoriteSave.Failed -> snackbars.show(areaFailed, LabTone.CRIT)
                     }
                 }
             },

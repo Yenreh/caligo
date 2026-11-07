@@ -236,7 +236,7 @@ private fun StationsTab(viewModel: StopsViewModel, query: TextFieldState, onStat
                 Loaded.Loading -> Spinner()
                 is Loaded.Failed -> Message(
                     icon = R.drawable.ic_cloud_off,
-                    text = stringResource(R.string.could_not_load_arrivals),
+                    text = stringResource(R.string.could_not_load_stations),
                     onRetry = viewModel::reloadStations,
                 )
                 is Loaded.Ready -> {
@@ -313,7 +313,7 @@ private fun LinesTab(viewModel: LinesViewModel, query: TextFieldState, onLine: (
                 Loaded.Loading -> Spinner()
                 is Loaded.Failed -> Message(
                     icon = R.drawable.ic_cloud_off,
-                    text = stringResource(R.string.could_not_load_arrivals),
+                    text = stringResource(R.string.could_not_load_lines),
                     onRetry = viewModel::reloadLines,
                 )
                 is Loaded.Ready -> {

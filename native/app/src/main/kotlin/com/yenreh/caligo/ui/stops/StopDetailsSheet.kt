@@ -136,6 +136,9 @@ fun StopDetailsContent(
     // The favorite already holding this stop's id, by name, once a save met it
     var takenBy by rememberSaveable { mutableStateOf<String?>(null) }
 
+    /** The disk failed to save it */
+    var saveFailed by rememberSaveable { mutableStateOf(false) }
+
     suspend fun refresh() {
         refreshing = true
         try {
@@ -258,6 +261,14 @@ fun StopDetailsContent(
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(if (isSaved) R.string.stop_already_saved else R.string.save_as_favorite))
             }
+            if (saveFailed) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.could_not_save_stop),
+                    style = LabText.statusLine(p).copy(color = p.crit),
+                    modifier = Modifier.testTag("save_failed"),
+                )
+            }
             takenBy?.let {
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -276,13 +287,15 @@ fun StopDetailsContent(
             onDismiss = { naming = false },
             onSave = { customName ->
                 naming = false
+                takenBy = null
+                saveFailed = false
                 // Closed once saved; a sheet already closed stays so
                 scope.launch {
                     when (val saved = actions.save(customName)) {
                         FavoriteSave.Saved -> onDismiss()
                         is FavoriteSave.Taken -> takenBy = saved.favorite.displayName
-                        // Left as the Flutter app left it
-                        FavoriteSave.Failed -> Unit
+                        // The Flutter app said nothing
+                        FavoriteSave.Failed -> saveFailed = true
                     }
                 }
             },
