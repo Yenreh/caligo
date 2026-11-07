@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -119,6 +120,21 @@ class SettingsRouteTest {
         assertEquals(listOf("application/json"), pickerInputs.map { (it as Array<*>).toList() }.single())
         assertEquals(listOf("06051868"), runBlocking { device.cards.getAllCards() }.map { it.id })
         assertEquals(AppThemeMode.DARK, device.store.settings.value.themeMode)
+    }
+
+    @Test
+    fun theFareShownFollowsAnImport() {
+        val device = device()
+        picked = Uri.fromFile(File(folder.root, "caligo_backup.json").apply { writeText(SettingsTestDevice.BACKUP) })
+        show(device)
+
+        tap("Import data")
+
+        waitForText("2 items imported")
+        assertEquals(3700, device.store.settings.value.farePrice)
+        // The Flutter field kept the fare it opened with
+        val fare = compose.onNodeWithTag("fare_price").fetchSemanticsNode().config[SemanticsProperties.EditableText]
+        assertEquals("3700", fare.text)
     }
 
     @Test

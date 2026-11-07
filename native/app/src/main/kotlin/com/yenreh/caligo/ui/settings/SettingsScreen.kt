@@ -28,6 +28,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -35,6 +36,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
@@ -102,6 +108,15 @@ fun SettingsScreen(
     farePrice: TextFieldState = rememberTextFieldState(settings.farePrice.toString()),
 ) {
     val p = LabTheme.palette
+    // A fare set elsewhere, as an import does, replaces what the field shows;
+    // the Flutter field kept the one it opened with. Only a change counts, so
+    // a fare typed and not saved yet stays through a rotation.
+    var fareShown by rememberSaveable { mutableIntStateOf(settings.farePrice) }
+    LaunchedEffect(farePrice, settings.farePrice) {
+        if (settings.farePrice == fareShown) return@LaunchedEffect
+        fareShown = settings.farePrice
+        farePrice.setTextAndPlaceCursorAtEnd(settings.farePrice.toString())
+    }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = p.bg,
