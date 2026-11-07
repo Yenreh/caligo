@@ -209,6 +209,33 @@ class AddressSearchTest {
     }
 
     @Test
+    fun aStreetNumberTooLongToReadIsSearchedAsText() = runTest {
+        val typed = "Calle 99999999999999999999 # 4-10"
+        val asked = mutableListOf<String>()
+        val search = AddressSearch(
+            geocode = { query ->
+                asked.add(query)
+                listOf(GeocodedPlace("Cl. 9 #4-10, Cali, Valle del Cauca, Colombia", 3.4, -76.5))
+            },
+        )
+
+        // Past 64 bits Dart's int.parse threw, and the search found nothing
+        assertNull(parseAddress(typed))
+        assertEquals(AddressPrecision.PLACE, search.find(typed).single().precision)
+        assertEquals(listOf("$typed, Cali"), asked)
+    }
+
+    @Test
+    fun aGeocoderLineOrAStopNameWithANumberTooLongIsNoMatch() = runTest {
+        val address = parseAddress("Calle 4 # 75-71")!!
+        val huge = "99999999999999999999"
+
+        assertFalse(address.isAt("Cl. 4 #75-$huge, Cali"))
+        assertFalse(address.crossesIn("Cl. $huge & Cra. 75, Cali"))
+        assertNull(stopAtCrossing(address, listOf(stop("Cl 4 entre Kr $huge y 76", 3.4, -76.5))))
+    }
+
+    @Test
     fun searchesNothingForBlankTextAndKeepsACityTyped() = runTest {
         val asked = mutableListOf<String>()
         assertTrue(search(asked).find(" 　 ").isEmpty())

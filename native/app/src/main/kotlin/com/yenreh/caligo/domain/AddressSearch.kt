@@ -111,7 +111,7 @@ data class ParsedAddress(val street: StreetRef, val cross: StreetRef, val meters
     fun crossesIn(line: String): Boolean {
         val first = line.split(',').first()
         if (!first.contains('&')) return false
-        val numbers = DIGITS.findAll(first).mapTo(HashSet()) { it.value.toLong() }
+        val numbers = DIGITS.findAll(first).mapNotNullTo(HashSet()) { it.value.toLongOrNull() }
         return street.number in numbers && cross.number in numbers
     }
 }
@@ -246,7 +246,12 @@ private fun plain(text: String): String = foldAccents(text).replace(SPACES, " ")
 
 private fun MatchResult.group(index: Int): String? = groups[index]?.value
 
-private fun streetAt(m: MatchResult, group: Int, kind: StreetKind): StreetRef {
+/**
+ * The street at [group] of [m]; null when its number is too long to read,
+ * which Dart's int.parse threw on, so the search found nothing
+ */
+private fun streetAt(m: MatchResult, group: Int, kind: StreetKind): StreetRef? {
+    val number = m.group(group)!!.toLongOrNull() ?: return null
     var letter = m.group(group + 1) ?: ""
     var side = when (m.group(group + 3)) {
         "norte", "nte" -> StreetSide.NORTH
@@ -261,8 +266,7 @@ private fun streetAt(m: MatchResult, group: Int, kind: StreetKind): StreetRef {
     }
     return StreetRef(
         kind = kind,
-        // As Dart's int.parse: a number past 64 bits throws
-        number = m.group(group)!!.toLong(),
+        number = number,
         letter = letter,
         bis = m.group(group + 2) != null,
         side = side,
@@ -288,18 +292,20 @@ private fun crossOf(street: StreetRef, cross: StreetRef) = cross.copy(
 
 /**
  * A Cali address or crossing read from what was typed; null for anything
- * else, such as the name of a place
+ * else, such as the name of a place, or a number too long to read, which
+ * is then searched for as text
  */
 fun parseAddress(text: String): ParsedAddress? {
     val plain = plain(text)
     ADDRESS.find(plain)?.let { m ->
-        val street = streetAt(m, 2, KINDS.getValue(m.group(1)!!))
-        val cross = streetAt(m, 6, crossKind(street.kind))
-        return ParsedAddress(street, crossOf(street, cross), m.group(10)!!.toLong())
+        val street = streetAt(m, 2, KINDS.getValue(m.group(1)!!)) ?: return null
+        val cross = streetAt(m, 6, crossKind(street.kind)) ?: return null
+        val meters = m.group(10)!!.toLongOrNull() ?: return null
+        return ParsedAddress(street, crossOf(street, cross), meters)
     }
     CROSSING.find(plain)?.let { m ->
-        val street = streetAt(m, 2, KINDS.getValue(m.group(1)!!))
-        val cross = streetAt(m, 7, m.group(6)?.let(KINDS::get) ?: crossKind(street.kind))
+        val street = streetAt(m, 2, KINDS.getValue(m.group(1)!!)) ?: return null
+        val cross = streetAt(m, 7, m.group(6)?.let(KINDS::get) ?: crossKind(street.kind)) ?: return null
         return ParsedAddress(street, crossOf(street, cross))
     }
     return null
@@ -310,9 +316,9 @@ private class WrittenNumbers(val street: Long, val cross: StreetRef, val meters:
 private fun numbersIn(line: String): WrittenNumbers? {
     val m = WRITTEN.find(plain(line)) ?: return null
     return WrittenNumbers(
-        street = m.group(2)!!.toLong(),
-        cross = streetAt(m, 6, StreetKind.CALLE),
-        meters = m.group(10)!!.toLong(),
+        street = m.group(2)!!.toLongOrNull() ?: return null,
+        cross = streetAt(m, 6, StreetKind.CALLE) ?: return null,
+        meters = m.group(10)!!.toLongOrNull() ?: return null,
     )
 }
 
@@ -325,12 +331,12 @@ fun stopAtCrossing(address: ParsedAddress, stops: Iterable<LineStop>): LineStop?
     var bestScore = Double.POSITIVE_INFINITY
     for (stop in stops) {
         val m = STOP_NAME.find(plain(stop.name)) ?: continue
-        val on = streetAt(m, 2, KINDS.getValue(m.group(1)!!))
+        val on = streetAt(m, 2, KINDS.getValue(m.group(1)!!)) ?: continue
         val crossKind = m.group(6)?.let(KINDS::get) ?: crossKind(on.kind)
         val crossings = buildList {
-            add(streetAt(m, 7, crossKind).number)
-            if (m.group(12) != null) add(streetAt(m, 12, crossKind).number)
-        }
+            add(streetAt(m, 7, crossKind)?.number)
+            if (m.group(12) != null) add(streetAt(m, 12, crossKind)?.number)
+        }.map { it ?: continue }
 
         // On the address's street, or on its crossing street, between the
         // crossings around the other one
