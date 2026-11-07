@@ -33,6 +33,22 @@ val appVersionName: String = providers.fileContents(rootProject.layout.projectDi
  */
 val appVersionCode: Int = 100_000 + (providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 0)
 
+/**
+ * The release signing key, described by a key.properties never committed:
+ * key.properties at the repository root, which the release workflow writes
+ * from its secrets, or else private/signing/key.properties, next to the
+ * key, for local release builds. Its storeFile is relative to the file
+ * naming it. With neither, release builds are signed with the debug key.
+ */
+val keystorePropertiesFile: File? = listOf(
+    rootProject.file("key.properties"),
+    rootProject.file("private/signing/key.properties"),
+).firstOrNull { it.isFile }
+val keystoreProperties = Properties().apply { keystorePropertiesFile?.inputStream()?.use(::load) }
+
+fun keystoreProperty(name: String): String =
+    requireNotNull(keystoreProperties.getProperty(name)?.trim()) { "$name is missing from $keystorePropertiesFile" }
+
 android {
     namespace = "com.yenreh.caligo"
     compileSdk {
@@ -50,13 +66,26 @@ android {
         buildConfigField("String", "CARTO_KEY", "\"$cartoKey\"")
     }
 
+    signingConfigs {
+        if (keystorePropertiesFile != null) {
+            create("release") {
+                storeFile = keystorePropertiesFile.parentFile.resolve(keystoreProperty("storeFile"))
+                storePassword = keystoreProperty("storePassword")
+                keyAlias = keystoreProperty("keyAlias")
+                keyPassword = keystoreProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            // Debug key until the release key is wired in
-            signingConfig = signingConfigs.getByName("debug")
+            // Without the key a local release build still runs, on the debug
+            // key; published releases always carry the real one, or they
+            // stop installing over each other
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 
