@@ -31,6 +31,10 @@ import com.yenreh.caligo.ui.theme.LabTheme
  * selectable that fits, so the row says what it does. [leadingContent]
  * takes the place of the [leading] icon, [titleStyle] of the theme's
  * title style.
+ *
+ * The subtitle is in ink, as the title: the theme's listTileTheme sets a
+ * textColor, which a ListTile puts on its subtitle over the muted colour
+ * of its subtitleTextStyle. [subtitleColor] is a subtitle styled itself.
  */
 @Composable
 fun LabListTile(
@@ -71,7 +75,7 @@ fun LabListTile(
             if (subtitle != null) {
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium.copy(color = contentColor ?: subtitleColor ?: p.muted),
+                    style = MaterialTheme.typography.bodyMedium.copy(color = contentColor ?: subtitleColor ?: p.ink),
                 )
             }
         }
