@@ -65,7 +65,7 @@ sealed interface SettingsMessage {
     /** The backup could not be written or shared; the Flutter app said there was nothing to export */
     data object ExportFailed : SettingsMessage
 
-    /** [count] cards and stops added; 0 also when no file was picked, -1 for a failure */
+    /** [count] cards and stops added, -1 for a failure */
     data class Imported(val count: Int) : SettingsMessage
 }
 
@@ -172,21 +172,19 @@ class SettingsViewModel(
 
     /**
      * Restore the backup at [uri], the document the user picked; null when
-     * the picker was left without one, which reports nothing new
+     * the picker was left without one, which reports nothing: the Flutter
+     * app said nothing new was imported
      */
     fun import(uri: Uri?): Job = viewModelScope.launch {
-        val count = if (uri == null) {
-            0
-        } else {
-            work.async {
-                try {
-                    backup.import(files.read(uri))
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    -1
-                }
-            }.await()
-        }
+        if (uri == null) return@launch
+        val count = work.async {
+            try {
+                backup.import(files.read(uri))
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                -1
+            }
+        }.await()
         reports.send(SettingsMessage.Imported(count))
     }
 

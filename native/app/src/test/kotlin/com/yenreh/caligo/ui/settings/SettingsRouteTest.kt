@@ -122,13 +122,16 @@ class SettingsRouteTest {
     }
 
     @Test
-    fun leavingThePickerSaysNothingIsNew() {
+    fun leavingThePickerSaysNothing() {
         picked = null
         show(device())
 
         tap("Import data")
+        compose.waitForIdle()
+        compose.mainClock.advanceTimeBy(1_000)
 
-        waitForText("Nothing new to import")
+        compose.onNodeWithText("Nothing new to import").assertDoesNotExist()
+        compose.onNodeWithText("Import error").assertDoesNotExist()
     }
 
     @Test

@@ -256,12 +256,14 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun leavingThePickerWithoutAFileSaysNothingIsNewAsTheFlutterAppDoes() = runTest {
+    fun leavingThePickerWithoutAFileSaysNothing() = runTest {
         val model = device().model()
 
         model.import(null).join()
 
-        assertEquals(SettingsMessage.Imported(0), model.nextMessage())
+        // The Flutter app said nothing new was imported: the next message is the next one
+        model.saveFarePrice("3600")
+        assertEquals(SettingsMessage.FarePriceUpdated, model.nextMessage())
     }
 
     @Test
