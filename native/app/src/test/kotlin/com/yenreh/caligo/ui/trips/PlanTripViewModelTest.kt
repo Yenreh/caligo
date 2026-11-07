@@ -45,8 +45,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -264,6 +262,8 @@ class PlanTripViewModelTest {
 
     @Test
     fun plansOffTheMainThread() = test {
+        // The test's main dispatcher runs the view model on this thread
+        val mainThread = Thread.currentThread()
         val planning = RecordingDispatcher(Dispatchers.Default)
         val model = viewModel(repository(), planning = planning)
 
@@ -271,8 +271,9 @@ class PlanTripViewModelTest {
             withTimeout(5_000) { model.screen.first { it.plans != null && !it.fetchingLive } }
         }
         assertEquals(1, state.options.size)
-        assertNotNull(planning.thread)
-        assertNotSame(Thread.currentThread(), planning.thread)
+        // The plan ran on the planning dispatcher, and never on the main thread
+        assertTrue(planning.threads.isNotEmpty())
+        assertTrue(planning.threads.none { it === mainThread })
     }
 
     // The buses on their way
@@ -452,14 +453,14 @@ class PlanTripViewModelTest {
         )
     }
 
-    /** Runs on [delegate], keeping the thread it ran on */
+    /** Runs on [delegate], keeping the threads it ran on */
     private class RecordingDispatcher(private val delegate: CoroutineDispatcher) : CoroutineDispatcher() {
-        @Volatile
-        var thread: Thread? = null
+        /** Every thread a block handed to it ran on */
+        val threads: MutableList<Thread> = java.util.concurrent.CopyOnWriteArrayList()
 
         override fun dispatch(context: CoroutineContext, block: Runnable) {
             delegate.dispatch(context) {
-                thread = Thread.currentThread()
+                threads.add(Thread.currentThread())
                 block.run()
             }
         }
