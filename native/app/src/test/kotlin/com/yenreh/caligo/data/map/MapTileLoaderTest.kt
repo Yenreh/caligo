@@ -182,10 +182,26 @@ class MapTileLoaderTest {
     }
 
     @Test
-    fun anOldTileThatCannotBeCheckedIsNoTile() = runTest {
-        // As flutter_map: an old tile that cannot be checked is no tile
+    fun anOldTileThatCannotBeCheckedIsDrawnAsItIs() = runTest {
+        // flutter_map drew no tile: a blank map on a spotty connection
         cache.put(url, TileMetadata(staleAt = now - 1, lastModified = null, etag = null), image)
 
-        assertNull(tiles { _, _ -> dropped() }.load(url, headers))
+        assertArrayEquals(image, tiles { _, _ -> dropped() }.load(url, headers))
+        // Kept as it was, to be checked again next time
+        assertEquals(now - 1, cache.get(url)!!.metadata.staleAt)
+    }
+
+    @Test
+    fun anOldTileBeatsAServerThatFails() = runTest {
+        cache.put(url, TileMetadata(staleAt = now - 1, lastModified = null, etag = null), image)
+
+        assertArrayEquals(image, tiles { _, _ -> MockResponse(code = 503) }.load(url, headers))
+        service?.close()
+        // An error explained in an image is not the map either
+        val explained = ByteArray(10) { 1 }
+        assertArrayEquals(
+            image,
+            tiles { _, _ -> MockResponse.Builder().code(403).body(Buffer().write(explained)).build() }.load(url, headers),
+        )
     }
 }

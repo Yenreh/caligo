@@ -30,8 +30,11 @@ import okhttp3.Response
  * - a new one is kept with when to ask again, from its Cache-Control,
  *   Expires, Age and Date, or in a week when they do not tell;
  * - a 503 is asked again up to three times, after 0.5, 0.75 and 1.125 s;
- * - an error answer with a body is drawn as it is, not kept, since some
- *   servers explain an error in an image; anything else is no tile.
+ * - an old tile is drawn when asking fails, by the connection or the
+ *   server: flutter_map drew none, which left gaps on a spotty connection;
+ * - with no tile kept, an error answer with a body is drawn as it is, not
+ *   kept, since some servers explain an error in an image; anything else
+ *   is no tile.
  */
 class MapTileLoader(
     client: OkHttpClient,
@@ -71,15 +74,16 @@ class MapTileLoader(
                     keep(url, answer.headers, answer.body)
                     answer.body
                 }
+                // The old tile is still the map
+                cached != null -> cached.bytes
                 // An error explained in an image, perhaps: drawn, never kept
                 answer.body.isNotEmpty() -> answer.body
                 else -> null
             }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            // No connection, or the call cut short: no tile, as an error
-            // tile in the Flutter app
-            null
+            // No connection, or the call cut short: the old tile if any
+            cached?.bytes
         }
     }
 
