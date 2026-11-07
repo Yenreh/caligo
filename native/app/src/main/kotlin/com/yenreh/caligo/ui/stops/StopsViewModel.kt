@@ -60,6 +60,20 @@ data class StopsState(
     val lastUpdated: Long? = null,
 )
 
+/** How saving a favorite ended */
+sealed interface FavoriteSave {
+    data object Saved : FavoriteSave
+
+    /**
+     * A favorite already has that id: the area itself, or a favorite
+     * saved from that stop and relinked to another since
+     */
+    data class Taken(val favorite: FavoriteStop) : FavoriteSave
+
+    /** Not written, as when the disk fails */
+    data object Failed : FavoriteSave
+}
+
 /** Stops around the user, with the position they were found from */
 data class NearbyResult(val stops: List<NearbyStop>, val latitude: Double, val longitude: Double)
 
@@ -497,9 +511,11 @@ class StopsViewModel(
     }
 
     /**
-     * Save a stop, or an area when [stopId] is null. True once saved; the
-     * stops then load again with their arrivals behind it, so a screen can
-     * close at once, where the Flutter one waited for the arrivals too.
+     * Save a stop, or an area when [stopId] is null. Saved once written;
+     * the stops then load again with their arrivals behind it, so a screen
+     * can close at once, where the Flutter one waited for the arrivals too.
+     * An id already saved is [FavoriteSave.Taken], which the Flutter app
+     * met as a save failing silently.
      */
     fun addFavorite(
         id: String,
@@ -508,7 +524,10 @@ class StopsViewModel(
         anchorLongitude: Double,
         stopId: String? = null,
         customName: String? = null,
-    ): Deferred<Boolean> = viewModelScope.async {
+    ): Deferred<FavoriteSave> = viewModelScope.async {
+        var taken: FavoriteStop? = null
+        if (!saved { taken = repository.getFavorites().firstOrNull { it.id == id } }) return@async FavoriteSave.Failed
+        taken?.let { return@async FavoriteSave.Taken(it) }
         val added = saved {
             val position = repository.nextPosition()
             repository.addFavorite(
@@ -524,7 +543,7 @@ class StopsViewModel(
             )
         }
         if (added) viewModelScope.launch { load() }
-        added
+        if (added) FavoriteSave.Saved else FavoriteSave.Failed
     }
 
     /**

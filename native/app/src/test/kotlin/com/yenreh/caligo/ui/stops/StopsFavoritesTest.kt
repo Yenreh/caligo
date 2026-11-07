@@ -231,7 +231,7 @@ class StopsFavoritesTest {
             customName = " Trabajo ",
         ).await()
 
-        assertTrue(saved)
+        assertEquals(FavoriteSave.Saved, saved)
         val added = repository.added.single()
         assertEquals(1, added.position)
         assertEquals("Trabajo", added.customName)
@@ -256,7 +256,7 @@ class StopsFavoritesTest {
 
         // The details sheet closes on it: the Flutter app waited for the refresh too
         assertTrue(saving.isCompleted)
-        assertTrue(saving.await())
+        assertEquals(FavoriteSave.Saved, saving.await())
         assertEquals(listOf("a", "b"), ids(stops))
         assertTrue(stops.state.isRefreshing)
         gate.complete(Unit)
@@ -294,7 +294,8 @@ class StopsFavoritesTest {
             anchorLongitude = -76.53,
         ).await()
 
-        assertFalse(saved)
+        assertEquals(FavoriteSave.Taken(repository.getFavorites().single()), saved)
+        assertTrue(repository.added.isEmpty())
         assertEquals(listOf("station-12"), ids(stops))
     }
 

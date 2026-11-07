@@ -41,6 +41,8 @@
     <string name="no_lines_for_stop">No lines listed</string>
     <string name="save_as_favorite">Save as favorite</string>
     <string name="stop_already_saved">That stop is already saved</string>
+    <string name="area_already_saved">This area is already saved</string>
+    <string name="stop_id_taken">%1$s was saved from this stop and now follows another. Remove it to save this one.</string>
     <string name="lines_to_show">Lines to show</string>
     <string name="lines_to_show_hint">With none chosen, every line shows</string>
 

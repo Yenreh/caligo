@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.data.datasources.NetworkApiException
@@ -113,6 +114,27 @@ class StationStopsScreenTest {
 
         assertTrue(done.isEmpty())
         assertTrue(repository.added.isEmpty())
+        // The Flutter app said nothing
+        waitFor(hasText("This area is already saved"))
+    }
+
+    @Test
+    fun aStopWhoseIdARelinkedFavoriteHoldsSaysSo() {
+        val relinked = favorite("520101", 3.37, -76.53).copy(stopId = "520999", customName = "Casa")
+        val repository = FakeStopsRepository(listOf(relinked), platforms)
+        show(repository)
+        waitFor(hasText("Universidades B"))
+
+        compose.onNodeWithText("Universidades B").performClick()
+        waitFor(hasTestTag("stop_details"))
+        compose.onNodeWithTag("save_stop").performScrollTo().performClick()
+        waitFor(hasTestTag("stop_name_dialog"))
+        compose.onNodeWithText("Save").performClick()
+
+        waitFor(hasText("Casa was saved from this stop and now follows another. Remove it to save this one."))
+        assertTrue(repository.added.isEmpty())
+        // The sheet stays, to say so
+        assertTrue(exists(hasTestTag("stop_details")))
     }
 
     @Test

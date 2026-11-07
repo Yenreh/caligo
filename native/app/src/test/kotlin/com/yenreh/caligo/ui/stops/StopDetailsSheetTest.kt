@@ -50,7 +50,7 @@ class StopDetailsSheetTest {
                     initial = initial,
                     isSaved = false,
                     lines = lines,
-                    actions = StopDetailsActions(refresh = refresh, loadLines = { emptyList() }, save = { true }),
+                    actions = StopDetailsActions(refresh = refresh, loadLines = { emptyList() }, save = { FavoriteSave.Saved }),
                     onDismiss = {},
                     fetchOnOpen = fetchOnOpen,
                     onGoHere = onGoHere,

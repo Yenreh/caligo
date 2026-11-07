@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,8 +36,10 @@ import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.common.rememberLoader
 import com.yenreh.caligo.ui.lab.LabDivider
+import com.yenreh.caligo.ui.lab.LabSnackbarHost
 import com.yenreh.caligo.ui.lab.LabTooltip
 import com.yenreh.caligo.ui.lab.LabTopBar
+import com.yenreh.caligo.ui.lab.rememberLabSnackbars
 import com.yenreh.caligo.ui.theme.LabTheme
 import kotlinx.coroutines.launch
 
@@ -62,11 +66,14 @@ fun StationStopsScreen(
     val stops = rememberLoader(station) { viewModel.nearbyAt(station.latitude, station.longitude) }
     var naming by rememberSaveable { mutableStateOf(false) }
     var details by remember { mutableStateOf<OpenStop?>(null) }
+    val snackbars = rememberLabSnackbars()
+    val areaSaved = stringResource(R.string.area_already_saved)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = p.bg,
         contentWindowInsets = WindowInsets(0),
+        snackbarHost = { LabSnackbarHost(snackbars, Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) },
         topBar = {
             LabTopBar(station.name, onBack = onBack) {
                 val label = stringResource(R.string.save_this_area)
@@ -118,7 +125,12 @@ fun StationStopsScreen(
                         anchorLongitude = station.longitude,
                         customName = customName,
                     ).await()
-                    if (saved) onDone()
+                    when (saved) {
+                        FavoriteSave.Saved -> onDone()
+                        // The Flutter app said nothing
+                        is FavoriteSave.Taken -> snackbars.show(areaSaved)
+                        FavoriteSave.Failed -> Unit
+                    }
                 }
             },
         )

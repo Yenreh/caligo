@@ -39,6 +39,8 @@
     <string name="no_lines_for_stop">Sin rutas registradas</string>
     <string name="save_as_favorite">Guardar como favorita</string>
     <string name="stop_already_saved">Esa parada ya está guardada</string>
+    <string name="area_already_saved">Esta zona ya está guardada</string>
+    <string name="stop_id_taken">%1$s se guardó desde esta parada y ahora sigue otra. Quítala para guardar esta.</string>
     <string name="lines_to_show">Rutas a mostrar</string>
     <string name="lines_to_show_hint">Sin ninguna elegida se muestran todas</string>
 

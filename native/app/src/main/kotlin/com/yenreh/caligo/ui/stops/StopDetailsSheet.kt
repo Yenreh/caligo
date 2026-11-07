@@ -64,8 +64,8 @@ class StopDetailsActions(
     val refresh: suspend (NearbyStop) -> NearbyStop,
     /** Lines serving a stop, by its id */
     val loadLines: suspend (String) -> List<StopLine>,
-    /** Save the stop under the label given, empty for none; true once saved */
-    val save: suspend (customName: String) -> Boolean,
+    /** Save the stop under the label given, empty for none */
+    val save: suspend (customName: String) -> FavoriteSave,
 )
 
 /**
@@ -133,6 +133,8 @@ fun StopDetailsContent(
     var refreshing by remember { mutableStateOf(fetchOnOpen) }
     var failed by remember { mutableStateOf(false) }
     var naming by rememberSaveable { mutableStateOf(false) }
+    // The favorite already holding this stop's id, by name, once a save met it
+    var takenBy by rememberSaveable { mutableStateOf<String?>(null) }
 
     suspend fun refresh() {
         refreshing = true
@@ -256,6 +258,14 @@ fun StopDetailsContent(
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(if (isSaved) R.string.stop_already_saved else R.string.save_as_favorite))
             }
+            takenBy?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.stop_id_taken, it),
+                    style = LabText.statusLine(p).copy(color = p.crit),
+                    modifier = Modifier.testTag("stop_id_taken"),
+                )
+            }
         }
     }
 
@@ -267,7 +277,14 @@ fun StopDetailsContent(
             onSave = { customName ->
                 naming = false
                 // Closed once saved; a sheet already closed stays so
-                scope.launch { if (actions.save(customName)) onDismiss() }
+                scope.launch {
+                    when (val saved = actions.save(customName)) {
+                        FavoriteSave.Saved -> onDismiss()
+                        is FavoriteSave.Taken -> takenBy = saved.favorite.displayName
+                        // Left as the Flutter app left it
+                        FavoriteSave.Failed -> Unit
+                    }
+                }
             },
         )
     }
