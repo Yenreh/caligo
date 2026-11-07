@@ -68,6 +68,7 @@ import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.Loaded
+import com.yenreh.caligo.ui.common.LocalNow
 import com.yenreh.caligo.ui.common.rememberShownOnScreen
 import com.yenreh.caligo.ui.lab.LabDivider
 import com.yenreh.caligo.ui.lab.LabEmptyState
@@ -146,7 +147,7 @@ fun LineScreen(
     details: @Composable (open: OpenStop, onDismiss: () -> Unit) -> Unit = { _, _ -> },
     shown: Boolean = rememberShownOnScreen(),
     /** What time it is, for whether the line runs now */
-    now: () -> Long = System::currentTimeMillis,
+    now: () -> Long = LocalNow.current,
     /** Tiles fade in as they come; screenshots turn it off */
     fadeIn: Boolean = true,
 ) {

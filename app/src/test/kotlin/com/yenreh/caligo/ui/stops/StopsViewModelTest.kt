@@ -441,7 +441,8 @@ class StopsViewModelTest {
         // The first arrivals to show are the kept ones, there as the refresh
         // that replaces them sets off
         val started = Job()
-        val stops = viewModel(repository, ready = { started.join() })
+        // Gone is judged on the moment the buses were built on
+        val stops = viewModel(repository, ready = { started.join() }, now = { now })
         var shown: Map<String, List<BusArrival>>? = null
         repository.answer = { if (shown == null) shown = stops.stops.value.arrivals }
         started.complete()

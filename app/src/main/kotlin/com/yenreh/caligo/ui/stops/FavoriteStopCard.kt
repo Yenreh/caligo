@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.FavoriteStop
+import com.yenreh.caligo.ui.common.LocalNow
 import com.yenreh.caligo.ui.common.watchLiveClock
 import com.yenreh.caligo.ui.lab.LabChip
 import com.yenreh.caligo.ui.lab.LabDivider
@@ -227,7 +228,7 @@ fun ArrivalRow(
 private fun Countdown(arrival: BusArrival) {
     watchLiveClock()
     val p = LabTheme.palette
-    val minutes = arrival.minutesUntilArrival()
+    val minutes = arrival.minutesUntilArrival(LocalNow.current())
     Text(
         text = if (minutes == 0) stringResource(R.string.arriving_now) else stringResource(R.string.minutes_short, minutes),
         style = LabText.mono(p, size = 16f, color = if (minutes <= 2) p.ok else p.ink),

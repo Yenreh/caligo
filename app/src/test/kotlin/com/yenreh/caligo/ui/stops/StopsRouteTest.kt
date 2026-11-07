@@ -24,6 +24,7 @@ import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.ui.FakeStopsRepository
+import com.yenreh.caligo.ui.common.setContentAt
 import com.yenreh.caligo.ui.favorite
 import com.yenreh.caligo.ui.nearbyStop
 import com.yenreh.caligo.ui.theme.CaliGoTheme
@@ -44,10 +45,13 @@ class StopsRouteTest {
     private val added = mutableListOf<Unit>()
     private val left = mutableListOf<Unit>()
 
+    /** The moment the arrivals are built on, taken once */
+    private val now = System.currentTimeMillis()
+
     private val bus = BusArrival(
         line = "A47",
         destination = "Valle Grande",
-        arrivalTime = System.currentTimeMillis() + 600_000,
+        arrivalTime = now + 600_000,
         vehicleId = "1",
     )
 
@@ -57,7 +61,7 @@ class StopsRouteTest {
     private fun show(repository: FakeStopsRepository, sortedByProximity: Boolean = false): StopsViewModel {
         val settings = Settings(isLoading = false, sortStopsByProximity = sortedByProximity)
         val viewModel = StopsViewModel(repository, settings = MutableStateFlow(settings))
-        compose.setContent {
+        compose.setContentAt(now) {
             CaliGoTheme {
                 StopsRoute(settings, viewModel, onBack = { left.add(Unit) }, onAdd = { added.add(Unit) })
             }
@@ -150,6 +154,7 @@ class StopsRouteTest {
             lines = mapOf("a" to listOf(StopLine("T31", "UNIVERSIDADES"))),
         )
         show(repository)
+        waitFor(hasText("10 min"))
         repository.saved.clear()
 
         button("Stop a", "Edit stop").performClick()

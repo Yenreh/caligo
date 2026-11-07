@@ -24,6 +24,7 @@ import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
+import com.yenreh.caligo.ui.common.setContentAt
 import com.yenreh.caligo.ui.home.HomeSamples
 import com.yenreh.caligo.ui.lines.LinesViewModel
 import com.yenreh.caligo.ui.theme.CaliGoTheme
@@ -45,13 +46,14 @@ class StopsScreenshotTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
+    /** The moment the buses around are timed from, taken once; the screens' clock stops here */
     private val now = System.currentTimeMillis()
 
-    /** A bus [minutes] away, with a margin so the countdown holds while the test runs */
+    /** A bus [minutes] away */
     private fun bus(line: String, destination: String, minutes: Int) = BusArrival(
         line = line,
         destination = destination,
-        arrivalTime = now + minutes * 60_000L + 20_000L,
+        arrivalTime = now + minutes * 60_000L,
         vehicleId = "$line-$minutes",
     )
 
@@ -95,7 +97,7 @@ class StopsScreenshotTest {
     )
 
     private fun stops(name: String) {
-        compose.setContent { CaliGoTheme { StopsScreen(favorites, sortedByProximity = false) } }
+        compose.setContentAt(HomeSamples.NOW) { CaliGoTheme { StopsScreen(favorites, sortedByProximity = false) } }
         compose.captureWindow(name)
     }
 
@@ -109,7 +111,7 @@ class StopsScreenshotTest {
     /** Each control named and 48 dp to touch at least */
     @Test
     fun controlsAreAccessible() {
-        compose.setContent { CaliGoTheme { StopsScreen(favorites, sortedByProximity = false) } }
+        compose.setContentAt(HomeSamples.NOW) { CaliGoTheme { StopsScreen(favorites, sortedByProximity = false) } }
         compose.assertControlsAccessible()
     }
 
@@ -128,7 +130,7 @@ class StopsScreenshotTest {
     private fun nearby(name: String, location: FakeLocationSource) {
         val viewModel = viewModel(location)
         val linesModel = LinesViewModel(FakeStopsRepository(emptyList(), emptyList()))
-        compose.setContent {
+        compose.setContentAt(now) {
             CaliGoTheme { AddStopScreen(viewModel, linesModel, onBack = {}, onStation = {}, initialTab = AddStopTabs.NEARBY) }
         }
         waitFor(hasTestTag("nearby_stops") or hasTestTag("add_stop_message"))
@@ -155,7 +157,7 @@ class StopsScreenshotTest {
     // A station, and the details of one of its stops
 
     private fun showStation(viewModel: StopsViewModel) {
-        compose.setContent { CaliGoTheme { StationStopsScreen(station, viewModel, onBack = {}, onDone = {}) } }
+        compose.setContentAt(now) { CaliGoTheme { StationStopsScreen(station, viewModel, onBack = {}, onDone = {}) } }
         waitFor(hasTestTag("station_stops"))
     }
 
@@ -203,7 +205,7 @@ class StopsScreenshotTest {
     // Editing a favorite
 
     private fun edit(name: String) {
-        compose.setContent {
+        compose.setContentAt(HomeSamples.NOW) {
             CaliGoTheme {
                 StopsScreen(
                     favorites,

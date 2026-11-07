@@ -23,6 +23,8 @@ import com.yenreh.caligo.domain.entities.TransitLine
 import com.yenreh.caligo.ui.common.ProviderRetry
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
+import com.yenreh.caligo.ui.common.hourMinuteText
+import com.yenreh.caligo.ui.common.setContentAt
 import com.yenreh.caligo.ui.favorite
 import com.yenreh.caligo.ui.lines.LinesViewModel
 import com.yenreh.caligo.ui.theme.CaliGoTheme
@@ -58,10 +60,13 @@ class AddStopScreenTest {
 
     private val here = GeoPoint(3.4516, -76.5320)
 
+    /** The moment the arrivals are built on, taken once */
+    private val now = System.currentTimeMillis()
+
     private val bus = BusArrival(
         line = "A47",
         destination = "Valle Grande",
-        arrivalTime = System.currentTimeMillis() + 600_000,
+        arrivalTime = now + 600_000,
         vehicleId = "1",
     )
 
@@ -87,7 +92,7 @@ class AddStopScreenTest {
             retry = ProviderRetry.none,
         )
         val lines = LinesViewModel(repository, retry = ProviderRetry.none)
-        compose.setContent {
+        compose.setContentAt(now) {
             CaliGoTheme {
                 AddStopScreen(
                     viewModel,
@@ -349,8 +354,10 @@ class AddStopScreenTest {
         openNearby(repository)
         compose.onNodeWithText("No lines listed").assertExists()
 
+        compose.onNodeWithText("10 min").assertExists()
+
         compose.onNode(hasContentDescription("Update arrivals")).performClick()
-        waitFor(hasText("Updated: ", substring = true))
+        waitFor(hasText("Updated: ${hourMinuteText(now)}", substring = true))
 
         repository.failure = NetworkApiException("Connection error")
         compose.onNode(hasContentDescription("Update arrivals")).performClick()

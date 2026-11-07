@@ -88,6 +88,7 @@ import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.TripOption
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.domain.entities.WalkLeg
+import com.yenreh.caligo.ui.common.LocalNow
 import com.yenreh.caligo.ui.common.rememberShownOnScreen
 import com.yenreh.caligo.ui.lab.LabDivider
 import com.yenreh.caligo.ui.lab.LabEmptyState
@@ -169,7 +170,7 @@ fun PlanTripScreen(
     modifier: Modifier = Modifier,
     shown: Boolean = rememberShownOnScreen(),
     /** What time it is, for the minutes to the first bus */
-    now: () -> Long = System::currentTimeMillis,
+    now: () -> Long = LocalNow.current,
     /** Tiles fade in as they come; screenshots turn it off */
     fadeIn: Boolean = true,
 ) {

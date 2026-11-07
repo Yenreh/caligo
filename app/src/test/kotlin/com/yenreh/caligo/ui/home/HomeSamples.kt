@@ -10,13 +10,17 @@ import com.yenreh.caligo.ui.stops.StopsState
 
 /** A home as a rider has it: two cards, three stops and their buses */
 object HomeSamples {
-    private val now = System.currentTimeMillis()
+    /**
+     * The moment the buses are timed from, Monday 2026-09-28 07:05 in Cali:
+     * show them with the screens' clock stopped here (setContentAt)
+     */
+    const val NOW = 1790597100000L
 
-    /** A bus [minutes] away, with a margin so the countdown holds while the test runs */
+    /** A bus [minutes] away */
     private fun bus(line: String, destination: String, minutes: Int, stop: String = "") = BusArrival(
         line = line,
         destination = destination,
-        arrivalTime = now + minutes * 60_000L + 20_000L,
+        arrivalTime = NOW + minutes * 60_000L,
         vehicleId = "$line-$minutes",
         stopName = stop,
     )

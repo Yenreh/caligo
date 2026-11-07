@@ -64,6 +64,7 @@ import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.TransitLine
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.Loaded
+import com.yenreh.caligo.ui.common.LocalNow
 import com.yenreh.caligo.ui.common.rememberLoader
 import com.yenreh.caligo.ui.lab.LabDivider
 import com.yenreh.caligo.ui.lab.LabEmptyState
@@ -114,7 +115,7 @@ fun AddStopScreen(
     onLine: (TransitLine) -> Unit = {},
     explore: Boolean = false,
     initialTab: Int = AddStopTabs.MAP,
-    now: () -> Long = System::currentTimeMillis,
+    now: () -> Long = LocalNow.current,
     map: @Composable (onOpen: (OpenStop) -> Unit) -> Unit = {},
     /** "Go here" of a stop's details: the trip planner, going there */
     onGoHere: ((TripPlace) -> Unit)? = null,

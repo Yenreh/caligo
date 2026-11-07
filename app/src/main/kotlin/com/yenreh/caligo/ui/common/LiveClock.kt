@@ -19,6 +19,13 @@ import kotlinx.coroutines.delay
 private val LocalLiveClock = staticCompositionLocalOf<MutableIntState?> { null }
 
 /**
+ * What time it is for whatever the screens work out from it: countdowns,
+ * "Updated" lines, whether a line runs now. The device's clock; tests stop
+ * it at the moment their fixtures are built on.
+ */
+val LocalNow = staticCompositionLocalOf<() -> Long> { System::currentTimeMillis }
+
+/**
  * Shared beat for the arrival countdowns in [content].
  *
  * Only what calls [watchLiveClock] recomposes on each beat, not the screen

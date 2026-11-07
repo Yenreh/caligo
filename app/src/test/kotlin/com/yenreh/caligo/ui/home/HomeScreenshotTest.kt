@@ -8,6 +8,7 @@ import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.ui.cards.CardsState
+import com.yenreh.caligo.ui.common.setContentAt
 import com.yenreh.caligo.ui.stops.StopsState
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import org.junit.Rule
@@ -37,7 +38,7 @@ class HomeScreenshotTest {
     /** Each control named and 48 dp to touch at least */
     @Test
     fun controlsAreAccessible() {
-        compose.setContent { CaliGoTheme { HomeScreen(HomeSamples.settings(HomeContent.BOTH), HomeSamples.cardsState, HomeSamples.stopsState) } }
+        compose.setContentAt(HomeSamples.NOW) { CaliGoTheme { HomeScreen(HomeSamples.settings(HomeContent.BOTH), HomeSamples.cardsState, HomeSamples.stopsState) } }
         compose.assertControlsAccessible()
     }
 
@@ -91,7 +92,7 @@ class HomeScreenshotTest {
         cards: CardsState = CardsState(),
         stops: StopsState? = null,
     ) {
-        compose.setContent { CaliGoTheme { HomeScreen(HomeSamples.settings(content), cards, stops) } }
+        compose.setContentAt(HomeSamples.NOW) { CaliGoTheme { HomeScreen(HomeSamples.settings(content), cards, stops) } }
         compose.captureWindow(name)
     }
 }

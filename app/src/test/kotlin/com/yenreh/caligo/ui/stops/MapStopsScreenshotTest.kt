@@ -21,6 +21,7 @@ import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
+import com.yenreh.caligo.ui.common.setContentAt
 import com.yenreh.caligo.ui.lines.LinesViewModel
 import com.yenreh.caligo.ui.map.FixtureTiles
 import com.yenreh.caligo.ui.theme.CaliGoTheme
@@ -47,10 +48,11 @@ class MapStopsScreenshotTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
+    /** The moment the buses are timed from, taken once; the screens' clock stops here */
     private val now = System.currentTimeMillis()
 
     private fun bus(line: String, minutes: Int) =
-        BusArrival(line = line, destination = "", arrivalTime = now + minutes * 60_000L + 20_000L, vehicleId = line)
+        BusArrival(line = line, destination = "", arrivalTime = now + minutes * 60_000L, vehicleId = line)
 
     private val cali = GeoPoint(3.4516, -76.5320)
 
@@ -97,7 +99,7 @@ class MapStopsScreenshotTest {
     private fun picked(name: String, dark: Boolean) {
         val model = mapViewModel()
         val tiles = FixtureTiles(dark = dark)
-        compose.setContent {
+        compose.setContentAt(now) {
             CaliGoTheme {
                 // On the add screen's paper, as the tab shows it
                 Box(Modifier.background(LabTheme.palette.bg)) {
@@ -131,7 +133,7 @@ class MapStopsScreenshotTest {
         val model = mapViewModel()
         val tiles = FixtureTiles(dark = dark)
         val linesModel = LinesViewModel(FakeStopsRepository(emptyList(), emptyList()))
-        compose.setContent {
+        compose.setContentAt(now) {
             CaliGoTheme {
                 AddStopScreen(stops, linesModel, onBack = {}, onStation = {}, map = { onOpen ->
                     MapStopsScreen(model, remember { tiles }, darkTiles = dark, carto = true, onOpen = onOpen, fadeIn = false)
@@ -156,7 +158,7 @@ class MapStopsScreenshotTest {
     fun creditsLight() {
         val model = mapViewModel()
         val tiles = FixtureTiles()
-        compose.setContent {
+        compose.setContentAt(now) {
             CaliGoTheme {
                 Box(Modifier.background(LabTheme.palette.bg)) {
                     MapStopsScreen(model, remember { tiles }, darkTiles = false, carto = true, onOpen = {}, fadeIn = false)

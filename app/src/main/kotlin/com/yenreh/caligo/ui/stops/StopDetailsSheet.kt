@@ -41,6 +41,7 @@ import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.LiveClock
 import com.yenreh.caligo.ui.common.Loaded
+import com.yenreh.caligo.ui.common.LocalNow
 import com.yenreh.caligo.ui.common.rememberLoader
 import com.yenreh.caligo.ui.lab.LabBottomSheet
 import com.yenreh.caligo.ui.lab.LabDivider
@@ -130,6 +131,7 @@ fun StopDetailsContent(
     // When the arrivals on screen were fetched; null until a refresh, since
     // the list the sheet came from does not say
     var updatedAt by remember { mutableStateOf<Long?>(null) }
+    val now = LocalNow.current
     var refreshing by remember { mutableStateOf(fetchOnOpen) }
     var failed by remember { mutableStateOf(false) }
     var naming by rememberSaveable { mutableStateOf(false) }
@@ -143,7 +145,7 @@ fun StopDetailsContent(
         refreshing = true
         try {
             stop = actions.refresh(stop)
-            updatedAt = System.currentTimeMillis()
+            updatedAt = now()
             failed = false
         } catch (e: Exception) {
             if (e is CancellationException) throw e

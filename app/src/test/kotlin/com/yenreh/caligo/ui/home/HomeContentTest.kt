@@ -14,6 +14,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.ui.cards.CardsState
+import com.yenreh.caligo.ui.common.setContentAt
 import com.yenreh.caligo.ui.stops.StopsState
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import org.junit.Assert.assertEquals
@@ -30,7 +31,7 @@ class HomeContentTest {
     val compose = createComposeRule()
 
     private fun show(content: HomeContent, cards: CardsState = CardsState(), stops: StopsState? = StopsState()) {
-        compose.setContent { CaliGoTheme { HomeScreen(HomeSamples.settings(content), cards, stops) } }
+        compose.setContentAt(HomeSamples.NOW) { CaliGoTheme { HomeScreen(HomeSamples.settings(content), cards, stops) } }
     }
 
     @Test
@@ -100,7 +101,7 @@ class HomeContentTest {
     @Test
     fun theButtonsLeadWhereTheirActionsSay() {
         val opened = mutableListOf<String>()
-        compose.setContent {
+        compose.setContentAt(HomeSamples.NOW) {
             CaliGoTheme {
                 HomeScreen(
                     HomeSamples.settings(HomeContent.BOTH),

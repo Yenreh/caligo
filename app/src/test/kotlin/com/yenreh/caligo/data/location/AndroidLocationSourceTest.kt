@@ -51,12 +51,15 @@ class AndroidLocationSourceTest {
 
     private fun grant(vararg permissions: String) = shadowOf(application).grantPermissions(*permissions)
 
+    /** The moment the fixes' ages count from, taken once, so their gaps are exact */
+    private val takenAt = System.currentTimeMillis()
+
     private fun fix(provider: String, latitude: Double, longitude: Double, ageMillis: Long = 0, accuracy: Float = 10f) =
         Location(provider).apply {
             this.latitude = latitude
             this.longitude = longitude
             this.accuracy = accuracy
-            time = System.currentTimeMillis() - ageMillis
+            time = takenAt - ageMillis
         }
 
     // On or off

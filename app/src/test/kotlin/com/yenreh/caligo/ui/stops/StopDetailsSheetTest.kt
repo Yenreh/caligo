@@ -15,6 +15,8 @@ import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.Loaded
+import com.yenreh.caligo.ui.common.hourMinuteText
+import com.yenreh.caligo.ui.common.setContentAt
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -31,10 +33,13 @@ class StopDetailsSheetTest {
 
     private val stop = NearbyStop("500800", "Plaza de Cayzedo A1", 119.6)
 
+    /** The moment the fixtures are built on, taken once */
+    private val now = System.currentTimeMillis()
+
     private val bus = BusArrival(
         line = "A47",
         destination = "Valle Grande",
-        arrivalTime = System.currentTimeMillis() + 600_000,
+        arrivalTime = now + 600_000,
         vehicleId = "1",
     )
 
@@ -47,7 +52,7 @@ class StopDetailsSheetTest {
         save: suspend (String) -> FavoriteSave = { FavoriteSave.Saved },
         onDismiss: () -> Unit = {},
     ) {
-        compose.setContent {
+        compose.setContentAt(now) {
             CaliGoTheme {
                 StopDetailsContent(
                     initial = initial,
@@ -79,7 +84,8 @@ class StopDetailsSheetTest {
 
         answer.complete(stop.copy(arrivals = listOf(bus)))
         compose.waitUntil(5_000) { exists(hasText("Valle Grande")) }
-        compose.onNodeWithText("Updated: ", substring = true).assertExists()
+        compose.onNodeWithText("Updated: ${hourMinuteText(now)}").assertExists()
+        compose.onNodeWithText("10 min").assertExists()
         assertFalse(exists(hasText("120 m")))
     }
 
