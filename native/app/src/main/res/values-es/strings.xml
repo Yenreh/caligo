@@ -103,6 +103,7 @@
     <string name="card_id_label">ID de Tarjeta *</string>
     <string name="card_id_placeholder">Ingresa el ID de la tarjeta</string>
     <string name="id_required">El ID es obligatorio</string>
+    <string name="card_id_digits">Usa solo dígitos</string>
     <string name="card_id_exists">Ya existe una tarjeta con este ID</string>
     <string name="card_name_label">Nombre *</string>
     <string name="card_name_placeholder">Nombre de la tarjeta</string>

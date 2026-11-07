@@ -15,10 +15,12 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.domain.entities.CardEntity
 import com.yenreh.caligo.ui.FakeCardRepository
 import com.yenreh.caligo.ui.home.HomeSamples
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -173,6 +175,15 @@ class CardFormRouteTest {
     }
 
     @Test
+    fun theNumberTakesDigitsOnly() {
+        create()
+
+        type("card_id", "0605-1868 x")
+
+        assertEquals("06051868", text("card_id"))
+    }
+
+    @Test
     fun theButtonSpinsAndHoldsWhileSaving() {
         create()
         val gate = CompletableDeferred<Unit>()
@@ -261,6 +272,19 @@ class CardFormRouteTest {
         // stays rather than "No cards" while the screen goes
         compose.onNodeWithText("No cards").assertDoesNotExist()
         assertEquals("06051899", text("card_id"))
+    }
+
+    @Test
+    fun aNumberSavedWithOtherThanDigitsIsRefusedUntilFixed() {
+        // As an old backup may hold one: only typing is filtered
+        repository.cards.add(CardEntity(internalId = "9", id = "0605 1870", name = "Old", position = 2))
+        runBlocking { viewModel.loadCards().join() }
+        edit("0605 1870")
+
+        submit()
+
+        compose.onNodeWithText("Use digits only").assertExists()
+        assertTrue(repository.updated.isEmpty())
     }
 
     @Test

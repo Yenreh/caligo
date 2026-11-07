@@ -17,7 +17,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldBuffer
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.delete
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -88,12 +91,15 @@ class CardForm(id: String = "", name: String = "", prefix: String = "", suffix: 
 
     /**
      * Run every validator, as a form's validate: the number and the name
-     * are required, and the number may not be [taken]. True when all pass.
+     * are required, the number all digits and not [taken]. True when all
+     * pass.
      */
     fun validate(taken: (String) -> Boolean = { false }): Boolean {
         val number = id.text.trim().toString()
         idError = when {
             number.isEmpty() -> R.string.id_required
+            // Typing lets only digits in; a number saved before may hold more
+            !number.all(::isDigit) -> R.string.card_id_digits
             taken(number) -> R.string.card_id_exists
             else -> null
         }
@@ -107,6 +113,22 @@ class CardForm(id: String = "", name: String = "", prefix: String = "", suffix: 
     val trimmedSuffix get() = suffix.text.trim().toString()
 
     companion object {
+        private fun isDigit(c: Char) = c in '0'..'9'
+
+        /**
+         * The number takes digits only, as the balance service does: what
+         * else is typed or pasted is dropped. No length rule here: the
+         * service wants 13 digits from prefix, number and suffix together,
+         * and those two are the rider's to change.
+         */
+        val DigitsOnly: InputTransformation = object : InputTransformation {
+            override fun TextFieldBuffer.transformInput() {
+                for (i in length - 1 downTo 0) {
+                    if (!isDigit(charAt(i))) delete(i, i + 1)
+                }
+            }
+        }
+
         /** A new card starts with the prefix and suffix most cards carry */
         fun forNewCard() = CardForm(prefix = "1906", suffix = "1")
 
@@ -181,6 +203,7 @@ fun CardFormScreen(
                 leadingIcon = painterResource(R.drawable.ic_credit_card),
                 error = form.idError?.let { stringResource(it) },
                 keyboardOptions = done.copy(keyboardType = KeyboardType.Number),
+                inputTransformation = CardForm.DigitsOnly,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("card_id"),

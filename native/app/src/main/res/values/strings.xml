@@ -103,6 +103,7 @@
     <string name="card_id_label">Card ID *</string>
     <string name="card_id_placeholder">Enter card ID</string>
     <string name="id_required">ID is required</string>
+    <string name="card_id_digits">Use digits only</string>
     <string name="card_id_exists">A card with this ID already exists</string>
     <string name="card_name_label">Name *</string>
     <string name="card_name_placeholder">Card name</string>

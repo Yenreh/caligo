@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.KeyboardActionHandler
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
@@ -61,6 +62,8 @@ fun LabTextField(
     error: String? = null,
     label: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    /** What typing may change, as an input formatter */
+    inputTransformation: InputTransformation? = null,
     /** What the keyboard's action key does, as onSubmitted; its default without */
     onKeyboardAction: KeyboardActionHandler? = null,
 ) {
@@ -79,6 +82,7 @@ fun LabTextField(
         modifier = if (error != null) modifier.semantics { error(error) } else modifier,
         textStyle = style,
         keyboardOptions = keyboardOptions,
+        inputTransformation = inputTransformation,
         onKeyboardAction = onKeyboardAction,
         lineLimits = TextFieldLineLimits.SingleLine,
         interactionSource = interaction,
