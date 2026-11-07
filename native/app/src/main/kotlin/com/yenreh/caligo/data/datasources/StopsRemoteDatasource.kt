@@ -131,6 +131,9 @@ class StopsRemoteDatasource(
     /** Last stop of each direction of a line, where its trips end, by line */
     private val tripEnds = ConcurrentHashMap<String, Map<Int, GeoPoint>>()
 
+    /** When asking for a line's route to find its trip ends last failed, by line */
+    private val tripEndsFailedAt = ConcurrentHashMap<String, Long>()
+
     /** An old catalog copy to fetch again, from [url] */
     private class Refresh(val url: String, val remember: Boolean)
 
@@ -527,19 +530,25 @@ class StopsRemoteDatasource(
 
     /**
      * Last stop of each direction of [line], where its trips end; empty
-     * when the route cannot be had
+     * when the route cannot be had. A failure is asked again after
+     * [TRIP_ENDS_RETRY], where the Flutter app kept it for the run.
      */
     private suspend fun endsOf(line: String): Map<Int, GeoPoint> {
         tripEnds[line]?.let { return it }
-        val ends = try {
+        val failedAt = tripEndsFailedAt[line]
+        if (failedAt != null && now() - failedAt < TRIP_ENDS_RETRY.inWholeMilliseconds) return emptyMap()
+        return try {
             // In route order, so the last stop of each direction stays
             getLineStops(line).associate { it.direction to GeoPoint(it.latitude, it.longitude) }
+                .also {
+                    tripEnds[line] = it
+                    tripEndsFailedAt.remove(line)
+                }
         } catch (_: ApiException) {
             // Every bus is then asked about as often as before
+            tripEndsFailedAt[line] = now()
             emptyMap()
         }
-        tripEnds[line] = ends
-        return ends
     }
 
     /**
@@ -761,6 +770,9 @@ class StopsRemoteDatasource(
         private val DIRECTION_NEAR_MAX_AGE = 2.minutes
         private val BUS_DIRECTION_MAX_AGE = 10.minutes
         private const val NEAR_TRIP_END_METERS = 400.0
+
+        /** A route that failed for the trip ends is asked again after this, not every round of buses */
+        private val TRIP_ENDS_RETRY = 5.minutes
 
         /** Bus directions asked for at once */
         private const val DIRECTIONS_AT_ONCE = 4

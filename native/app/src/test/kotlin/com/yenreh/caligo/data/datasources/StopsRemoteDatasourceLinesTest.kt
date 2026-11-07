@@ -452,6 +452,51 @@ class StopsRemoteDatasourceLinesTest {
         assertEquals(2, asked.size)
     }
 
+    @Test
+    fun aRouteThatFailedIsAskedAgainLaterInTheRun() = runTest {
+        var clock = 1_790_000_000_000L
+        val routeAsked = AtomicInteger()
+        var routeUp = false
+        val service = answering { _, url ->
+            val path = url.encodedPath
+            when {
+                path.endsWith("/linestops/A47") -> {
+                    routeAsked.incrementAndGet()
+                    if (routeUp) {
+                        ok(
+                            """[{"orientation":"0","stopSequence":1,"stopId":"s","stopNam":"Start","longitude":-76.53,"latitude":3.40},
+                            {"orientation":"0","stopSequence":2,"stopId":"e","stopNam":"End","longitude":-76.53,"latitude":3.44}]""",
+                        )
+                    } else {
+                        status(404, "Not Found")
+                    }
+                }
+                path.endsWith("/operations/A47") -> ok("""[{"busNumber":1,"gpsx":-7.653E8,"gpsy":3.4382E7}]""")
+                "/busInfo/" in path -> ok("""[{"line":"A47","orientation":"0"}]""")
+                else -> status(404, "Not Found")
+            }
+        }
+        val datasource = service.datasource(now = { clock })
+
+        datasource.getLineBuses("A47")
+        val failed = routeAsked.get()
+        assertTrue(failed > 0)
+        routeUp = true
+
+        // Not at once: the buses come every 30 s
+        clock += 1.minutes.inWholeMilliseconds
+        datasource.getLineBuses("A47")
+        assertEquals(failed, routeAsked.get())
+
+        // The Flutter app kept the failure for the run
+        clock += 5.minutes.inWholeMilliseconds
+        datasource.getLineBuses("A47")
+        assertEquals(failed + 1, routeAsked.get())
+        clock += 10.minutes.inWholeMilliseconds
+        datasource.getLineBuses("A47")
+        assertEquals(failed + 1, routeAsked.get())
+    }
+
     /**
      * Cache holding copies saved long ago, as a week offline leaves them;
      * what is written reads back as saved now. Records whether each write
