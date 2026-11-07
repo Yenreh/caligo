@@ -191,7 +191,50 @@ class FakeStopsRepository(
 
     override suspend fun nextPosition() = (favorites.maxOfOrNull { it.position } ?: -1) + 1
 
-    override suspend fun arrivalsFor(stops: List<LineStop>, maxAge: Duration) = LiveArrivals.NONE
+    /** Every arrivals request for a trip: the stops and the age allowed */
+    val tripAsked = mutableListOf<Pair<List<LineStop>, Duration>>()
+
+    /** What the arrivals for a trip answer, from the stops asked about */
+    var tripArrivals: suspend (List<LineStop>) -> LiveArrivals = { LiveArrivals.NONE }
+
+    override suspend fun arrivalsFor(stops: List<LineStop>, maxAge: Duration): LiveArrivals {
+        tripAsked.add(stops to maxAge)
+        return tripArrivals(stops)
+    }
+
+    /** Thrown once every route is done, when set */
+    var allRoutesFailure: Throwable? = null
+
+    /** Stands in for the last of loading every route, once each is told done, when set */
+    var allRoutesAnswer: (suspend () -> Unit)? = null
+    var allRoutesCalls = 0
+
+    /** Every route, [routes], each told done in turn */
+    override suspend fun getAllLineStops(onProgress: ((done: Int, total: Int) -> Unit)?): Map<String, List<LineStop>> {
+        allRoutesCalls++
+        routes.keys.forEachIndexed { i, _ -> onProgress?.invoke(i + 1, routes.size) }
+        allRoutesAnswer?.invoke()
+        allRoutesFailure?.let { throw it }
+        return routes
+    }
+
+    var headways: Map<String, Duration> = emptyMap()
+    var rideFactors: Map<String, Double> = emptyMap()
+    val observedRides = mutableListOf<Map<String, Double>>()
+
+    /** Stands in for reading what is learned of the lines, when set */
+    var learnedAnswer: (suspend () -> Unit)? = null
+
+    override suspend fun lineHeadways(at: Long): Map<String, Duration> {
+        learnedAnswer?.invoke()
+        return headways
+    }
+
+    override suspend fun observeRides(readings: Map<String, Double>) {
+        observedRides.add(readings)
+    }
+
+    override suspend fun rideFactors() = rideFactors
 
     // The lines: the catalog, routes, buses and hours, each counted
 

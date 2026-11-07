@@ -141,6 +141,8 @@
     <string name="search_here">Buscar aquí</string>
     <string name="map_hint">Mueve el mapa y busca para ver paradas en cualquier lugar</string>
     <string name="my_location">Mi ubicación</string>
+    <string name="point_on_map">Punto en el mapa</string>
+    <string name="near_stop">Cerca de %1$s</string>
     <string name="reset_north">Orientar al norte</string>
     <string name="map_credits">Créditos del mapa</string>
     <string name="dark_map">Mapa oscuro</string>

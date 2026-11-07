@@ -141,6 +141,8 @@
     <string name="search_here">Search here</string>
     <string name="map_hint">Move the map and search to see stops anywhere</string>
     <string name="my_location">My location</string>
+    <string name="point_on_map">Point on the map</string>
+    <string name="near_stop">Near %1$s</string>
     <string name="reset_north">Face north</string>
     <string name="map_credits">Map credits</string>
     <string name="dark_map">Dark map</string>

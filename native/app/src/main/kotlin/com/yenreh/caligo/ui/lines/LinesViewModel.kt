@@ -54,11 +54,19 @@ class LinesViewModel(private val repository: StopsRepository) : ViewModel() {
      */
     val hours: StateFlow<Map<String, LineHours>> = hoursState.asStateFlow()
 
+    private val answeredHours = MutableStateFlow<Map<String, LineHours>?>(null)
+
+    /**
+     * [hours], null until they come: the trip planner plans again once
+     * they first do, as the Flutter one does on the provider's first value
+     */
+    val loadedHours: StateFlow<Map<String, LineHours>?> = answeredHours.asStateFlow()
+
     /** Load the hours unless they already are */
     fun watchHours() {
         if (hoursJob != null) return
         hoursJob = viewModelScope.launch {
-            hoursState.value = try {
+            val answer = try {
                 repository.getLineHours()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -66,6 +74,8 @@ class LinesViewModel(private val repository: StopsRepository) : ViewModel() {
                 // into no hours, and its screens read any other as none too
                 emptyMap()
             }
+            hoursState.value = answer
+            answeredHours.value = answer
         }
     }
 

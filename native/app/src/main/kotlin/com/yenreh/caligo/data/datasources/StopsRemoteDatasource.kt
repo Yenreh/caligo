@@ -63,7 +63,7 @@ import okhttp3.OkHttpClient
  * Stops around a point and the buses on their way to them, from the
  * arrivals service; the station catalog, the lines, their routes, hours
  * and buses, from the catalog server: those paths of the Flutter app's
- * datasource. Its trip planning comes with the planner.
+ * datasource, and what the trip planner learns of each line.
  */
 class StopsRemoteDatasource(
     client: OkHttpClient,
@@ -86,6 +86,8 @@ class StopsRemoteDatasource(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     /** How often each line comes, and which were seen lately */
     private val headways: HeadwayMemory = HeadwayMemory(cache, now),
+    /** How each line's rides run against their routes */
+    private val rides: RideTimeMemory = RideTimeMemory(cache),
 ) {
     private val client = client.forService(REQUEST_TIMEOUT)
 
@@ -243,6 +245,18 @@ class StopsRemoteDatasource(
             failed = failed.get(),
         )
     }
+
+    /** How often each line comes around the hour of [at], epoch milliseconds, as learned */
+    suspend fun lineHeadways(at: Long): Map<String, Duration> = headways.at(at)
+
+    /**
+     * Learn how each line's rides run against the route's estimate, from
+     * rides timed by following their bus
+     */
+    suspend fun observeRides(readings: Map<String, Double>) = rides.observe(readings)
+
+    /** How each line's rides run against the route's estimate, as learned */
+    suspend fun rideFactors(): Map<String, Double> = rides.factors()
 
     /** Where each of [stopIds] stands, for those whose place is known */
     suspend fun stopPositions(stopIds: Iterable<String>): Map<String, GeoPoint> {

@@ -5,7 +5,9 @@ import com.yenreh.caligo.data.Backup
 import com.yenreh.caligo.data.SettingsStore
 import com.yenreh.caligo.data.datasources.AppDatabase
 import com.yenreh.caligo.data.datasources.CardLocalDatasource
+import com.yenreh.caligo.data.datasources.AndroidGeocoder
 import com.yenreh.caligo.data.datasources.CardRemoteDatasource
+import com.yenreh.caligo.data.datasources.DeviceGeocoder
 import com.yenreh.caligo.data.datasources.FileJsonCache
 import com.yenreh.caligo.data.datasources.JsonCache
 import com.yenreh.caligo.data.datasources.StopsLocalDatasource
@@ -18,6 +20,7 @@ import com.yenreh.caligo.data.repositories.CardRepositoryImpl
 import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.repositories.CardRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
+import com.yenreh.caligo.ui.trips.TransitNetworkLoader
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +36,7 @@ import okhttp3.OkHttpClient
  * its package name, reads that app's data as is: `caligo.db` among the
  * databases, `settings.json` and the cache in `app_flutter`.
  */
-class AppContainer(context: Context) {
+class AppContainer(private val context: Context) {
     /** Outlives every screen: shared requests, saves, housekeeping */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -56,6 +59,12 @@ class AppContainer(context: Context) {
         StopsRemoteDatasource(http, cache, scope = scope),
         cache,
     )
+
+    /** Every route as one network, for the trip planner: loaded once a run, when first needed */
+    val transitNetwork by lazy { TransitNetworkLoader(stopsRepository, scope) }
+
+    /** Android's own geocoder, for addresses and places typed in the planner */
+    val geocoder by lazy { DeviceGeocoder(AndroidGeocoder(context)) }
 
     /** The map tiles, where flutter_map kept them: path_provider's cache directory */
     val tileCache = MapTileCache(File(context.cacheDir, MapTileCache.DIRECTORY))

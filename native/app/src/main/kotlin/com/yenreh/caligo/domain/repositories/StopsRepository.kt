@@ -16,9 +16,8 @@ import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Stops, arrivals and lines: the part of the Flutter app's repository the
- * home, the stop screens and the line screen need. Trips come with the
- * planner.
+ * Stops, arrivals and lines, and what the trip planner needs of them:
+ * the Flutter app's repository.
  */
 interface StopsRepository {
     /** Stops saved by the user */
@@ -61,6 +60,33 @@ interface StopsRepository {
 
     /** Hours each line runs, by line name */
     suspend fun getLineHours(): Map<String, LineHours>
+
+    /**
+     * Every line's stops, by line name, for planning trips. Lines that
+     * fail to load are left out; [onProgress] hears of each one done.
+     * Routes past their age still answer, and are fetched again in the
+     * background for next time.
+     */
+    suspend fun getAllLineStops(onProgress: ((done: Int, total: Int) -> Unit)? = null): Map<String, List<LineStop>>
+
+    /**
+     * How often each line comes around the hour of [at], epoch
+     * milliseconds, learned from the arrivals seen so far; lines never
+     * seen are missing
+     */
+    suspend fun lineHeadways(at: Long): Map<String, Duration>
+
+    /**
+     * Learn from rides timed by following their bus: the live time over
+     * what the route alone estimates, by line, as rideReadings gives it
+     */
+    suspend fun observeRides(readings: Map<String, Double>)
+
+    /**
+     * How each line's rides run against the estimate from its route;
+     * lines never followed are missing
+     */
+    suspend fun rideFactors(): Map<String, Double>
 
     /**
      * Buses on their way to the given stops, reusing recent answers and

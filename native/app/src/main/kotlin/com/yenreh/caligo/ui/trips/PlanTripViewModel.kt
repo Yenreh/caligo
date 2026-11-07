@@ -1,0 +1,498 @@
+package com.yenreh.caligo.ui.trips
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.yenreh.caligo.CaliGoApp
+import com.yenreh.caligo.R
+import com.yenreh.caligo.data.json.dartDouble
+import com.yenreh.caligo.data.location.LocationSource
+import com.yenreh.caligo.data.location.currentDevicePosition
+import com.yenreh.caligo.data.location.lastKnownDevicePosition
+import com.yenreh.caligo.domain.GeoPoint
+import com.yenreh.caligo.domain.LiveArrivals
+import com.yenreh.caligo.domain.TransitNetwork
+import com.yenreh.caligo.domain.TripPlanner
+import com.yenreh.caligo.domain.entities.LineHours
+import com.yenreh.caligo.domain.entities.TripOption
+import com.yenreh.caligo.domain.entities.TripPlace
+import com.yenreh.caligo.domain.metersBetween
+import com.yenreh.caligo.domain.repositories.StopsRepository
+import com.yenreh.caligo.domain.rideReadings
+import com.yenreh.caligo.domain.stopsWorthAsking
+import com.yenreh.caligo.domain.timeTrip
+import com.yenreh.caligo.ui.lines.LinesViewModel
+import java.net.URLEncoder
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** An option as listed: its position among the plans, timed */
+data class OptionRow(val index: Int, val option: TripOption, val expanded: Boolean)
+
+/** What the area below the places shows, as the Flutter screen's _results picks it */
+sealed interface PlanResults {
+    /** The routes could not load: the empty state with Retry */
+    data object NetworkFailed : PlanResults
+
+    /** The routes loading, [done] lines of [total]; 0 of 0 before the catalog answers */
+    data class LoadingRoutes(val done: Int, val total: Int) : PlanResults
+
+    /** Planning, with no options yet: the spinner */
+    data object Planning : PlanResults
+
+    /** A place still to choose: the hint */
+    data object Hint : PlanResults
+
+    /** The planner found nothing */
+    data object NoTrip : PlanResults
+
+    /**
+     * The options, by arrival: [replanning] while new ones are worked out,
+     * [liveFailed] when some area of arrivals could not be asked about
+     */
+    data class Options(val rows: List<OptionRow>, val replanning: Boolean, val liveFailed: Boolean) : PlanResults
+}
+
+/** What the trip planner shows */
+data class PlanTripState(
+    val from: TripPlace? = null,
+    val to: TripPlace? = null,
+    /** Waiting for a fix of the device, which the locate button shows */
+    val locating: Boolean = false,
+    /** The route network as it loads */
+    val network: NetworkLoad = NetworkLoad(),
+    /** The ways the planner found, untimed; null until both places are known and the routes are in */
+    val plans: List<TripOption>? = null,
+    /** Each plan timed against the buses on their way, by its position in [plans] */
+    val timed: Map<Int, TripOption> = emptyMap(),
+    /**
+     * Positions in [plans] as listed: by arrival, sorted again only when
+     * fresh arrivals come in, so rows do not jump while being read
+     */
+    val order: List<Int> = emptyList(),
+    /** The buses on their way, as last asked for */
+    val live: LiveArrivals? = null,
+    /** Asking for the arrivals: the refresh button spins and waits */
+    val fetchingLive: Boolean = false,
+    /**
+     * The plan opened to its steps and drawn on the map, by its position
+     * in [plans]; none at first, so all can be compared at a glance
+     */
+    val expanded: Int? = null,
+    val planning: Boolean = false,
+) {
+    /** The option open, timed */
+    val open: TripOption? get() = expanded?.let { timed[it] }
+
+    /** Whether the places can trade ends */
+    val canSwap: Boolean get() = from != null || to != null
+
+    /** Whether the refresh button shows */
+    val canRefresh: Boolean get() = plans != null
+
+    val results: PlanResults
+        get() {
+            if (network.failed) return PlanResults.NetworkFailed
+            if (network.network == null) return PlanResults.LoadingRoutes(network.done, network.total)
+            val plans = plans ?: return if (planning) PlanResults.Planning else PlanResults.Hint
+            if (plans.isEmpty()) return PlanResults.NoTrip
+            return PlanResults.Options(
+                rows = order.mapNotNull { i -> timed[i]?.let { OptionRow(i, it, i == expanded) } },
+                replanning = planning,
+                liveFailed = live?.failed ?: false,
+            )
+        }
+}
+
+/** What the planner reports with a snackbar */
+enum class PlanTripMessage {
+    /** The locate button found no position */
+    COULD_NOT_LOCATE,
+}
+
+/**
+ * The Flutter PlanTripScreen's state with trip_provider.dart: from one
+ * place to another on the MIO, where to walk, which buses to take and
+ * where to change, each option timed against the buses on their way.
+ *
+ * The route network loads once for the run ([TransitNetworkLoader]); a
+ * plan runs on [planning], off the main thread, as Dart's compute ran it
+ * in an isolate. Every [retimeEvery] the options are timed again from the
+ * arrivals in hand, and the open option's arrivals asked for again once
+ * older than two minutes, only while the screen is in view ([setShown]).
+ *
+ * One per planner screen, kept while it turns.
+ */
+class PlanTripViewModel(
+    private val repository: StopsRepository,
+    private val network: TransitNetworkLoader,
+    /** Hours each line runs, null until they come: lines not running are left out */
+    private val hours: StateFlow<Map<String, LineHours>?>,
+    private val location: LocationSource,
+    /** What the device's own position is called */
+    private val deviceName: String,
+    /** Where to go, when opened from a place already known, such as a stop */
+    destination: TripPlace? = null,
+    /** Outlives the screen: what is learned of the lines is saved on it */
+    private val work: CoroutineScope,
+    private val now: () -> Long = System::currentTimeMillis,
+    private val planning: CoroutineDispatcher = Dispatchers.Default,
+    private val retimeEvery: Duration = RETIME_EVERY,
+) : ViewModel() {
+    private val state = MutableStateFlow(PlanTripState(to = destination, network = network.load.value))
+    val screen: StateFlow<PlanTripState> = state.asStateFlow()
+
+    private val reports = Channel<PlanTripMessage>(Channel.BUFFERED)
+    val messages: Flow<PlanTripMessage> = reports.receiveAsFlow()
+
+    /** Line chosen for a ride by tapping it, by plan and then by ride */
+    private val pinned = HashMap<Int, MutableMap<Int, String>>()
+    private var headways: Map<String, Duration> = emptyMap()
+
+    /** What each line's rides were planned with, to read the live ones against the route alone */
+    private var rideFactors: Map<String, Double> = emptyMap()
+
+    private var shown = false
+
+    /** Counts plans asked for, so one finishing after a newer one started is dropped */
+    private var planRequest = 0
+
+    private var fetchingLive = false
+
+    /**
+     * Set when arrivals were wanted while others were on their way, or came
+     * back for plans or an option no longer shown: asked for again once
+     * those land, mostly from the areas they just brought
+     */
+    private var liveAgain = false
+
+    init {
+        network.watch()
+        viewModelScope.launch {
+            var had = network.load.value.network != null
+            network.load.collect { load ->
+                state.update { it.copy(network = load) }
+                val has = load.network != null
+                if (has && !had) plan()
+                had = has
+            }
+        }
+        viewModelScope.launch {
+            // Loaded alongside, to leave out the lines that are not running
+            var had = hours.value != null
+            hours.collect {
+                if (it != null && !had) plan()
+                had = it != null
+            }
+        }
+        viewModelScope.launch {
+            while (true) {
+                delay(retimeEvery)
+                tick()
+            }
+        }
+        // Most trips start where the phone is; asked quietly, so no prompt
+        // stands in front of someone who has not chosen anything yet
+        viewModelScope.launch { startFromDevice() }
+    }
+
+    private fun tick() {
+        val current = state.value
+        if (current.plans == null) return
+        val live = current.live
+        val stale = live == null || now() - live.fetchedAt > LIVE_MAX_AGE.inWholeMilliseconds
+        if (current.expanded != null && shown && stale) refreshLive() else retime()
+    }
+
+    /**
+     * Whether the screen is in view. Back in view, the open trip catches up
+     * at once if its arrivals aged meanwhile; out of view, under the place
+     * picker or in the background, nothing is asked for.
+     */
+    fun setShown(shown: Boolean) {
+        if (shown == this.shown) return
+        this.shown = shown
+        if (shown) tick()
+    }
+
+    private fun devicePlace(position: GeoPoint) =
+        TripPlace(position.latitude, position.longitude, deviceName, isDevice = true)
+
+    /** Start at once from where the device was last seen, as the map does, then refine with a fresh fix */
+    private suspend fun startFromDevice() {
+        val known = location.lastKnownDevicePosition()
+        if (known != null && state.value.from == null) {
+            state.update { it.copy(from = devicePlace(known)) }
+            plan()
+        }
+        locate()
+    }
+
+    /**
+     * Ask for a fresh fix. Quietly, it only refines an origin that is the
+     * device and has moved; [force] is the button, which always takes it
+     * and may ask for the permission.
+     */
+    fun locate(force: Boolean = false) {
+        if (state.value.locating) return
+        state.update { it.copy(locating = true) }
+        viewModelScope.launch {
+            try {
+                val position = location.currentDevicePosition(requestPermission = force)
+                val from = state.value.from
+                if (!force && from != null) {
+                    if (!from.isDevice) return@launch
+                    val moved = metersBetween(from.latitude, from.longitude, position.latitude, position.longitude)
+                    if (moved < REFINE_METERS) return@launch
+                }
+                state.update { it.copy(from = devicePlace(position)) }
+                plan()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // Quietly, no location only means the origin waits to be chosen
+                if (force) reports.trySend(PlanTripMessage.COULD_NOT_LOCATE)
+            } finally {
+                state.update { it.copy(locating = false) }
+            }
+        }
+    }
+
+    /** Where the place picker for one end opens its map: near that end, else the other */
+    fun pickerNear(origin: Boolean): TripPlace? {
+        val current = state.value
+        return if (origin) current.from ?: current.to else current.to ?: current.from
+    }
+
+    /** Take [place], from the place picker, as the origin or the destination */
+    fun choose(origin: Boolean, place: TripPlace) {
+        state.update { if (origin) it.copy(from = place) else it.copy(to = place) }
+        plan()
+        // The picker may hand over where the device was last seen
+        if (place.isDevice) locate()
+    }
+
+    fun swap() {
+        state.update { it.copy(from = it.to, to = it.from) }
+        plan()
+    }
+
+    /** Load the routes again, from the failure's Retry */
+    fun retryNetwork() = network.reload()
+
+    private fun plan() {
+        val request = ++planRequest
+        val current = state.value
+        val from = current.from
+        val to = current.to
+        val routes: TransitNetwork? = network.load.value.network
+        if (from == null || to == null || routes == null) {
+            state.update { it.copy(plans = null, timed = emptyMap(), order = emptyList(), expanded = null, planning = false) }
+            return
+        }
+
+        // Lines not running now would only send someone to an empty stop
+        val now = now()
+        val leaveOut = (hours.value ?: emptyMap()).filterValues { !it.runsAt(now) }.keys
+
+        state.update { it.copy(planning = true) }
+        viewModelScope.launch {
+            try {
+                // What has been learned of each line picks the options, as it times them
+                val headways = repository.lineHeadways(now)
+                val rideFactors = repository.rideFactors()
+                val options = withContext(planning) {
+                    TripPlanner(routes, headways, rideFactors).plan(from, to, leaveOut)
+                }
+                if (request != planRequest) return@launch
+                this@PlanTripViewModel.headways = headways
+                this@PlanTripViewModel.rideFactors = rideFactors
+                pinned.clear()
+                state.update { it.copy(plans = options, expanded = null, planning = false) }
+                // Timed at once by the usual figures, then again with the live buses
+                retime(sort = true)
+                refreshLive()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // Dart let such an error go unhandled: the screen stays as it was
+            }
+        }
+    }
+
+    /**
+     * Ask for the buses on their way to the stops the plans call at: a few
+     * requests, one per area, reusing any area asked about recently. With
+     * an option open only its stops are asked about, and the rest of the
+     * list keeps what it had. [force] is the refresh button, which reuses
+     * no area.
+     */
+    fun refreshLive(force: Boolean = false) {
+        val plans = state.value.plans ?: return
+        if (fetchingLive) {
+            liveAgain = true
+            return
+        }
+        val open = state.value.expanded
+        fetchingLive = true
+        state.update { it.copy(fetchingLive = true) }
+        viewModelScope.launch {
+            try {
+                val now = now()
+                val headways = repository.lineHeadways(now)
+                val stops = stopsWorthAsking(
+                    if (open == null) plans else listOf(plans[open]),
+                    start = now,
+                    headways = headways,
+                )
+                val live = if (stops.isEmpty()) {
+                    LiveArrivals.NONE
+                } else {
+                    repository.arrivalsFor(stops, maxAge = if (force) Duration.ZERO else 1.minutes)
+                }
+                if (plans !== state.value.plans) {
+                    liveAgain = true
+                    return@launch
+                }
+                val expanded = state.value.expanded
+                if (open != null && expanded != null && open != expanded) liveAgain = true
+                this@PlanTripViewModel.headways = headways
+                state.update { it.copy(live = if (open == null) live else live.over(it.live)) }
+                retime(sort = true)
+                learnRides(plans)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // Dart let such an error go unhandled: the arrivals stay as they were
+            } finally {
+                if (isActive) {
+                    fetchingLive = false
+                    state.update { it.copy(fetchingLive = false) }
+                    if (liveAgain) {
+                        liveAgain = false
+                        refreshLive()
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Rides just timed by following their bus teach the planner how each
+     * line runs against its estimate: one reading per line
+     */
+    private fun learnRides(plans: List<TripOption>) {
+        val readings = LinkedHashMap<String, Double>()
+        val timed = state.value.timed
+        for ((i, plan) in plans.withIndex()) {
+            timed[i]?.let { readings.putAll(rideReadings(plan, it, rideFactors)) }
+        }
+        if (readings.isEmpty()) return
+        work.launch {
+            try {
+                repository.observeRides(readings)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // Learning is a bonus: the trip is timed all the same
+            }
+        }
+    }
+
+    /** Time every plan from now with what is known, without asking */
+    private fun retime(sort: Boolean = false) {
+        val current = state.value
+        val plans = current.plans ?: return
+        val now = now()
+        val timed = plans.indices.associateWith { i ->
+            timeTrip(plans[i], start = now, live = current.live, headways = headways, pinned = pinned[i].orEmpty())
+        }
+        val order = if (sort || current.order.size != plans.size) {
+            // Ranked as the planner ranks them, now with the buses on their way
+            plans.indices.sortedBy { TripPlanner.cost(timed.getValue(it)) }
+        } else {
+            current.order
+        }
+        state.update { it.copy(timed = timed, order = order) }
+    }
+
+    /** Show ride [rideIndex] of plan [plan] as made by [line] */
+    fun chooseLine(plan: Int, rideIndex: Int, line: String) {
+        pinned.getOrPut(plan) { HashMap() }[rideIndex] = line
+        retime()
+    }
+
+    /** Open plan [index] to its steps and the map, or close it when open */
+    fun toggle(index: Int) {
+        state.update { it.copy(expanded = if (it.expanded != index) index else null) }
+    }
+
+    companion object {
+        /**
+         * Times are worked out again this often from the arrivals already in
+         * hand: a bus due at a set time only needs the clock to move on
+         */
+        val RETIME_EVERY = 20.seconds
+
+        /**
+         * Arrivals older than this are asked for again, but only while a
+         * trip is open and the screen in view
+         */
+        val LIVE_MAX_AGE = 2.minutes
+
+        /**
+         * A fresh fix closer than this to the origin in use leaves the plan
+         * as it is: replanning would only shuffle the same options
+         */
+        const val REFINE_METERS = 100.0
+
+        /** The planner for a screen; [lines] gives the hours, which it loads */
+        fun factory(lines: LinesViewModel, destination: TripPlace?): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val app = this[APPLICATION_KEY] as CaliGoApp
+                val container = app.container
+                lines.watchHours()
+                PlanTripViewModel(
+                    repository = container.stopsRepository,
+                    network = container.transitNetwork,
+                    hours = lines.loadedHours,
+                    location = container.location,
+                    deviceName = app.getString(R.string.my_location),
+                    destination = destination,
+                    work = container.scope,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The same search in Google Maps, to compare with its own routes: the
+ * address the Flutter screen opened, its query written as Dart's
+ * Uri.https writes one
+ */
+fun googleMapsDirections(from: TripPlace, to: TripPlace): String {
+    fun encode(value: String) = URLEncoder.encode(value, Charsets.UTF_8.name())
+    val query = listOf(
+        "api" to "1",
+        "origin" to "${dartDouble(from.latitude)},${dartDouble(from.longitude)}",
+        "destination" to "${dartDouble(to.latitude)},${dartDouble(to.longitude)}",
+        "travelmode" to "transit",
+    ).joinToString("&") { (key, value) -> "$key=${encode(value)}" }
+    return "https://www.google.com/maps/dir/?$query"
+}

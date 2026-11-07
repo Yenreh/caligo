@@ -74,6 +74,17 @@ Never commit it. The tiles are kept in `cache/fm_cache`, in the files
 flutter_map wrote, up to 100 MB; Settings, Cached data counts and clears
 them with the rest.
 
+## Trip planner
+
+`domain/TripPlanner` plans on every route as one network, which
+`ui/trips/TransitNetworkLoader` gathers once a run, when a planner screen
+first needs it: four routes at a time, week-old copies answering at once
+while new ones come behind them. A plan runs off the main thread, as the
+Flutter app ran it in an isolate. Addresses and places are looked up with
+the framework `Geocoder` (`data/datasources/DeviceGeocoder`, behind an
+interface for tests), in Colombian Spanish and within Cali; a phone
+without one gets the MIO stops named after a crossing only.
+
 ## Licenses
 
 The licenses page lists the app's GPL and the fonts' OFL, from
