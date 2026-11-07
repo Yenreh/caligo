@@ -53,9 +53,11 @@ object LicenseCatalog {
             "Free software under the GNU General Public License, version 3 or any later version.\n\n$gpl"
 
     /**
-     * Each library of an AboutLibraries report, by its Maven coordinate,
-     * with the full text of each of its licenses, or the license's name
-     * and address when the report has no text for it
+     * Each library of an AboutLibraries report, by the name its POM gives
+     * it, short as a Dart package's ("Compose UI", "okhttp"), with the full
+     * text of each of its licenses, or the license's name and address when
+     * the report has no text for it. A library whose POM names it by its
+     * coordinate goes by its artifact; two sharing a name, by coordinate.
      */
     internal fun libraries(json: String): List<PackageLicenses> {
         val report = parseJson(json).obj()
@@ -64,14 +66,22 @@ object LicenseCatalog {
             entry["content"].stringOrNull()
                 ?: listOfNotNull(entry["name"].stringOrNull(), entry["url"].stringOrNull()).joinToString("\n")
         }
-        return report["libraries"].listOrNull().orEmpty().map { item ->
+        val libraries = report["libraries"].listOrNull().orEmpty().map { item ->
             val library = item.obj()
             val ids = library["licenses"].listOrNull().orEmpty().mapNotNull { it.stringOrNull() }
-            PackageLicenses(
-                name = library["uniqueId"].stringOrNull().orEmpty(),
-                licenses = ids.map { texts[it] ?: it },
-            )
+            val coordinate = library["uniqueId"].stringOrNull().orEmpty()
+            Triple(coordinate, readableName(coordinate, library["name"].stringOrNull()), ids.map { texts[it] ?: it })
         }
+        val shared = libraries.groupingBy { it.second }.eachCount().filterValues { it > 1 }.keys
+        return libraries.map { (coordinate, name, licenses) ->
+            PackageLicenses(if (name in shared) coordinate else name, licenses)
+        }
+    }
+
+    /** The POM's [name], or the artifact of [coordinate] where the name is missing or a coordinate itself */
+    private fun readableName(coordinate: String, name: String?): String = when {
+        name.isNullOrBlank() || ':' in name -> coordinate.substringAfter(':')
+        else -> name.trim()
     }
 
     /**

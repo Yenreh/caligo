@@ -144,7 +144,8 @@ fun LicenseScreen(
     modifier: Modifier = Modifier,
 ) {
     val p = LabTheme.palette
-    val style = MaterialTheme.typography.bodySmall
+    // The text of the Material the Flutter page sets it on, over the page's bodySmall
+    val style = MaterialTheme.typography.bodyMedium.copy(color = p.ink)
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = p.paper,

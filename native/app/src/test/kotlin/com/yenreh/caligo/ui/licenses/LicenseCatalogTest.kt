@@ -18,7 +18,7 @@ class LicenseCatalogTest {
 
         assertEquals("CaliGo", names.first())
         assertEquals(names.drop(1).sortedBy { it.lowercase() }, names.drop(1))
-        for (name in listOf("Fraunces", "IBM Plex Sans", "IBM Plex Mono", "com.squareup.okhttp3:okhttp", "androidx.navigation3:navigation3-ui")) {
+        for (name in listOf("Fraunces", "IBM Plex Sans", "IBM Plex Mono", "okhttp", "Androidx Navigation 3 UI", "MapCompose")) {
             assertTrue(name, name in names)
         }
         // BOMs pin versions only: nothing of them ships
@@ -43,7 +43,7 @@ class LicenseCatalogTest {
     fun everyLibraryCarriesTheFullTextOfItsLicense() = runTest {
         val packages = LicenseCatalog.load(ApplicationProvider.getApplicationContext())
 
-        val okhttp = packages.single { it.name == "com.squareup.okhttp3:okhttp" }
+        val okhttp = packages.single { it.name == "okhttp" }
         assertTrue(okhttp.licenses.single().contains("Apache License"))
         assertTrue(packages.all { it.licenses.isNotEmpty() && it.licenses.all(String::isNotBlank) })
     }
@@ -57,7 +57,24 @@ class LicenseCatalogTest {
             """.trimIndent(),
         )
 
-        assertEquals(listOf(PackageLicenses("org.example:lib", listOf("X License\nhttps://example.org/x", "Unknown"))), packages)
+        assertEquals(listOf(PackageLicenses("lib", listOf("X License\nhttps://example.org/x", "Unknown"))), packages)
+    }
+
+    @Test
+    fun aLibraryGoesByItsNameItsArtifactOrItsCoordinate() {
+        val packages = LicenseCatalog.libraries(
+            """
+            {"libraries": [
+              {"uniqueId": "androidx.compose.ui:ui", "name": "Compose UI", "licenses": []},
+              {"uniqueId": "androidx.core:core-viewtree", "name": "androidx.core:core-viewtree", "licenses": []},
+              {"uniqueId": "org.a:twin", "name": "Twin", "licenses": []},
+              {"uniqueId": "org.b:twin", "name": "Twin", "licenses": []}
+             ],
+             "licenses": {}}
+            """.trimIndent(),
+        )
+
+        assertEquals(listOf("Compose UI", "core-viewtree", "org.a:twin", "org.b:twin"), packages.map { it.name })
     }
 
     @Test
