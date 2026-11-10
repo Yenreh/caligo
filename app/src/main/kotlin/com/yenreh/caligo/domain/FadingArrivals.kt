@@ -129,6 +129,9 @@ class FadingArrivals private constructor(
     fun only(stopIds: Set<String>): FadingArrivals =
         FadingArrivals(seen.filter { it.stopId in stopIds }, answeredAt.filterKeys { it in stopIds })
 
+    /** When the last answer fed for [stopId] was fetched, epoch milliseconds; null before any */
+    fun lastAnswerFor(stopId: String): Long? = answeredAt[stopId]
+
     /** Whether nothing is remembered */
     val isEmpty: Boolean get() = seen.isEmpty()
 

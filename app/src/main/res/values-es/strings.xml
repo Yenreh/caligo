@@ -263,4 +263,35 @@
     <string name="stops_section">Paradas</string>
     <string name="pick_on_map">Elegir en el mapa</string>
     <string name="use_point">Usar este punto</string>
+    <!-- Waiting for a bus -->
+    <string name="wait_start">Avisarme del %1$s</string>
+    <string name="wait_stop">Dejar de esperar el %1$s</string>
+    <plurals name="wait_cap_reached">
+        <item quantity="one">Ya esperas %1$d bus, el máximo a la vez. Deja de esperarlo para seguir otro.</item>
+        <item quantity="many">Ya esperas %1$d buses, el máximo a la vez. Deja de esperar uno para seguir otro.</item>
+        <item quantity="other">Ya esperas %1$d buses, el máximo a la vez. Deja de esperar uno para seguir otro.</item>
+    </plurals>
+    <string name="wait_needs_notifications">CaliGo sigue el bus en una notificación, y sus notificaciones están desactivadas.</string>
+    <string name="wait_open_settings">Ajustes de notificaciones</string>
+    <string name="wait_title_minutes">%1$s a %2$s, %3$d min</string>
+    <string name="wait_title_now">%1$s a %2$s, llegando</string>
+    <string name="wait_title_at_stop">%1$s a %2$s, en la parada</string>
+    <string name="wait_title_no_data">%1$s a %2$s, sin datos</string>
+    <string name="wait_title_asking">¿Tomaste el %1$s?</string>
+    <string name="wait_title_not_seen">Ya no se ve el bus</string>
+    <string name="wait_title_no_data_ended">Sin datos hace un rato</string>
+    <string name="wait_not_seen_now">%1$s · no se ve por ahora</string>
+    <string name="wait_bus_at">%1$s a %2$s, %3$s</string>
+    <string name="wait_chip_minutes">%1$d min</string>
+    <string name="wait_chip_now">Ya</string>
+    <string name="wait_chip_here">Aquí</string>
+    <string name="wait_took_it">Lo tomé</string>
+    <string name="wait_stop_waiting">Dejar de esperar</string>
+    <string name="wait_channel">Buses esperados</string>
+    <string name="wait_channel_description">La cuenta regresiva de cada bus que esperas</string>
+    <string name="alert_channel_silent">Bus cerca, en silencio</string>
+    <string name="alert_channel_vibrate">Bus cerca, vibración</string>
+    <string name="alert_channel_sound">Bus cerca, sonido</string>
+    <string name="alert_channel_sound_vibrate">Bus cerca, sonido y vibración</string>
+    <string name="alert_channel_description">Cuando un bus esperado está a unos 2 minutos</string>
 </resources>

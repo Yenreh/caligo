@@ -268,4 +268,34 @@
     <string name="stops_section">Stops</string>
     <string name="pick_on_map">Pick on the map</string>
     <string name="use_point">Use this point</string>
+    <!-- Waiting for a bus -->
+    <string name="wait_start">Notify me about the %1$s</string>
+    <string name="wait_stop">Stop waiting for the %1$s</string>
+    <plurals name="wait_cap_reached">
+        <item quantity="one">You are already waiting for %1$d bus, the most at once. Stop it to follow another.</item>
+        <item quantity="other">You are already waiting for %1$d buses, the most at once. Stop one to follow another.</item>
+    </plurals>
+    <string name="wait_needs_notifications">CaliGo follows the bus in a notification, and notifications are off for it.</string>
+    <string name="wait_open_settings">Notification settings</string>
+    <string name="wait_title_minutes">%1$s to %2$s, %3$d min</string>
+    <string name="wait_title_now">%1$s to %2$s, arriving now</string>
+    <string name="wait_title_at_stop">%1$s to %2$s, at the stop</string>
+    <string name="wait_title_no_data">%1$s to %2$s, no data</string>
+    <string name="wait_title_asking">Did you take the %1$s?</string>
+    <string name="wait_title_not_seen">The bus is no longer seen</string>
+    <string name="wait_title_no_data_ended">No data for a while</string>
+    <string name="wait_not_seen_now">%1$s · not seen just now</string>
+    <string name="wait_bus_at">%1$s to %2$s, %3$s</string>
+    <string name="wait_chip_minutes">%1$d min</string>
+    <string name="wait_chip_now">Now</string>
+    <string name="wait_chip_here">Here</string>
+    <string name="wait_took_it">I took it</string>
+    <string name="wait_stop_waiting">Stop waiting</string>
+    <string name="wait_channel">Awaited buses</string>
+    <string name="wait_channel_description">The countdown of each bus you wait for</string>
+    <string name="alert_channel_silent">Bus near, silent</string>
+    <string name="alert_channel_vibrate">Bus near, vibration</string>
+    <string name="alert_channel_sound">Bus near, sound</string>
+    <string name="alert_channel_sound_vibrate">Bus near, sound and vibration</string>
+    <string name="alert_channel_description">When an awaited bus is about 2 minutes away</string>
 </resources>
