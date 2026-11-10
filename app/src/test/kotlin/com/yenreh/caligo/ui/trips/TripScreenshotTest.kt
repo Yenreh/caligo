@@ -1,20 +1,14 @@
 package com.yenreh.caligo.ui.trips
 
-import android.app.Notification
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.view.View
-import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
-import com.github.takahirom.roborazzi.captureRoboImage
 import com.yenreh.caligo.WAIT_TIMEOUT_MS
+import com.yenreh.caligo.captureNotification
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.trips.TripFixtures
@@ -141,26 +135,13 @@ class TripScreenshotTest {
 
     // The notification, as the shade would inflate it off a device
 
-    @Suppress("DEPRECATION")
     private fun notification(name: String, dark: Boolean) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         TripNotifications.createChannels(context)
         val words = TripWords(context.resources)
         val notice = TripNotice.of(riding, NOW, Alerts(), words, 15_000)
-        val built: Notification = TripNotifications.build(context, riding.startedAt, notice, Alerts(), words)
-        val builder = Notification.Builder.recoverBuilder(context, built)
-        for ((suffix, views) in listOf("collapsed" to builder.createContentView(), "expanded" to builder.createBigContentView())) {
-            val parent = FrameLayout(context)
-            parent.addView(views.apply(context, parent))
-            val width = 1080
-            parent.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
-            parent.layout(0, 0, width, parent.measuredHeight.coerceAtLeast(1))
-            val bitmap = Bitmap.createBitmap(width, parent.measuredHeight.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-            canvas.drawColor(if (dark) Color.rgb(0x20, 0x21, 0x24) else Color.WHITE)
-            parent.draw(canvas)
-            bitmap.captureRoboImage("build/outputs/roborazzi/trip_notification_${name}_$suffix.png")
-        }
+        val built = TripNotifications.build(context, riding.startedAt, notice, Alerts(), words)
+        captureNotification(context, built, "trip_notification_$name", 1080, dark)
     }
 
     @Test

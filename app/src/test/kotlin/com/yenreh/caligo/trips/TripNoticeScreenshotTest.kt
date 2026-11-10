@@ -2,14 +2,9 @@ package com.yenreh.caligo.trips
 
 import android.app.Notification
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.view.View
-import android.widget.FrameLayout
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
+import com.yenreh.caligo.captureNotification
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.trips.JourneyFixtures.DESTINATION
@@ -56,23 +51,8 @@ class TripNoticeScreenshotTest {
         return TripNotifications.build(context, journey.startedAt, notice, Alerts(), words)
     }
 
-    // The views the shade inflates: off a device, the only way to lay one out
-    @Suppress("DEPRECATION")
-    private fun capture(name: String, journey: Journey, near: Boolean, dark: Boolean) {
-        val builder = Notification.Builder.recoverBuilder(context, notification(journey, near))
-        for ((suffix, views) in listOf("collapsed" to builder.createContentView(), "expanded" to builder.createBigContentView())) {
-            val parent = FrameLayout(context)
-            parent.addView(views.apply(context, parent))
-            val width = 411 * 3
-            parent.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
-            parent.layout(0, 0, width, parent.measuredHeight.coerceAtLeast(1))
-            val bitmap = Bitmap.createBitmap(width, parent.measuredHeight.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-            canvas.drawColor(if (dark) Color.rgb(0x20, 0x21, 0x24) else Color.WHITE)
-            parent.draw(canvas)
-            bitmap.captureRoboImage("build/outputs/roborazzi/trip_notice_${name}_$suffix.png")
-        }
-    }
+    private fun capture(name: String, journey: Journey, near: Boolean, dark: Boolean) =
+        captureNotification(context, notification(journey, near), "trip_notice_$name", 411 * 3, dark)
 
     private fun all(language: String, dark: Boolean) {
         val tone = if (dark) "dark" else "light"
