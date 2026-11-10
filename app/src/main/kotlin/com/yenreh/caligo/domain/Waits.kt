@@ -4,16 +4,36 @@ import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.NearbyStop
 import kotlin.time.Duration.Companion.minutes
 
-/** One vehicle at one stop: what a wait follows, and how it is told from the others */
-data class WaitKey(val stopId: String, val vehicleId: String)
+/**
+ * One trip of one vehicle at one stop: what a wait follows, and how it is
+ * told from the others. The service gives a vehicle the same id on its
+ * next pass, so [trip], the time its row gave when the wait started,
+ * tells the passes apart.
+ */
+data class WaitKey(val stopId: String, val vehicleId: String, val trip: Long)
+
+/**
+ * A wait running: the time its bus last gave, and when the answer that
+ * last listed its trip was fetched, by which a row of that trip is known
+ */
+data class RunningWait(val key: WaitKey, val arrivalTime: Long, val listedAt: Long)
+
+/**
+ * The wait running for [bus]'s trip at [stopId], if any: not for a row of
+ * its vehicle's next trip
+ */
+fun Collection<RunningWait>.waitFor(stopId: String, bus: BusArrival): WaitKey? = firstOrNull {
+    it.key.stopId == stopId && it.key.vehicleId == bus.vehicleId &&
+        !FadingArrivals.isNextTrip(it.arrivalTime, it.listedAt, bus.arrivalTime, it.listedAt)
+}?.key
 
 /**
  * The bus a rider waits for, as its row showed it when the bell was
- * tapped: one vehicle, at one stop.
+ * tapped: one trip of one vehicle, at one stop.
  */
 data class AwaitedBus(
     val stopId: String,
-    /** The stop's name, for the notification */
+    /** The stop's name, for the notification: as the list it came from titles it */
     val stopName: String,
     val bus: BusArrival,
     /** Where the stop was found from: the favorite's anchor, or the point a list was asked around */
@@ -23,7 +43,7 @@ data class AwaitedBus(
     /** The stop's own place, when the list knew it */
     val place: GeoPoint? = null,
 ) {
-    val key: WaitKey get() = WaitKey(stopId, bus.vehicleId)
+    val key: WaitKey get() = WaitKey(stopId, bus.vehicleId, bus.arrivalTime)
 }
 
 /**
@@ -101,8 +121,14 @@ data class Wait(
     val startedAt: Long,
     /** The stop's buses of recent answers, as part 1 fades them */
     val fading: FadingArrivals,
-    /** The vehicle as last listed */
+    /** The vehicle as its trip was last listed, or due as it reached the stop */
     val last: BusArrival = bus.bus,
+    /** When the answer that last listed its trip was fetched */
+    val listedAt: Long = startedAt,
+    /** Its trip listed in the latest answer; false once left, or once its vehicle's next trip shows */
+    val tripListed: Boolean = true,
+    /** Its vehicle's next trip has shown: no later listing is this trip */
+    val nextSeen: Boolean = false,
     /** Resolved at the first round */
     val point: AskPoint? = null,
     /** When an answer first left the vehicle out while it was far; null while listed */
@@ -118,6 +144,11 @@ data class Wait(
     val alerted: Boolean = false,
     /** Started from a row alone: no answer fed yet, whatever [fading] counts */
     val fromRow: Boolean = false,
+    /**
+     * When its trip reached the stop, as its vehicle's next trip first
+     * showed while this one was no longer listed; null otherwise
+     */
+    val reachedAt: Long? = null,
 ) {
     val key: WaitKey get() = bus.key
     private val vehicle get() = bus.bus.vehicleId
@@ -132,21 +163,55 @@ data class Wait(
     fun fed(answer: WaitAnswer): Wait {
         val known = fading.lastAnswerFor(bus.stopId)
         if (known != null && answer.fetchedAt < known) return this
+        val at = answer.fetchedAt
         val buses = answer.stops.firstOrNull { it.id == bus.stopId }?.arrivals.orEmpty()
-        val fading = fading.fed(bus.stopId, buses, answer.fetchedAt)
-        val listed = buses.firstOrNull { it.vehicleId == vehicle }
-        val kept = fading.rows(answer.fetchedAt).any { it.stopId == bus.stopId && it.bus.vehicleId == vehicle }
+        val fading = fading.fed(bus.stopId, buses, at)
+        val listing = buses.firstOrNull { it.vehicleId == vehicle }
+        // Its own trip still, or its vehicle's next one
+        val next = listing != null && (nextSeen || FadingArrivals.isNextTrip(last.arrivalTime, listedAt, listing.arrivalTime, at))
+        if (listing != null && !next) {
+            return copy(
+                fading = fading,
+                last = listing,
+                listedAt = at,
+                tripListed = true,
+                missingSince = null,
+                failingSince = null,
+                fromRow = false,
+                reachedAt = null,
+            )
+        }
+        // Not listed: its trip fades, or, once lost from view, reached the stop as the next one showed
+        val faded = fadedRow(fading, at)
+        val reached = reachedAt ?: if (faded == null && next) minOf(last.arrivalTime, at) else null
         return copy(
             fading = fading,
-            last = listed ?: last,
-            missingSince = when {
-                listed != null || kept -> null
-                else -> missingSince ?: answer.fetchedAt
-            },
+            last = faded?.bus ?: last,
+            tripListed = false,
+            nextSeen = nextSeen || next,
+            missingSince = if (faded != null || reached != null) null else missingSince ?: at,
             failingSince = null,
             fromRow = false,
+            reachedAt = if (faded != null) null else reached,
         )
     }
+
+    /**
+     * The row of the trip waited for, at [now]: the vehicle's live row
+     * while the trip is listed, else its fading one; never its next trip
+     */
+    private fun tripRow(fading: FadingArrivals, now: Long): FadingRow? {
+        if (!tripListed) return fadedRow(fading, now)
+        return fading.rows(now).firstOrNull { it.stopId == bus.stopId && it.bus.vehicleId == vehicle && it.phase == ArrivalPhase.Live }
+    }
+
+    private fun fadedRow(fading: FadingArrivals, now: Long) = fading.rows(now).firstOrNull {
+        it.stopId == bus.stopId && it.bus.vehicleId == vehicle && it.phase != ArrivalPhase.Live
+    }
+
+    /** Whether [other] is a row of the trip waited for, at [stopId], and not of its vehicle's next trip */
+    fun follows(stopId: String, other: BusArrival): Boolean = stopId == bus.stopId && other.vehicleId == vehicle &&
+        !FadingArrivals.isNextTrip(last.arrivalTime, listedAt, other.arrivalTime, listedAt)
 
     /** A request failed at [now] */
     fun failed(now: Long): Wait = copy(failingSince = failingSince ?: now)
@@ -158,7 +223,10 @@ data class Wait(
             WaitEnding.NO_DATA -> return WaitStatus.NoDataEnded
             else -> {}
         }
-        val row = fading.rows(now).firstOrNull { it.stopId == bus.stopId && it.bus.vehicleId == vehicle }
+        reachedAt?.let { reached ->
+            return if (now - reached < FadingArrivals.AT_STOP_FOR.inWholeMilliseconds) WaitStatus.AtStop else WaitStatus.Asking
+        }
+        val row = tripRow(fading, now)
         return when (row?.phase) {
             ArrivalPhase.AtStop -> WaitStatus.AtStop
             is ArrivalPhase.Passed -> WaitStatus.Asking
@@ -176,7 +244,8 @@ data class Wait(
             return if (now >= tellingSince + TELL_FOR_MS) WaitStep.Ends(ending) else WaitStep.Goes(this)
         }
         val status = status(now)
-        if (status == WaitStatus.Asking && now >= last.arrivalTime + FadingArrivals.AT_STOP_FOR.inWholeMilliseconds + ASK_FOR_MS) {
+        val due = reachedAt ?: last.arrivalTime
+        if (status == WaitStatus.Asking && now >= due + FadingArrivals.AT_STOP_FOR.inWholeMilliseconds + ASK_FOR_MS) {
             return WaitStep.Ends(WaitEnding.PASSED)
         }
         val failing = failingSince
@@ -218,10 +287,18 @@ data class Wait(
     companion object {
         /** Started from [bus], seeded with what the row's list knew of its stop, if anything */
         fun start(bus: AwaitedBus, now: Long, seed: FadingArrivals? = null): Wait {
-            val known = seed?.only(setOf(bus.stopId))?.takeIf { fading ->
-                fading.rows(now).any { it.bus.vehicleId == bus.bus.vehicleId }
+            val known = seed?.only(setOf(bus.stopId))
+            // The row tapped, as its list reads it: live, or already at the stop
+            val row = known?.rows(now)?.firstOrNull { it.bus == bus.bus }
+            if (known != null && row != null) {
+                return Wait(
+                    bus,
+                    now,
+                    known,
+                    listedAt = known.lastAnswerFor(bus.stopId) ?: now,
+                    tripListed = row.phase == ArrivalPhase.Live,
+                )
             }
-            if (known != null) return Wait(bus, now, known)
             // Without a list that knew it, the row counts as listed now, and is asked about at once
             return Wait(bus, now, FadingArrivals.EMPTY.fed(bus.stopId, listOf(bus.bus), now), fromRow = true)
         }

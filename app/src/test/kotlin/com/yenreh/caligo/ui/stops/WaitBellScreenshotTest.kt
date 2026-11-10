@@ -14,6 +14,7 @@ import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.captureScreen
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.FadingArrivals
+import com.yenreh.caligo.domain.RunningWait
 import com.yenreh.caligo.domain.WaitKey
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.NearbyStop
@@ -50,7 +51,9 @@ class WaitBellScreenshotTest {
         .fed("500800", coming, now - 10_000)
 
     /** The T31 nine minutes away is waited for */
-    private val control = FakeWaitControl().apply { running.value = setOf(WaitKey("500800", "t")) }
+    private val control = FakeWaitControl().apply {
+        running.value = listOf(RunningWait(WaitKey("500800", "t", now + 540_000), now + 540_000, now - 10_000))
+    }
     private val access = FakeNotificationAccess(granted = true)
 
     private fun exists(matcher: SemanticsMatcher) =

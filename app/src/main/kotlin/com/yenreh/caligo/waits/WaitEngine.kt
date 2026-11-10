@@ -92,7 +92,7 @@ class WaitEngine(
     val isIdle: Boolean get() = loop?.isActive != true && requests.isEmpty() && resolving.isEmpty()
 
     fun start(bus: AwaitedBus, seed: FadingArrivals? = null): WaitStart {
-        if (waits.any { it.key == bus.key }) return WaitStart.ALREADY_WAITING
+        if (waits.any { it.follows(bus.stopId, bus.bus) }) return WaitStart.ALREADY_WAITING
         if (waits.size >= Wait.CAP) return WaitStart.CAP_REACHED
         waits = waits + Wait.start(bus, now(), seed)
         if (loop?.isActive != true) {

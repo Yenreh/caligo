@@ -11,6 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.FadingArrivals
+import com.yenreh.caligo.domain.RunningWait
 import com.yenreh.caligo.domain.WaitKey
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.ui.common.AtTime
@@ -28,20 +29,20 @@ import org.junit.runner.RunWith
 
 /** Waits as the screens start and stop them, recorded */
 class FakeWaitControl : WaitControl {
-    override val running = MutableStateFlow<Set<WaitKey>>(emptySet())
+    override val running = MutableStateFlow<List<RunningWait>>(emptyList())
     val started = mutableListOf<Pair<AwaitedBus, FadingArrivals?>>()
     val stopped = mutableListOf<WaitKey>()
     var result = WaitStart.STARTED
 
     override fun start(bus: AwaitedBus, seed: FadingArrivals?): WaitStart {
         started.add(bus to seed)
-        if (result == WaitStart.STARTED) running.value += bus.key
+        if (result == WaitStart.STARTED) running.value += RunningWait(bus.key, bus.bus.arrivalTime, HomeSamples.NOW)
         return result
     }
 
     override fun stop(key: WaitKey) {
         stopped.add(key)
-        running.value -= key
+        running.value = running.value.filter { it.key != key }
     }
 }
 
@@ -103,7 +104,7 @@ class WaitBellTest {
         compose.waitUntil(WAIT_TIMEOUT_MS) { exists("wait_bell_on") }
         assertEquals(1, access.requests)
         val (bus, seed) = control.started.single()
-        assertEquals(WaitKey("500800", "637001"), bus.key)
+        assertEquals(WaitKey("500800", "637001", t31.arrivalTime), bus.key)
         assertEquals("Plaza de Cayzedo A1", bus.stopName)
         assertEquals(stop.anchorLatitude, bus.anchor.latitude, 0.0)
         assertTrue(!bus.area)
@@ -167,6 +168,43 @@ class WaitBellTest {
         tapBell()
         compose.waitUntil(WAIT_TIMEOUT_MS) { exists("wait_bell_on") }
         assertEquals("500800", control.started.single().first.stopId)
+    }
+
+    @Test
+    fun eachTripOfAVehicleHasItsOwnBell() {
+        // At 514208 the A47 261001 reached the stop as its next trip showed; its wait runs
+        access.granted = true
+        val t = com.yenreh.caligo.domain.PhoneSamples::time
+        val sampled = com.yenreh.caligo.domain.PhoneSamples.fedUpTo("14:46:39")
+        val first = com.yenreh.caligo.domain.PhoneSamples.answers.first().buses.first { it.vehicleId == "261001" }
+        control.running.value = listOf(RunningWait(WaitKey("514208", "261001", first.arrivalTime), t("14:46:39"), t("14:46:09")))
+        val favorite = com.yenreh.caligo.domain.entities.FavoriteStop(
+            id = "514208",
+            stopId = "514208",
+            name = "Cl 121 con Kr 26P",
+            customName = "Calimio-Sanin",
+            anchorLatitude = 3.48,
+            anchorLongitude = -76.49,
+            // The A47 alone, so the row limit leaves the next trip on the card
+            lines = listOf("A47"),
+        )
+        val listed = com.yenreh.caligo.domain.PhoneSamples.answers.first { it.fetchedAt == t("14:46:39") }.buses
+        compose.setContent {
+            AtTime(t("14:46:50")) {
+                CaliGoTheme { WaitBellsHost(control, access) { FavoriteStopCard(favorite, listed, fading = sampled) } }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(1, compose.onAllNodes(hasContentDescription("Stop waiting for the A47")).fetchSemanticsNodes().size)
+        val empty = compose.onAllNodes(hasContentDescription("Notify me about the A47"))
+        assertEquals(3, empty.fetchSemanticsNodes().size)
+        // The last of them, by time, is the next trip: a new wait
+        empty[2].performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { control.started.isNotEmpty() }
+        val (bus, _) = control.started.single()
+        assertEquals("261001", bus.bus.vehicleId)
+        assertEquals(t("14:46:39") + 2_808_000, bus.bus.arrivalTime)
+        assertTrue(control.stopped.isEmpty())
     }
 
     @Test

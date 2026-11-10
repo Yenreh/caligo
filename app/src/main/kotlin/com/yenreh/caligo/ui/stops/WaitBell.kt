@@ -42,7 +42,8 @@ import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.FadingArrivals
 import com.yenreh.caligo.domain.Wait
-import com.yenreh.caligo.domain.WaitKey
+import com.yenreh.caligo.domain.RunningWait
+import com.yenreh.caligo.domain.waitFor
 import com.yenreh.caligo.ui.lab.LabFilledButton
 import com.yenreh.caligo.ui.lab.LabTextButton
 import com.yenreh.caligo.ui.theme.LabTheme
@@ -67,14 +68,14 @@ class WaitBells(
     private val access: NotificationAccess,
     private val scope: CoroutineScope,
 ) {
-    val running: StateFlow<Set<WaitKey>> get() = control.running
+    val running: StateFlow<List<RunningWait>> get() = control.running
 
     var message by mutableStateOf<WaitMessage?>(null)
         private set
 
     fun toggle(bus: AwaitedBus, seed: FadingArrivals?) {
-        if (bus.key in control.running.value) {
-            control.stop(bus.key)
+        control.running.value.waitFor(bus.stopId, bus.bus)?.let {
+            control.stop(it)
             return
         }
         scope.launch {
@@ -122,7 +123,8 @@ fun WaitBellsHost(control: WaitControl, access: NotificationAccess, content: @Co
 fun WaitBell(bus: AwaitedBus?, line: String, seed: FadingArrivals?) {
     val bells = LocalWaitBells.current ?: return
     val running by bells.running.collectAsStateWithLifecycle()
-    val on = bus != null && bus.key in running
+    // Only the trip waited for: its vehicle's next one has a bell of its own
+    val on = bus != null && running.waitFor(bus.stopId, bus.bus) != null
     val p = LabTheme.palette
     val description = stringResource(if (on) R.string.wait_stop else R.string.wait_start, line)
     Box(

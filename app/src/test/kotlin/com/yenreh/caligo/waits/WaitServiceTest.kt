@@ -11,6 +11,8 @@ import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.domain.AskPoint
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.FadingArrivals
+import com.yenreh.caligo.domain.PhoneSamples
+import com.yenreh.caligo.domain.waitFor
 import com.yenreh.caligo.domain.Wait
 import com.yenreh.caligo.domain.WaitAnswer
 import com.yenreh.caligo.domain.entities.BusArrival
@@ -248,6 +250,59 @@ class WaitServiceTest {
         advance(e21.arrivalTime + 2 * MINUTE + 15_000 - now())
         assertLeft("T31")
     }
+
+    // A vehicle's next trip, as the phone sampled it at stop 514208
+
+    /** The phone's answers, moved to start at [NOW] */
+    private val offset = NOW - PhoneSamples.answers.first().fetchedAt
+
+    private fun sampledAt(at: Long): WaitAnswer {
+        val answer = PhoneSamples.answers.lastOrNull { it.fetchedAt + offset <= at } ?: PhoneSamples.answers.first()
+        val buses = answer.buses.map { it.copy(arrivalTime = it.arrivalTime + offset) }
+        return WaitAnswer(listOf(com.yenreh.caligo.domain.entities.NearbyStop(PhoneSamples.STOP, PhoneSamples.STOP_NAME, 30.0, buses)), at)
+    }
+
+    private fun sampled(clock: String) = PhoneSamples.time(clock) + offset
+
+    @Test
+    fun aWaitEndsWithItsTripAndNeverCountsDownToTheNextOne() {
+        source.answer = { _, at -> sampledAt(at) }
+        val a47 = sampledAt(NOW).stops.single().arrivals.first { it.vehicleId == "261001" }
+        val bus = AwaitedBus(PhoneSamples.STOP, "Calimio-Sanin", a47, WaitFixtures.anchor, place = WaitFixtures.place)
+        start(bus)
+        val titles = mutableListOf<String>()
+        while (posted.isNotEmpty() && now() < sampled("14:52:00")) {
+            titles.add(posted.single().title())
+            advance(15_000)
+        }
+        // Counted down, at the stop as its next trip showed, asked, then gone
+        assertTrue(titles.first(), titles.first().startsWith("A47 to Valle Grande, 6 min"))
+        assertTrue(titles.toString(), "A47 to Valle Grande, at the stop" in titles)
+        assertTrue(titles.toString(), "Did you take the A47?" in titles)
+        assertTrue(titles.toString(), titles.none { Regex("A47 to Valle Grande, (4[0-9]|1[0-9]|[2-3][0-9]) min").matches(it) })
+        assertLeft()
+    }
+
+    @Test
+    fun theNextTripIsANewWaitWhileTheTripBeforeIsAtTheStop() {
+        source.answer = { _, at -> sampledAt(at) }
+        val first = sampledAt(NOW).stops.single().arrivals.first { it.vehicleId == "261001" }
+        start(AwaitedBus(PhoneSamples.STOP, "Calimio-Sanin", first, WaitFixtures.anchor, place = WaitFixtures.place))
+        // Asked every 30 s: the answer of 14:46:39 is in by 14:47:00
+        advance(sampled("14:47:00") - now())
+        assertTrue(posted.single().title(), posted.single().title().endsWith("at the stop"))
+        assertEquals("Calimio-Sanin", posted.single().extras.getCharSequence(Notification.EXTRA_TEXT).toString())
+        // The bell of the next trip's row is empty, and starts a wait of its own
+        val next = sampledAt(now()).stops.single().arrivals.first { it.vehicleId == "261001" }
+        assertEquals(null, desk.running.value.waitFor(PhoneSamples.STOP, next))
+        assertEquals(awaitedKeyOf(first), desk.running.value.waitFor(PhoneSamples.STOP, first.copy(arrivalTime = sampled("14:46:39"))))
+        assertEquals(WaitStart.STARTED, desk.start(AwaitedBus(PhoneSamples.STOP, "Calimio-Sanin", next, WaitFixtures.anchor, place = WaitFixtures.place), null))
+        advance(1)
+        val titles = posted.map { it.title() }.sorted()
+        assertEquals(listOf("A47 to Valle Grande, 46 min", "A47 to Valle Grande, at the stop"), titles)
+    }
+
+    private fun awaitedKeyOf(bus: BusArrival) = com.yenreh.caligo.domain.WaitKey(PhoneSamples.STOP, bus.vehicleId, bus.arrivalTime)
 
     // 6. The time limit
 

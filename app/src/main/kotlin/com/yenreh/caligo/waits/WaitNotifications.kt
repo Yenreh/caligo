@@ -39,6 +39,7 @@ object WaitNotifications {
 
     const val EXTRA_STOP_ID = "stopId"
     const val EXTRA_VEHICLE_ID = "vehicleId"
+    const val EXTRA_TRIP = "trip"
     const val EXTRA_STOP_NAME = "stopName"
     const val EXTRA_ANCHOR_LATITUDE = "anchorLatitude"
     const val EXTRA_ANCHOR_LONGITUDE = "anchorLongitude"
@@ -110,7 +111,8 @@ object WaitNotifications {
     fun keyOf(intent: Intent): WaitKey? {
         val stop = intent.getStringExtra(EXTRA_STOP_ID) ?: return null
         val vehicle = intent.getStringExtra(EXTRA_VEHICLE_ID) ?: return null
-        return WaitKey(stop, vehicle)
+        if (!intent.hasExtra(EXTRA_TRIP)) return null
+        return WaitKey(stop, vehicle, intent.getLongExtra(EXTRA_TRIP, 0))
     }
 
     /** [notice] of [wait] as the notification with [id] */
@@ -171,6 +173,7 @@ object WaitNotifications {
             .setAction(name)
             .putExtra(EXTRA_STOP_ID, wait.bus.stopId)
             .putExtra(EXTRA_VEHICLE_ID, wait.bus.bus.vehicleId)
+            .putExtra(EXTRA_TRIP, wait.key.trip)
         val code = (id - PLACEHOLDER_ID) * 4 + listOf(ACTION_TOOK, ACTION_STOP, ACTION_DISMISSED).indexOf(name)
         return PendingIntent.getBroadcast(
             context,

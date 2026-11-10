@@ -12,6 +12,7 @@ import androidx.core.app.ServiceCompat
 import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.FadingArrivals
+import com.yenreh.caligo.domain.RunningWait
 import com.yenreh.caligo.domain.Wait
 import com.yenreh.caligo.domain.WaitEnding
 import com.yenreh.caligo.domain.WaitKey
@@ -160,7 +161,7 @@ class WaitService : Service(), WaitHost {
     }
 
     override fun changed(waits: List<Wait>) {
-        desk.changed(waits.mapTo(LinkedHashSet()) { it.key })
+        desk.changed(waits.map { RunningWait(it.key, it.last.arrivalTime, it.listedAt) })
     }
 
     private fun foreground(id: Int, notification: android.app.Notification) {

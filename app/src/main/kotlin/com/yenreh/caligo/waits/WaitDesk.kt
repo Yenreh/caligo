@@ -5,9 +5,11 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.FadingArrivals
+import com.yenreh.caligo.domain.RunningWait
 import com.yenreh.caligo.domain.Wait
 import com.yenreh.caligo.domain.WaitEnding
 import com.yenreh.caligo.domain.WaitKey
+import com.yenreh.caligo.domain.waitFor
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,8 +18,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /** What the screens may do with waits */
 interface WaitControl {
-    /** The buses waited for now, or about to be */
-    val running: StateFlow<Set<WaitKey>>
+    /** The trips waited for now, or about to be, each with the time its bus last gave */
+    val running: StateFlow<List<RunningWait>>
 
     /** Wait for [bus], seeded with what its row's list knew of the stop */
     fun start(bus: AwaitedBus, seed: FadingArrivals?): WaitStart
@@ -44,15 +46,15 @@ class WaitDesk(
 ) : WaitControl {
     private val pending = ArrayList<Pair<AwaitedBus, FadingArrivals?>>()
     private var service: WaitService? = null
-    private var serviceKeys = emptySet<WaitKey>()
+    private var serviceWaits = emptyList<RunningWait>()
 
-    private val state = MutableStateFlow<Set<WaitKey>>(emptySet())
-    override val running: StateFlow<Set<WaitKey>> = state.asStateFlow()
+    private val state = MutableStateFlow<List<RunningWait>>(emptyList())
+    override val running: StateFlow<List<RunningWait>> = state.asStateFlow()
 
     override fun start(bus: AwaitedBus, seed: FadingArrivals?): WaitStart {
-        val keys = state.value
-        if (bus.key in keys) return WaitStart.ALREADY_WAITING
-        if (keys.size >= Wait.CAP) return WaitStart.CAP_REACHED
+        val waits = state.value
+        if (waits.waitFor(bus.stopId, bus.bus) != null) return WaitStart.ALREADY_WAITING
+        if (waits.size >= Wait.CAP) return WaitStart.CAP_REACHED
         WaitNotifications.createChannels(context)
         service?.let { return it.add(bus, seed) }
         pending.add(bus to seed)
@@ -79,7 +81,7 @@ class WaitDesk(
     internal fun detach(service: WaitService) {
         if (this.service !== service) return
         this.service = null
-        serviceKeys = emptySet()
+        serviceWaits = emptyList()
         publish()
     }
 
@@ -90,12 +92,12 @@ class WaitDesk(
         return taken
     }
 
-    internal fun changed(keys: Set<WaitKey>) {
-        serviceKeys = keys
+    internal fun changed(waits: List<RunningWait>) {
+        serviceWaits = waits
         publish()
     }
 
     private fun publish() {
-        state.value = serviceKeys + pending.map { it.first.key }
+        state.value = serviceWaits + pending.map { RunningWait(it.first.key, it.first.bus.arrivalTime, now()) }
     }
 }

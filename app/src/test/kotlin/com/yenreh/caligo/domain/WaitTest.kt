@@ -153,4 +153,56 @@ class WaitTest {
         assertEquals(WaitStatus.AtStop, wait.status(due - 10_000))
         assertEquals(due - 20_000, wait.answeredAt)
     }
+
+    // A vehicle's next trip, as the phone sampled it at stop 514208
+
+    private fun sampled(answer: PhoneSamples.Answer) = WaitAnswer(
+        listOf(com.yenreh.caligo.domain.entities.NearbyStop(PhoneSamples.STOP, PhoneSamples.STOP_NAME, 30.0, answer.buses)),
+        answer.fetchedAt,
+    )
+
+    @Test
+    fun aWaitFollowsItsTripAndNeverTheNextOne() {
+        val first = PhoneSamples.answers.first()
+        val a47 = first.buses.first { it.vehicleId == "261001" }
+        val bus = AwaitedBus(PhoneSamples.STOP, "Calimio-Sanin", a47, GeoPoint(3.48, -76.49))
+        var wait = Wait.start(bus, first.fetchedAt).fed(sampled(first))
+        val read = mutableListOf<Pair<Long, WaitStatus>>()
+        for (answer in PhoneSamples.answers.drop(1)) {
+            val step = wait.fed(sampled(answer)).step(answer.fetchedAt)
+            if (step is WaitStep.Ends) {
+                assertEquals(WaitEnding.PASSED, step.ending)
+                assertEquals(PhoneSamples.time("14:48:39"), answer.fetchedAt)
+                break
+            }
+            wait = (step as WaitStep.Goes).wait
+            read.add(answer.fetchedAt to wait.status(answer.fetchedAt))
+        }
+        val t = PhoneSamples::time
+        assertEquals(WaitStatus.Coming(t("14:46:09") + 126_000), read.first { it.first == t("14:46:09") }.second)
+        // Its vehicle's next trip shows at 14:46:39: this one is at the stop, then asks
+        assertEquals(WaitStatus.AtStop, read.first { it.first == t("14:46:39") }.second)
+        assertEquals(WaitStatus.AtStop, read.first { it.first == t("14:47:09") }.second)
+        assertEquals(WaitStatus.Asking, read.first { it.first == t("14:47:39") }.second)
+        assertEquals(WaitStatus.Asking, read.first { it.first == t("14:48:09") }.second)
+        // Never the next trip's countdown
+        assertTrue(read.none { (_, status) -> status is WaitStatus.Coming && status.arrivalTime > t("14:46:39") + 10 * MINUTE })
+    }
+
+    @Test
+    fun aTripLostFromViewThenListedForItsNextPassReachedTheStop() {
+        val near = Wait.start(awaited(bus("T31", "t31", NOW + 5 * MINUTE)), NOW)
+        // Left out five minutes away: not seen just now
+        val out = near.fed(answer(NOW + 30_000))
+        assertEquals(WaitStatus.Coming(NOW + 5 * MINUTE, seen = false), out.status(NOW + 30_000))
+        // Then listed for its next pass: it reached the stop as that showed
+        val next = bus("T31", "t31", NOW + 50 * MINUTE)
+        val reached = out.fed(answer(NOW + 4 * MINUTE, next))
+        assertEquals(NOW + 4 * MINUTE, reached.reachedAt)
+        assertEquals(WaitStatus.AtStop, reached.status(NOW + 4 * MINUTE))
+        assertEquals(WaitStatus.Asking, reached.status(NOW + 5 * MINUTE))
+        assertTrue(reached.fed(answer(NOW + 5 * MINUTE, next)).step(NOW + 6 * MINUTE - 1) is WaitStep.Goes)
+        assertEquals(WaitEnding.PASSED, reached.ends(NOW + 6 * MINUTE))
+        assertFalse(reached.follows(com.yenreh.caligo.waits.WaitFixtures.STOP, next))
+    }
 }
