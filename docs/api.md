@@ -137,6 +137,11 @@ gets the stops.
   within 15, otherwise every 120 s, and only while the screen listing them
   is in view: never in the background, nor under another screen. A line's
   buses are followed every 30 s on the same terms.
+- The exceptions are what the rider started and can see in a notification
+  until it ends: a bus waited for is asked about at the same pace, and a
+  ride followed asks for its line's buses every 30 s, the request the line
+  screen makes. The rider's own position never leaves the phone: the bus
+  is told among the line's by where each one is.
 - One request answers for every stop within 280 m of the point asked
   around, so favorites and the stops of a trip are grouped to need as few
   as possible, and a trip reuses areas asked about within a minute. With
