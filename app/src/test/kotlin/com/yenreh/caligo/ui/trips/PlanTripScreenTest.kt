@@ -264,6 +264,12 @@ class PlanTripScreenTest {
 
         waitFor(hasText("T1 at the stop · a 0"))
         assertEquals(Duration.ZERO, model.option.firstRide!!.wait)
+
+        // Its steps say so too, with no time of leaving
+        model.toggle(0)
+        waitFor(hasTestTag("steps"))
+        waitFor(hasText("At the stop", substring = true))
+        assertFalse(exists(hasText("Leaves", substring = true)))
     }
 
     @Test

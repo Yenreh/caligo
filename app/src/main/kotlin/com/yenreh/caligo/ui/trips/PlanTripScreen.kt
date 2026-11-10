@@ -949,7 +949,10 @@ private fun Steps(option: TripOption, onChooseLine: (ride: Int, line: String) ->
                         icon = R.drawable.ic_directions_bus_rounded,
                         text = stringResource(R.string.step_ride, leg.line, leg.towards),
                         detail = listOf(
-                            if (leg.liveWait && departsAt != null) {
+                            // Its time would only be when the rider gets there
+                            if (leg.busAtStop) {
+                                stringResource(R.string.at_the_stop)
+                            } else if (leg.liveWait && departsAt != null) {
                                 stringResource(R.string.leaves_at, clock(departsAt))
                             } else {
                                 stringResource(R.string.wait_about, minutes(leg.wait))
