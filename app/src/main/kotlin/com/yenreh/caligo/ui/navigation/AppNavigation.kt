@@ -238,6 +238,7 @@ fun AppNavigation(
                     onBack = ::back,
                     onPick = { origin, near -> open(Route.PlacePicker(origin, near?.key)) },
                     viewModel = planTripViewModel(lines(), key.destination?.place),
+                    onTripStarted = { if (backStack.lastOrNull() == key) open(Route.Trip()) },
                 )
             }
             entry<Route.PlacePicker> { key ->

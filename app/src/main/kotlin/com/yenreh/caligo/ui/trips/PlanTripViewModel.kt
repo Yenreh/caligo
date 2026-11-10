@@ -28,7 +28,9 @@ import com.yenreh.caligo.domain.rideReadings
 import com.yenreh.caligo.domain.stopsWorthAsking
 import com.yenreh.caligo.domain.timeTrip
 import com.yenreh.caligo.ui.lines.LinesViewModel
+import com.yenreh.caligo.trips.TripControl
 import com.yenreh.caligo.ui.map.LabMapState
+import com.yenreh.caligo.waits.NotificationAccess
 import java.net.URLEncoder
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
@@ -103,6 +105,8 @@ data class PlanTripState(
      */
     val expanded: Int? = null,
     val planning: Boolean = false,
+    /** Why the open option could not start as a trip, with the way to the settings */
+    val tripMessage: TripMessage? = null,
 ) {
     /** The option open, timed */
     val open: TripOption? get() = expanded?.let { timed[it] }
@@ -164,12 +168,52 @@ class PlanTripViewModel(
     private val now: () -> Long = System::currentTimeMillis,
     private val planning: CoroutineDispatcher = Dispatchers.Default,
     private val retimeEvery: Duration = RETIME_EVERY,
+    /** Where the open option starts as a trip; none offers no "Start trip" */
+    private val trips: TripControl? = null,
+    private val notifications: NotificationAccess? = null,
 ) : ViewModel() {
     private val state = MutableStateFlow(PlanTripState(to = destination, network = network.load.value))
     val screen: StateFlow<PlanTripState> = state.asStateFlow()
 
     private val reports = Channel<PlanTripMessage>(Channel.BUFFERED)
     val messages: Flow<PlanTripMessage> = reports.receiveAsFlow()
+
+    private val started = Channel<Unit>(Channel.CONFLATED)
+
+    /** A trip started from here, for the screen to open it */
+    val tripsStarted: Flow<Unit> = started.receiveAsFlow()
+
+    /** Whether the open option can start as a trip */
+    val canStartTrips: Boolean get() = trips != null && notifications != null
+
+    /**
+     * Follow the open option as a trip: its walks, rides and changes, from
+     * this screen on show, after what a trip needs, as the trip screen asks
+     */
+    fun startTrip() {
+        val trips = trips ?: return
+        val notifications = notifications ?: return
+        val option = state.value.open ?: return
+        if (option.rides.isEmpty()) return
+        val destination = state.value.to?.name ?: option.rides.last().alight.name
+        viewModelScope.launch {
+            val missing = tripNeeds(notifications, location)
+            if (missing != null) {
+                state.update { it.copy(tripMessage = missing) }
+                return@launch
+            }
+            trips.startJourney(option, destination, rideFactors)
+            started.trySend(Unit)
+        }
+    }
+
+    fun dismissTripMessage() = state.update { it.copy(tripMessage = null) }
+
+    /** The notification settings, for the message that asks for them */
+    fun openNotificationSettings() {
+        dismissTripMessage()
+        notifications?.openSettings()
+    }
 
     /** Line chosen for a ride by tapping it, by plan and then by ride */
     private val pinned = HashMap<Int, MutableMap<Int, String>>()
@@ -540,6 +584,8 @@ class PlanTripViewModel(
                     deviceName = app.getString(R.string.my_location),
                     destination = destination,
                     work = container.scope,
+                    trips = container.trips,
+                    notifications = container.notificationAccess,
                 )
             }
         }

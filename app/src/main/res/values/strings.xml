@@ -381,4 +381,5 @@
         <item quantity="other">%1$s to %2$s, %3$d stops</item>
     </plurals>
     <string name="trip_follow_me">Follow my position</string>
+    <string name="trip_start">Start trip</string>
 </resources>

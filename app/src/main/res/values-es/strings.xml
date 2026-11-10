@@ -380,4 +380,5 @@
         <item quantity="other">%1$s hasta %2$s, %3$d paradas</item>
     </plurals>
     <string name="trip_follow_me">Seguir mi posición</string>
+    <string name="trip_start">Empezar viaje</string>
 </resources>

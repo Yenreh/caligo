@@ -77,6 +77,8 @@ class TripFixtures(
         hours: MutableStateFlow<Map<String, LineHours>?> = MutableStateFlow(emptyMap()),
         loader: TransitNetworkLoader = loader(repository),
         key: String = "planner",
+        trips: com.yenreh.caligo.trips.TripControl? = null,
+        notifications: com.yenreh.caligo.waits.NotificationAccess? = null,
     ): PlanTripViewModel = ViewModelProvider.create(
         store,
         viewModelFactory {
@@ -91,6 +93,8 @@ class TripFixtures(
                     work = scope,
                     now = { clock },
                     planning = Dispatchers.Main.immediate,
+                    trips = trips,
+                    notifications = notifications,
                 )
             }
         },

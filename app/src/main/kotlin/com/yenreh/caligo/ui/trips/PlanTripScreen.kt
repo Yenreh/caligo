@@ -91,6 +91,7 @@ import com.yenreh.caligo.domain.entities.WalkLeg
 import com.yenreh.caligo.ui.common.LocalNow
 import com.yenreh.caligo.ui.common.rememberShownOnScreen
 import com.yenreh.caligo.ui.lab.LabDivider
+import com.yenreh.caligo.ui.lab.LabFilledButton
 import com.yenreh.caligo.ui.lab.LabEmptyState
 import com.yenreh.caligo.ui.lab.LabIconButton
 import com.yenreh.caligo.ui.lab.LabLineChip
@@ -136,6 +137,8 @@ fun PlanTripRoute(
     onBack: () -> Unit,
     onPick: (origin: Boolean, near: TripPlace?) -> Unit,
     viewModel: PlanTripViewModel,
+    /** The trip just started from the open option, to show */
+    onTripStarted: (() -> Unit)? = null,
 ) {
     val place = picked.place
     LaunchedEffect(place) { picked.takePlace()?.let { viewModel.choose(it.origin, it.place) } }
@@ -146,6 +149,7 @@ fun PlanTripRoute(
         carto = tiles.byCarto,
         onBack = onBack,
         onChoose = { origin -> onPick(origin, viewModel.pickerNear(origin)) },
+        onTripStarted = onTripStarted,
     )
 }
 
@@ -173,9 +177,24 @@ fun PlanTripScreen(
     now: () -> Long = LocalNow.current,
     /** Tiles fade in as they come; screenshots turn it off */
     fadeIn: Boolean = true,
+    /** The open option followed as a trip, started from here: the trip screen opens */
+    onTripStarted: (() -> Unit)? = null,
 ) {
     val p = LabTheme.palette
     val state by viewModel.screen.collectAsStateWithLifecycle()
+    val startTrip = onTripStarted != null && viewModel.canStartTrips
+    val openTripSettings = rememberTripMessageSettings(viewModel::openNotificationSettings)
+    LaunchedEffect(viewModel) { viewModel.tripsStarted.collect { onTripStarted?.invoke() } }
+    state.tripMessage?.let { message ->
+        TripMessageDialog(
+            message,
+            onSettings = {
+                viewModel.dismissTripMessage()
+                openTripSettings(message)
+            },
+            onDismiss = viewModel::dismissTripMessage,
+        )
+    }
     val snackbars = rememberLabSnackbars()
     val links = LocalUriHandler.current
     val scope = rememberCoroutineScope()
@@ -326,6 +345,7 @@ fun PlanTripScreen(
                     onRetry = viewModel::retryNetwork,
                     onToggle = ::toggle,
                     onChooseLine = viewModel::chooseLine,
+                    onStartTrip = if (startTrip) viewModel::startTrip else null,
                 )
             }
         }
@@ -621,6 +641,7 @@ private fun Results(
     onRetry: () -> Unit,
     onToggle: (row: OptionRow, listIndex: Int) -> Unit,
     onChooseLine: (plan: Int, ride: Int, line: String) -> Unit,
+    onStartTrip: (() -> Unit)? = null,
 ) {
     val p = LabTheme.palette
     when (results) {
@@ -687,7 +708,7 @@ private fun Results(
             message = stringResource(R.string.no_trip_found),
             modifier = Modifier.testTag("plan_message"),
         )
-        is PlanResults.Options -> Options(results, list, now, onToggle, onChooseLine)
+        is PlanResults.Options -> Options(results, list, now, onToggle, onChooseLine, onStartTrip)
     }
 }
 
@@ -698,6 +719,7 @@ private fun Options(
     now: () -> Long,
     onToggle: (row: OptionRow, listIndex: Int) -> Unit,
     onChooseLine: (plan: Int, ride: Int, line: String) -> Unit,
+    onStartTrip: (() -> Unit)?,
 ) {
     val p = LabTheme.palette
     val bottom = labBottomInset()
@@ -752,6 +774,7 @@ private fun Options(
                 now = now,
                 onClick = { onToggle(row, before + i) },
                 onChooseLine = { ride, line -> onChooseLine(row.index, ride, line) },
+                onStartTrip = onStartTrip?.takeIf { row.option.rides.isNotEmpty() },
             )
         }
         item(key = "note") {
@@ -770,7 +793,14 @@ private fun Options(
  * buttons, and a tap beside one should not fold them away.
  */
 @Composable
-private fun OptionTile(row: OptionRow, now: () -> Long, onClick: () -> Unit, onChooseLine: (ride: Int, line: String) -> Unit) {
+private fun OptionTile(
+    row: OptionRow,
+    now: () -> Long,
+    onClick: () -> Unit,
+    onChooseLine: (ride: Int, line: String) -> Unit,
+    /** Follow the open option as a trip: its walks, rides and changes */
+    onStartTrip: (() -> Unit)? = null,
+) {
     val p = LabTheme.palette
     val option = row.option
     val expanded = row.expanded
@@ -829,6 +859,15 @@ private fun OptionTile(row: OptionRow, now: () -> Long, onClick: () -> Unit, onC
         if (expanded) {
             Box(Modifier.padding(start = 13.dp, end = 16.dp, bottom = 12.dp)) {
                 Steps(option, onChooseLine)
+            }
+            if (onStartTrip != null) {
+                LabFilledButton(
+                    onClick = onStartTrip,
+                    modifier = Modifier
+                        .padding(start = 13.dp, end = 16.dp, bottom = 16.dp)
+                        .fillMaxWidth()
+                        .testTag("start_trip"),
+                ) { Text(stringResource(R.string.trip_start)) }
             }
         }
     }
