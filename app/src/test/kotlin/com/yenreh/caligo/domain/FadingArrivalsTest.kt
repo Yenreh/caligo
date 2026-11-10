@@ -189,4 +189,100 @@ class FadingArrivalsTest {
 
         assertEquals(listOf("1" to live, "2" to live), buses.asLiveRows().map { it.bus.vehicleId to it.phase })
     }
+
+    // A vehicle's next trip at the same stop, as the phone sampled it
+
+    private fun FadingArrivals.of(vehicle: String, now: Long) =
+        rows(now).filter { it.bus.vehicleId == vehicle }.map { it.phase to it.bus.arrivalTime }
+
+    @Test
+    fun aVehicleListedForItsNextTripWithoutLeavingReachedTheStop() {
+        val t = PhoneSamples::time
+        // +2.1 min at 14:46:09, then +46.8 at 14:46:39: a row for each trip,
+        // the first due as the second first shows
+        val next = t("14:46:39") + 2_808_000
+        assertEquals(
+            listOf(atStop to t("14:46:39"), live to next),
+            PhoneSamples.fedUpTo("14:46:39").of("261001", t("14:46:39")),
+        )
+        assertEquals(
+            listOf(ArrivalPhase.Passed(1) to t("14:46:39")),
+            PhoneSamples.fedUpTo("14:48:09").of("261001", t("14:48:09")).filter { it.first != live },
+        )
+        // Gone four minutes after, the next trip live throughout
+        assertEquals(listOf(ArrivalPhase.Passed(3)), PhoneSamples.fedUpTo("14:50:09").of("261001", t("14:50:09")).map { it.first }.filter { it != live })
+        assertEquals(listOf(live), PhoneSamples.fedUpTo("14:51:09").of("261001", t("14:51:09")).map { it.first })
+    }
+
+    @Test
+    fun aTripThatLeftNearItsTimeStaysFadedWhileItsNextTripIsListed() {
+        // Due 90 s on, left out, then listed again for its next pass
+        val fading = FadingArrivals.EMPTY
+            .fed("A", listOf(bus("1", 90), bus("2", 900)), at(0))
+            .fed("A", listOf(bus("2", 870)), at(30))
+            .fed("A", listOf(bus("2", 840), bus("1", 60 * 46)), at(60))
+            .fed("A", listOf(bus("2", 810), bus("1", 60 * 46 - 30)), at(140))
+        assertEquals(
+            listOf(atStop to at(90), live to at(60 * 46 - 30)),
+            fading.of("1", at(140)),
+        )
+        // Passed until four minutes past its time, a row apart from its next trip's
+        assertEquals(ArrivalPhase.Passed(3), fading.of("1", at(90 + 239)).first { it.first != live }.first)
+        assertEquals(listOf(live), fading.of("1", at(90 + 240)).map { it.first })
+    }
+
+    /**
+     * The pairs of answers sampled for the same vehicle at the same stop:
+     * its time first, the minutes it was away, then its time [later] min
+     * after, [seconds] s on
+     */
+    private fun pair(dueIn: Double, later: Double, seconds: Int): FadingArrivals = FadingArrivals.EMPTY
+        .fed("A", listOf(bus("1", (dueIn * 60).toInt())), at(0))
+        .fed("A", listOf(bus("1", (dueIn * 60 + later * 60).toInt())), at(seconds))
+
+    @Test
+    fun onlyAJumpNoDelayCanMakeIsANextTrip() {
+        // The two next passes seen: 261001 at 514208, 939001 at 514202
+        assertEquals(listOf(atStop, live), pair(2.1, 45.2, 30).of("1", at(30)).map { it.first })
+        assertEquals(listOf(atStop, live), pair(0.1, 42.1, 30).of("1", at(30)).map { it.first })
+        // The largest other changes, all the same bus later
+        assertEquals(listOf(live), pair(22.1, 8.9, 120).of("1", at(120)).map { it.first })
+        assertEquals(listOf(live), pair(6.8, 6.4, 180).of("1", at(180)).map { it.first })
+        assertEquals(listOf(live), pair(6.6, 2.5, 60).of("1", at(60)).map { it.first })
+        // A bus near the stop late by more than the clock ran, but less than five minutes more
+        assertEquals(listOf(live), pair(3.0, 5.4, 30).of("1", at(30)).map { it.first })
+    }
+
+    @Test
+    fun aDelayBuiltUpAnswerByAnswerStaysTheSameTrip() {
+        // Ten minutes away, a minute later at each answer for a quarter of an hour
+        var fading = FadingArrivals.EMPTY
+        for (i in 0..30) fading = fading.fed("A", listOf(bus("1", 600 + i * 90)), at(i * 30))
+        assertEquals(listOf(live to at(600 + 30 * 90)), fading.of("1", at(900)))
+    }
+
+    @Test
+    fun theNextTripOfAFadedBusCountsFromItsLastListing() {
+        // Due in 90 s, left, then listed 3 minutes on for 40 minutes later
+        val fading = FadingArrivals.EMPTY
+            .fed("A", listOf(bus("1", 90)), at(0))
+            .fed("A", emptyList(), at(30))
+            .fed("A", listOf(bus("1", 90 + 40 * 60)), at(180))
+        assertEquals(listOf(live, ArrivalPhase.Passed(1)), fading.of("1", at(180)).map { it.first })
+        // Seven minutes later than its time, five minutes on: the same bus, back
+        val back = FadingArrivals.EMPTY
+            .fed("A", listOf(bus("1", 90)), at(0))
+            .fed("A", emptyList(), at(30))
+            .fed("A", listOf(bus("1", 90 + 7 * 60)), at(300))
+        assertEquals(listOf(live), back.of("1", at(300)).map { it.first })
+    }
+
+    @Test
+    fun aFarTripWhoseNextOneShowsReachedTheStopAsWell() {
+        // Five minutes away, then its next pass: it got there meanwhile
+        val fading = FadingArrivals.EMPTY
+            .fed("A", listOf(bus("1", 300)), at(0))
+            .fed("A", listOf(bus("1", 300 + 46 * 60)), at(30))
+        assertEquals(listOf(atStop to at(30), live to at(300 + 46 * 60)), fading.of("1", at(30)))
+    }
 }

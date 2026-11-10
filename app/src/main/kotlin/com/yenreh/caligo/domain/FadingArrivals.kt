@@ -34,6 +34,14 @@ data class FadingRow(val bus: BusArrival, val stopId: String, val phase: Arrival
  * A bus is told by its vehicle within its stop: the service keeps a
  * vehicle's id from one answer to the next, and lists one vehicle at
  * several stops at once. One without an id goes at once.
+ *
+ * The service also keeps a vehicle's id for its next pass at the same
+ * stop, about one loop later, and lists it as it reaches the stop, at
+ * times without leaving the list in between. A listing that [isNextTrip]
+ * is that next trip, a row of its own: the trip before has reached the
+ * stop, and fades as one that left near its time, due at the earlier of
+ * its last time and the moment the next trip first shows. A trip fading
+ * stays until it goes, whatever its vehicle's next trip does.
  */
 class FadingArrivals private constructor(
     private val seen: List<Seen>,
@@ -57,14 +65,22 @@ class FadingArrivals private constructor(
         if (last != null && fetchedAt < last) return this
         val (before, others) = seen.partition { it.stopId == stopId }
         val listed = buses.map { Seen(stopId, it, fetchedAt, listed = true) }
-        val relisted = buses.mapNotNullTo(HashSet()) { it.vehicleId.takeIf(String::isNotEmpty) }
         val left = before.mapNotNull { earlier ->
+            val vehicle = earlier.bus.vehicleId
+            val time = earlier.bus.arrivalTime
+            // Its vehicle listed again: this trip still, or its next one
+            val again = if (vehicle.isEmpty()) emptyList() else buses.filter { it.vehicleId == vehicle }
             when {
-                earlier.bus.vehicleId in relisted -> null
+                again.any { !isNextTrip(time, earlier.listedAt, it.arrivalTime, fetchedAt) } -> null
                 // Never seen in the samples; such a bus could not be told from the next
-                earlier.bus.vehicleId.isEmpty() -> null
-                earlier.listed && earlier.bus.arrivalTime - earlier.listedAt > NEAR_MS -> null
-                fetchedAt >= earlier.bus.arrivalTime + GONE_AFTER_MS -> null
+                vehicle.isEmpty() -> null
+                // Its next trip shows: this one reached the stop, however far it seemed
+                earlier.listed && again.isNotEmpty() -> {
+                    val reached = earlier.bus.copy(arrivalTime = minOf(time, fetchedAt))
+                    if (fetchedAt >= reached.arrivalTime + GONE_AFTER_MS) null else Seen(stopId, reached, earlier.listedAt, listed = false)
+                }
+                earlier.listed && time - earlier.listedAt > NEAR_MS -> null
+                fetchedAt >= time + GONE_AFTER_MS -> null
                 earlier.listed -> Seen(stopId, earlier.bus, earlier.listedAt, listed = false)
                 else -> earlier
             }
@@ -147,6 +163,30 @@ class FadingArrivals private constructor(
         /** How long past its time a bus that reached the stop stays listed, greyed */
         val GONE_AFTER = 4.minutes
 
+        /**
+         * How much later than any delay could make it a listing of a
+         * vehicle is its next trip, and how close its trip before was
+         * to the stop: see [isNextTrip]
+         */
+        val NEXT_TRIP_MARGIN = 5.minutes
+
+        /**
+         * Whether a vehicle that gave [previous] at a stop, in the answer
+         * fetched at [listedAt], listed there again at [listing] in the one
+         * fetched at [at], is on its next trip rather than the same one
+         * late. A delay builds up answer by answer, about as fast as the
+         * clock at most, so only the next pass jumps by more than the time
+         * between the answers plus [NEXT_TRIP_MARGIN]; and only a trip due
+         * within [NEXT_TRIP_MARGIN] of its last listing was about to end. A
+         * bus stuck far away drifting later stays the same trip. In the
+         * samples, 1447 pairs of answers: changes up to +82 s at p99, +537
+         * s at p99.9; the next passes +45.2 and +42.1 min in 30 s, due
+         * within 2.1 min.
+         */
+        fun isNextTrip(previous: Long, listedAt: Long, listing: Long, at: Long): Boolean =
+            previous - listedAt <= NEXT_TRIP_MARGIN_MS &&
+                listing - previous > (at - listedAt).coerceAtLeast(0) + NEXT_TRIP_MARGIN_MS
+
         /** Passed rows shown on top of a list's limit, the most recent */
         const val MAX_PASSED = 2
 
@@ -154,6 +194,7 @@ class FadingArrivals private constructor(
         private val NEAR_MS = NEAR.inWholeMilliseconds
         private val AT_STOP_FOR_MS = AT_STOP_FOR.inWholeMilliseconds
         private val GONE_AFTER_MS = GONE_AFTER.inWholeMilliseconds
+        private val NEXT_TRIP_MARGIN_MS = NEXT_TRIP_MARGIN.inWholeMilliseconds
     }
 }
 
