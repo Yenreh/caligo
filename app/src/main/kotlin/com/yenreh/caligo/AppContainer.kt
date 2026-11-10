@@ -21,6 +21,8 @@ import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.repositories.CardRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import com.yenreh.caligo.ui.trips.TransitNetworkLoader
+import com.yenreh.caligo.waits.RepositoryWaitSource
+import com.yenreh.caligo.waits.WaitDesk
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -74,6 +76,9 @@ class AppContainer(private val context: Context) {
 
     /** The device location, asked from the activity on screen */
     val location = AndroidLocationSource(context)
+
+    /** The buses waited for, which the wait service follows */
+    val waits = WaitDesk(context, RepositoryWaitSource(stopsRepository))
 
     val backup = Backup(database, cardRepository, stopsRepository, settings)
 

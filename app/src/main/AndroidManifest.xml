@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- The bus waited for, in a notification -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- The rounds of a wait stay on time with the screen off -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:name=".CaliGoApp"
@@ -17,6 +23,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.CaliGo.Starting"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -24,6 +31,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+            Follows the buses waited for. Not exported, never restarted:
+            each start comes from a bell tapped in the app
+        -->
+        <service
+            android:name=".waits.WaitService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Shows the live countdown of a bus the user chose to wait for, asking a public transit arrivals service until the bus comes or the user stops waiting" />
+        </service>
+
+        <!-- The buttons and the swipe of a wait's notification -->
+        <receiver
+            android:name=".waits.WaitActionReceiver"
+            android:exported="false" />
 
         <!-- Backups go out through the share sheet from here -->
         <provider

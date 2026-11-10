@@ -14,6 +14,7 @@ import com.yenreh.caligo.data.json.string
 import com.yenreh.caligo.domain.ARRIVALS_REACH_METERS
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.LiveArrivals
+import com.yenreh.caligo.domain.WaitAnswer
 import com.yenreh.caligo.domain.areasCovering
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.LineBus
@@ -257,6 +258,22 @@ class StopsRemoteDatasource(
             failed = failed.get(),
             answeredAt = answeredAt,
         )
+    }
+
+    /**
+     * The newest answer asked within [maxAge] that surely covers a stop:
+     * one asked around a point within reach of it when [placed], the
+     * stop's own place, otherwise one asked around that same point. Asks
+     * nothing; null when there is none.
+     */
+    fun recentAnswer(latitude: Double, longitude: Double, placed: Boolean, maxAge: Duration): WaitAnswer? {
+        val tick = ticks()
+        val reach = if (placed) ARRIVALS_REACH_METERS else SAME_POINT_METERS
+        val area = synchronized(recentAreas) { recentAreas.toList() }.lastOrNull {
+            tick - it.tick <= maxAge.inWholeNanoseconds &&
+                metersBetween(it.latitude, it.longitude, latitude, longitude) <= reach
+        } ?: return null
+        return WaitAnswer(area.stops, area.at)
     }
 
     /** How often each line comes around the hour of [at], epoch milliseconds, as learned */
@@ -819,6 +836,9 @@ class StopsRemoteDatasource(
         val REQUEST_TIMEOUT = 10.seconds
         private const val MAX_ATTEMPTS = 2
         private const val MAX_RECENT_AREAS = 24
+
+        /** Points this close are the same point asked around */
+        private const val SAME_POINT_METERS = 1.0
         private const val POSITIONS_KEY = "stop_positions"
 
         /**

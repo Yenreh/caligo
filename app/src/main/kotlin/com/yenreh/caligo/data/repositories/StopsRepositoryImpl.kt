@@ -101,6 +101,9 @@ class StopsRepositoryImpl(
 
     override suspend fun rideFactors() = remote.rideFactors()
 
+    override fun recentAnswer(latitude: Double, longitude: Double, placed: Boolean, maxAge: Duration) =
+        remote.recentAnswer(latitude, longitude, placed, maxAge)
+
     override suspend fun stopPositions(stopIds: Iterable<String>) = remote.stopPositions(stopIds)
 
     override suspend fun recentArrivals(maxAge: Duration): Map<String, List<BusArrival>>? {

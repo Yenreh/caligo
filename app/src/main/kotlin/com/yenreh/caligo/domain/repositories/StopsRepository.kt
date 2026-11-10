@@ -2,6 +2,7 @@ package com.yenreh.caligo.domain.repositories
 
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.LiveArrivals
+import com.yenreh.caligo.domain.WaitAnswer
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.LineBus
@@ -105,6 +106,13 @@ interface StopsRepository {
      * [maxAge]; null otherwise
      */
     suspend fun recentArrivals(maxAge: Duration): Map<String, List<BusArrival>>?
+
+    /**
+     * The newest answer already fetched that covers a stop, if within
+     * [maxAge]: asked around a point within reach of it when [placed], the
+     * stop's own place, or else around that same point. Asks nothing.
+     */
+    fun recentAnswer(latitude: Double, longitude: Double, placed: Boolean, maxAge: Duration): WaitAnswer? = null
 
     /** Keep the arrivals just fetched, to show at once on the next launch */
     suspend fun keepArrivals(arrivals: Map<String, List<BusArrival>>)
