@@ -50,7 +50,7 @@ class TripRideTest {
         val moments = mutableListOf<Moment>()
         while (h.desk.running.value != null && h.now() < NOW + 15 * MINUTE) {
             h.ride(TripHarness.FIX_EVERY) { at -> if (at in noFixes) null else along(at) + listOf(-20.0, 15.0, 0.0)[((at / 15_000) % 3).toInt()] }
-            val trip = h.desk.running.value ?: break
+            val trip = h.desk.running.value?.ride ?: break
             val at = h.now()
             val progress = trip.progress(at)
             moments.add(
@@ -72,7 +72,7 @@ class TripRideTest {
         // No fixes: the rider's bus, matched by position, stands in, the decoys aside
         assertEquals(TripSource.BUS, at(3.0).source)
         assertFalse(at(3.0).title, "~" in at(3.0).title)
-        assertEquals("32051", h.desk.running.value?.bus?.busNumber ?: h.desk.ended.value?.trip?.bus?.busNumber)
+        assertEquals("32051", h.desk.running.value?.ride?.bus?.busNumber ?: h.desk.ended.value?.journey?.ride?.bus?.busNumber)
         // Neither: the estimate moves the rider on, and the times read "~"
         assertEquals(TripSource.ESTIMATE, at(5.5).source)
         assertTrue(at(5.5).title, "~" in at(5.5).title)
@@ -82,7 +82,7 @@ class TripRideTest {
         // The progress never went back, nor the stops left up
         for ((a, b) in moments.zipWithNext()) assertTrue("$a then $b", b.stopsLeft <= a.stopsLeft)
         // Ended past the stop, where the bus was
-        assertTrue(h.desk.ended.value!!.trip.confirmed >= 2800.0)
+        assertTrue(h.desk.ended.value!!.journey.ride!!.confirmed >= 2800.0)
 
         // Two warnings: two stops before Pampalinda, then as it is next, on the silent warning channel
         val warnings = moments.map { it.warned }.distinct()
@@ -106,7 +106,7 @@ class TripRideTest {
         h.source.answer = ::buses
         h.start(plan)
         h.ride(3 * MINUTE) { along(it) }
-        val trip = checkNotNull(h.desk.running.value)
+        val trip = checkNotNull(h.desk.running.value?.ride)
         // The last fix 825 m in, 1975 m to go: the planner's estimate for them, of 85.7 s every 400 m
         val left = trip.millisTo(7, h.now()) / 1000.0
         assertEquals(1975 / 400.0 * (400 * 1.15 / 7 + 20), left, 2.0)

@@ -49,6 +49,7 @@ class OpenTripNavigationTest {
                 CaliGoTheme {
                     AppNavigation(
                         settings,
+                        mapTiles = { androidx.compose.runtime.remember { com.yenreh.caligo.ui.map.FixtureTiles() } },
                         openedTrips = flow,
                         runningTrip = trips.running,
                         tripViewModel = { took ->

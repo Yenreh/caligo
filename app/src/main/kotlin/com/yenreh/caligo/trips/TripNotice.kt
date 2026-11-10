@@ -2,6 +2,9 @@ package com.yenreh.caligo.trips
 
 import android.content.res.Resources
 import com.yenreh.caligo.R
+import com.yenreh.caligo.domain.Journey
+import com.yenreh.caligo.domain.JourneyLeg
+import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.domain.TripSource
 import com.yenreh.caligo.waits.Alerts
@@ -62,6 +65,64 @@ data class TripNotice(
     val timeoutAfter: Long,
 ) {
     companion object {
+        /**
+         * The notice of [journey] at [now]: on the bus, its ride's, as
+         * [of] a ride; on foot, the walk left and what comes after it; at
+         * the stop, the lines to take and when the first of their waits'
+         * buses is due, [nextBusAt]
+         */
+        fun of(
+            journey: Journey,
+            now: Long,
+            alerts: Alerts,
+            words: TripWords,
+            nextPostIn: Long,
+            warningOn: Boolean = true,
+            nextBusAt: Long? = null,
+        ): TripNotice {
+            val title: String
+            val text: String
+            val chip: String?
+            var countdownTo: Long? = null
+            var progress = 0
+            var progressMax = 1
+            when (val phase = journey.phase(now)) {
+                is JourneyPhase.Riding -> return of(phase.trip, now, alerts, words, nextPostIn, warningOn)
+                is JourneyPhase.Walking -> {
+                    val minutes = Trip.minutesOf(phase.millis)
+                    title = words.walkTo(phase.leg.toName, minutes, phase.estimated)
+                    val next = journey.legs.getOrNull(journey.index + 1) as? JourneyLeg.Ride
+                    text = if (next != null) words.then(words.lines(next.ride.lines)) else words.destination
+                    chip = words.chipMinutes(minutes, phase.estimated)
+                    if (phase.millis > 0) countdownTo = now + phase.millis
+                    val total = phase.leg.walk.meters.coerceAtLeast(1.0)
+                    progressMax = total.toInt().coerceAtLeast(1)
+                    progress = (total - phase.meters).coerceIn(0.0, total).toInt()
+                }
+                is JourneyPhase.Waiting -> {
+                    title = words.take(words.lines(phase.leg.ride.lines), phase.leg.ride.board.name)
+                    val due = nextBusAt?.takeIf { it > now }
+                    text = if (due != null) words.nextBusIn(Trip.minutesOf(due - now)) else words.tookItHint
+                    chip = due?.let { words.chipMinutes(Trip.minutesOf(it - now), estimated = false) }
+                    countdownTo = due
+                    progress = 1
+                }
+            }
+            return TripNotice(
+                title = title,
+                text = text,
+                summary = "$title, $text",
+                chip = chip,
+                countdownTo = countdownTo,
+                progress = progress,
+                progressMax = progressMax,
+                points = emptyList(),
+                channel = TripChannel.TRIPS,
+                alerting = false,
+                timeoutAfter = nextPostIn + TIMEOUT_MARGIN_MS,
+            )
+        }
+
         /**
          * The notice of [trip] at [now], with [alerts] for the warning. Once
          * warned, it stays on the warning channel, silent from then on; the
@@ -179,4 +240,24 @@ class TripWords(private val resources: Resources) {
     val chipHere: String get() = resources.getString(R.string.trip_chip_here)
 
     val finish: String get() = resources.getString(R.string.trip_finish)
+
+    fun walkTo(place: String, minutes: Int, estimated: Boolean) =
+        resources.getString(R.string.trip_walk_to, place, about(estimated) + minutes)
+
+    fun then(lines: String) = resources.getString(R.string.trip_then, lines)
+
+    val destination: String get() = resources.getString(R.string.trip_your_destination)
+
+    fun take(lines: String, stop: String) = resources.getString(R.string.trip_take, lines, stop)
+
+    fun nextBusIn(minutes: Int) = resources.getString(R.string.trip_next_bus_in, minutes)
+
+    val tookItHint: String get() = resources.getString(R.string.trip_took_it_hint)
+
+    /** "E21", "E21 or T31", "E21, T31 or A47" */
+    fun lines(lines: List<String>): String = when (lines.size) {
+        0 -> ""
+        1 -> lines.single()
+        else -> resources.getString(R.string.trip_lines_or, lines.dropLast(1).joinToString(", "), lines.last())
+    }
 }

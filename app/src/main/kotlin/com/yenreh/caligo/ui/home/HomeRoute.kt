@@ -5,7 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.yenreh.caligo.domain.Trip
+import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.ui.cards.CardsViewModel
 import com.yenreh.caligo.ui.cards.ListenCardRefresh
@@ -31,7 +31,7 @@ fun HomeRoute(
     cardsViewModel: CardsViewModel = viewModel(factory = CardsViewModel.Factory),
     stopsViewModel: @Composable () -> StopsViewModel = { viewModel(factory = StopsViewModel.Factory) },
     /** The trip running, which the home leads back to */
-    trip: Trip? = null,
+    trip: Journey? = null,
 ) {
     val cards by cardsViewModel.cards.collectAsStateWithLifecycle()
     val stopsModel = if (settings.showsStops) stopsViewModel() else null

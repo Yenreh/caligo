@@ -9,7 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
-import com.yenreh.caligo.domain.Trip
+import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.trips.TripFixtures
 import com.yenreh.caligo.ui.common.setContentAt
@@ -27,7 +27,7 @@ class HomeTripBarTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
-    private val trip = Trip.start(TripFixtures.plan, HomeSamples.NOW)
+    private val trip = Journey.single(TripFixtures.plan, HomeSamples.NOW)
     private var opened = 0
 
     private fun show() {

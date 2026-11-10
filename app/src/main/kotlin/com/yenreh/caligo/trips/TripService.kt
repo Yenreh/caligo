@@ -11,9 +11,13 @@ import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import com.yenreh.caligo.CaliGoApp
-import com.yenreh.caligo.domain.Trip
+import com.yenreh.caligo.domain.AwaitedBus
+import com.yenreh.caligo.domain.Journey
+import com.yenreh.caligo.domain.TookRide
+import com.yenreh.caligo.domain.WaitKey
+import com.yenreh.caligo.waits.WaitDesk
+import com.yenreh.caligo.waits.WaitStart
 import com.yenreh.caligo.domain.TripEnding
-import com.yenreh.caligo.domain.TripPlan
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -42,13 +46,16 @@ class TripService : Service(), TripHost {
     private lateinit var scope: CoroutineScope
     private lateinit var engine: TripEngine
     private lateinit var words: TripWords
+    private lateinit var waits: WaitDesk
     private var wakeLock: PowerManager.WakeLock? = null
 
     private var lastStartId = 0
 
     override fun onCreate() {
         super.onCreate()
-        desk = (application as CaliGoApp).container.trips
+        val container = (application as CaliGoApp).container
+        desk = container.trips
+        waits = container.waits
         scope = CoroutineScope(SupervisorJob() + desk.coroutineContext)
         engine = TripEngine(desk.source, desk.location, desk.now, scope, this)
         words = TripWords(resources)
@@ -59,17 +66,17 @@ class TripService : Service(), TripHost {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         lastStartId = startId
         desk.attach(this)
-        val plan = desk.takePending()
+        val start = desk.takePending()
         // Started as a foreground service: it must say so at once
-        if (plan == null && engine.trip == null) {
+        if (start == null && engine.journey == null) {
             if (foreground(TripNotifications.PLACEHOLDER_ID, TripNotifications.placeholder(this))) idle() else stopSelfResult(startId)
             return START_NOT_STICKY
         }
-        if (plan != null) {
-            engine.start(plan)
-            val trip = checkNotNull(engine.trip)
+        if (start != null) {
+            engine.start(start)
+            val journey = checkNotNull(engine.journey)
             // Not allowed to follow the location: nothing runs, and the screen hears why
-            if (!foreground(TripNotifications.TRIP_ID, notification(trip, desk.now(), TripEngine.BEAT.inWholeMilliseconds))) {
+            if (!foreground(TripNotifications.TRIP_ID, notification(journey, desk.now(), TripEngine.BEAT.inWholeMilliseconds))) {
                 engine.end(TripEnding.NO_LOCATION)
             }
         }
@@ -79,6 +86,8 @@ class TripService : Service(), TripHost {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        // Killed with a trip on: the waits it started go with it
+        engine.journey?.awaited?.let { if (it.isNotEmpty()) stopWaits(it) }
         scope.cancel()
         desk.location.stop()
         NotificationManagerCompat.from(this).cancel(TripNotifications.TRIP_ID)
@@ -87,7 +96,9 @@ class TripService : Service(), TripHost {
         super.onDestroy()
     }
 
-    internal fun start(plan: TripPlan) = engine.start(plan)
+    internal fun start(start: TripStart) = engine.start(start)
+
+    internal fun took(took: TookRide): Boolean = engine.took(took)
 
     internal fun alightAt(alight: Int?) = engine.alightAt(alight)
 
@@ -100,22 +111,23 @@ class TripService : Service(), TripHost {
     override fun allowed(): Boolean = NotificationManagerCompat.from(this).areNotificationsEnabled() &&
         TripNotifications.channelOn(this, TripChannel.TRIPS)
 
-    private fun notification(trip: Trip, now: Long, nextPostIn: Long): Notification {
+    private fun notification(journey: Journey, now: Long, nextPostIn: Long): Notification {
         val alerts = desk.alerts()
         val warningOn = TripNotifications.channelOn(this, TripChannel.warning(alerts))
-        val notice = TripNotice.of(trip, now, alerts, words, nextPostIn, warningOn)
-        return TripNotifications.build(this, trip.startedAt, notice, alerts, words)
+        val next = waits.running.value.filter { it.key in journey.awaited }.minOfOrNull { it.arrivalTime }
+        val notice = TripNotice.of(journey, now, alerts, words, nextPostIn, warningOn, nextBusAt = next)
+        return TripNotifications.build(this, journey.startedAt, notice, alerts, words)
     }
 
     // allowed() holds before every post: the app's notifications are on
     @SuppressLint("MissingPermission")
-    override fun show(trip: Trip, now: Long, nextPostIn: Long) {
-        NotificationManagerCompat.from(this).notify(TripNotifications.TRIP_ID, notification(trip, now, nextPostIn))
+    override fun show(journey: Journey, now: Long, nextPostIn: Long) {
+        NotificationManagerCompat.from(this).notify(TripNotifications.TRIP_ID, notification(journey, now, nextPostIn))
         holdWakeLock(nextPostIn + WAKE_MARGIN_MS)
     }
 
-    override fun ended(trip: Trip, ending: TripEnding) {
-        desk.endedAs(trip, ending)
+    override fun ended(journey: Journey, ending: TripEnding) {
+        desk.endedAs(journey, ending)
         NotificationManagerCompat.from(this).cancel(TripNotifications.TRIP_ID)
     }
 
@@ -131,9 +143,19 @@ class TripService : Service(), TripHost {
         stopSelfResult(lastStartId)
     }
 
-    override fun changed(trip: Trip?) {
-        desk.changed(trip)
+    override fun changed(journey: Journey?) {
+        desk.changed(journey)
     }
+
+    // Ordinary waits, each with its notification and "I took it", in the waits' own service
+    override fun startWaits(buses: List<AwaitedBus>): List<WaitKey> =
+        buses.filter { waits.start(it, null) == WaitStart.STARTED }.map { it.key }
+
+    override fun stopWaits(keys: List<WaitKey>) {
+        for (key in keys) waits.stop(key)
+    }
+
+    override fun runningWaits(): Set<WaitKey> = waits.running.value.mapTo(HashSet()) { it.key }
 
     /** In the foreground with [notification], as a location service; false when the system refuses */
     private fun foreground(id: Int, notification: Notification): Boolean {

@@ -46,6 +46,8 @@ import com.yenreh.caligo.AppInfo
 import com.yenreh.caligo.R
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.semantics.Role
+import com.yenreh.caligo.domain.Journey
+import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.domain.TripSource
 import com.yenreh.caligo.domain.entities.HomeContent
@@ -103,7 +105,7 @@ fun HomeScreen(
     actions: HomeActions = HomeActions(),
     snackbars: LabSnackbars = rememberLabSnackbars(),
     /** The trip running, shown over the bar as the way back to it */
-    trip: Trip? = null,
+    trip: Journey? = null,
 ) {
     val p = LabTheme.palette
     val showsCards = settings.showsCards
@@ -324,22 +326,39 @@ private fun ManageBar(actions: HomeActions) {
 
 /** The trip running, a tap away: its line and where it gets off, with the time left */
 @Composable
-private fun TripBar(trip: Trip, onTrip: () -> Unit) {
+private fun TripBar(journey: Journey, onTrip: () -> Unit) {
     val p = LabTheme.palette
     watchLiveClock()
     val now = LocalNow.current()
-    val plan = trip.plan
-    val progress = trip.progress(now)
-    val target = plan.stops[plan.target].name
-    val minutes = trip.minutes(trip.millisTo(plan.target, now)).let { if (progress.source == TripSource.ESTIMATE) "~$it" else "$it" }
-    val heading = when {
-        plan.alight != null && progress.stopsLeft == 0 -> stringResource(R.string.trip_heading_here)
-        plan.alight != null -> stringResource(R.string.trip_heading_get_off, target)
-        else -> stringResource(R.string.trip_heading_follow, target)
+    val title: String
+    val subtitle: String
+    when (val phase = journey.phase(now)) {
+        is JourneyPhase.Riding -> {
+            val trip = phase.trip
+            val plan = trip.plan
+            val progress = trip.progress(now)
+            val target = plan.stops[plan.target].name
+            val minutes = trip.minutes(trip.millisTo(plan.target, now)).let { if (progress.source == TripSource.ESTIMATE) "~$it" else "$it" }
+            val heading = when {
+                plan.alight != null && progress.stopsLeft == 0 -> stringResource(R.string.trip_heading_here)
+                plan.alight != null -> stringResource(R.string.trip_heading_get_off, target)
+                else -> stringResource(R.string.trip_heading_follow, target)
+            }
+            title = stringResource(R.string.trip_home_title, plan.line)
+            subtitle = if (progress.stopsLeft > 0) "$heading · ${stringResource(R.string.trip_minutes, minutes)}" else heading
+        }
+        is JourneyPhase.Walking -> {
+            title = stringResource(R.string.trip_channel)
+            subtitle = stringResource(R.string.trip_walk_to, phase.leg.toName, (if (phase.estimated) "~" else "") + Trip.minutesOf(phase.millis))
+        }
+        is JourneyPhase.Waiting -> {
+            title = stringResource(R.string.trip_channel)
+            subtitle = stringResource(R.string.trip_heading_take, phase.leg.ride.lines.joinToString(" · "))
+        }
     }
     LabListTile(
-        title = stringResource(R.string.trip_home_title, plan.line),
-        subtitle = if (progress.stopsLeft > 0) "$heading · ${stringResource(R.string.trip_minutes, minutes)}" else heading,
+        title = title,
+        subtitle = subtitle,
         leading = painterResource(R.drawable.ic_directions_bus),
         leadingTint = p.accent,
         trailing = { Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null, tint = p.muted) },

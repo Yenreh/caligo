@@ -54,7 +54,7 @@ class TripServiceTest {
         h.assertRunning()
         h.ride(10 * MINUTE) { along(it) }
         h.assertEnded(TripEnding.REACHED)
-        assertEquals("Pampalinda", h.desk.ended.value!!.trip.plan.stops[7].name)
+        assertEquals("Pampalinda", h.desk.ended.value!!.journey.ride!!.plan.stops[7].name)
     }
 
     @Test
@@ -224,7 +224,7 @@ class TripServiceTest {
         assertEquals(TripEnding.REPLACED, h.desk.ended.value?.ending)
         h.assertRunning()
         assertEquals(1, h.posted.count { it.channelId?.startsWith("trip") == true })
-        assertEquals(3, h.desk.running.value?.plan?.alight)
+        assertEquals(3, h.desk.running.value?.ride?.plan?.alight)
     }
 
     // Waits and trips at once

@@ -62,8 +62,15 @@ class WaitDesk(
         service?.let { return it.add(bus, seed) }
         pending.add(bus to seed)
         publish()
-        // From the screen on show, the bell just tapped
-        ContextCompat.startForegroundService(context, Intent(context, WaitService::class.java))
+        // From the screen on show, the bell just tapped; or, for a trip's
+        // next ride, from the trip's own service, which the system may refuse
+        try {
+            ContextCompat.startForegroundService(context, Intent(context, WaitService::class.java))
+        } catch (_: IllegalStateException) {
+            pending.removeAll { it.first.key == bus.key }
+            publish()
+            return WaitStart.NOT_ALLOWED
+        }
         return WaitStart.STARTED
     }
 

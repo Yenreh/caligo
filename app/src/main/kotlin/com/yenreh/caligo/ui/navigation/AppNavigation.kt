@@ -60,10 +60,11 @@ import com.yenreh.caligo.ui.trips.PlacePickerRoute
 import com.yenreh.caligo.ui.trips.PlacePickerViewModel
 import com.yenreh.caligo.ui.trips.PlanTripRoute
 import com.yenreh.caligo.ui.trips.PlanTripViewModel
+import com.yenreh.caligo.ui.trips.TripMapTiles
 import com.yenreh.caligo.ui.trips.TripRoute
 import com.yenreh.caligo.ui.trips.TripViewModel
 import com.yenreh.caligo.domain.TookRide
-import com.yenreh.caligo.domain.Trip
+import com.yenreh.caligo.domain.Journey
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -103,7 +104,7 @@ fun AppNavigation(
     /** Trip screens to open over whatever screen is on, as "I took it" and the trip's notification open them */
     openedTrips: Flow<Route.Trip> = emptyFlow(),
     /** The trip running, which the home leads back to */
-    runningTrip: StateFlow<Trip?> = MutableStateFlow(null),
+    runningTrip: StateFlow<Journey?> = MutableStateFlow(null),
     /** The view model of a trip screen, for the ride it names: its own, or a test's */
     tripViewModel: @Composable (took: TookRide?) -> TripViewModel = { viewModel(factory = TripViewModel.factory(it)) },
 ) {
@@ -288,7 +289,8 @@ fun AppNavigation(
                 EditCardRoute(key.cardId, cards(), onBack = ::back, onDone = { backFrom(key) })
             }
             entry<Route.Trip> { key ->
-                TripRoute(tripViewModel(key.took?.ride), onBack = { backFrom(key) })
+                val tiles = mapTiles(current)
+                TripRoute(tripViewModel(key.took?.ride), onBack = { backFrom(key) }, tiles = TripMapTiles(tiles, current.darkMap))
             }
             entry<Route.Settings> {
                 SettingsRoute(onBack = ::back, onLicenses = { open(Route.Licenses) })

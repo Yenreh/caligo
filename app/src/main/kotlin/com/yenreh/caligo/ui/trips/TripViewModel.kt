@@ -28,6 +28,27 @@ import kotlinx.coroutines.launch
 /** Why the trip did not start, with the way to the settings that fix it */
 enum class TripMessage { NEEDS_NOTIFICATIONS, NEEDS_LOCATION, LOCATION_OFF }
 
+/**
+ * What a trip needs and does not have, after asking for it, from the
+ * screen on show: its notification, location on and the while-in-use
+ * permission; null when all is there
+ */
+suspend fun tripNeeds(notifications: NotificationAccess, location: LocationSource): TripMessage? {
+    if (!notifications.granted() && !notifications.request()) return TripMessage.NEEDS_NOTIFICATIONS
+    if (!notifications.enabled()) return TripMessage.NEEDS_NOTIFICATIONS
+    if (!location.isServiceEnabled()) return TripMessage.LOCATION_OFF
+    var permission = location.checkPermission()
+    if (permission != LocationPermission.GRANTED) {
+        permission = try {
+            location.requestPermission()
+        } catch (_: IllegalStateException) {
+            // No activity to ask from
+            LocationPermission.DENIED
+        }
+    }
+    return if (permission == LocationPermission.GRANTED) null else TripMessage.NEEDS_LOCATION
+}
+
 /** What the trip screen shows before the trip runs, and whether it does */
 data class TripScreenState(
     /** The ride to choose a stop on; Ready(null) when its line does not call at the stop */
@@ -62,15 +83,17 @@ class TripViewModel(
     private var loading: Job? = null
 
     init {
-        took?.let { waits.took(it.waitKey) }
         val running = trips.running.value
         val ended = trips.ended.value
         when {
             took == null -> state.update { it.copy(started = true) }
+            // A bus a planner trip waited for: the trip takes it as its ride
+            trips.took(took) -> state.update { it.copy(started = true) }
             // Back from the notification, or turned: the trip already runs, or ran
-            running?.plan?.took == took || ended?.trip?.plan?.took == took -> state.update { it.copy(started = true) }
+            running?.ride?.plan?.took == took || ended?.journey?.ride?.plan?.took == took -> state.update { it.copy(started = true) }
             else -> load()
         }
+        took?.let { waits.took(it.waitKey) }
     }
 
     /** Ask for the route again */
@@ -119,22 +142,7 @@ class TripViewModel(
         }
     }
 
-    /** What the trip needs and does not have, after asking for it; null when all is there */
-    private suspend fun missing(): TripMessage? {
-        if (!notifications.granted() && !notifications.request()) return TripMessage.NEEDS_NOTIFICATIONS
-        if (!notifications.enabled()) return TripMessage.NEEDS_NOTIFICATIONS
-        if (!location.isServiceEnabled()) return TripMessage.LOCATION_OFF
-        var permission = location.checkPermission()
-        if (permission != LocationPermission.GRANTED) {
-            permission = try {
-                location.requestPermission()
-            } catch (_: IllegalStateException) {
-                // No activity to ask from
-                LocationPermission.DENIED
-            }
-        }
-        return if (permission == LocationPermission.GRANTED) null else TripMessage.NEEDS_LOCATION
-    }
+    private suspend fun missing(): TripMessage? = tripNeeds(notifications, location)
 
     /** Get off at [alight] instead, while the trip runs */
     fun alightAt(alight: Int?) = trips.alightAt(alight)

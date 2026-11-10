@@ -37,6 +37,11 @@ class TripHarness {
     private var controller: ServiceController<TripService>? = null
     private var startId = 0
 
+    /** The waits' own service, once a trip's waits start it */
+    var waitController: ServiceController<com.yenreh.caligo.waits.WaitService>? = null
+        private set
+    private var waitStartId = 0
+
     init {
         desk.source = source
         desk.location = location
@@ -46,13 +51,37 @@ class TripHarness {
 
     fun tearDown() {
         controller?.destroy()
+        waitController?.destroy()
+    }
+
+    /** The waits on the same virtual time, their answers by [answer] */
+    fun waitsAnswering(answer: (com.yenreh.caligo.domain.AskPoint, Long) -> com.yenreh.caligo.domain.WaitAnswer) {
+        val waits = app.container.waits
+        waits.source = com.yenreh.caligo.waits.FakeWaitSource(answer, now)
+        waits.now = now
+        waits.coroutineContext = StandardTestDispatcher(scheduler)
+    }
+
+    /** Run the waits' service as the system would, for each start asked of it */
+    private fun serveWaits() {
+        while (true) {
+            val intent = shadowOf(app).nextStartedService ?: return
+            if (intent.component?.className != com.yenreh.caligo.waits.WaitService::class.java.name) continue
+            val running = waitController
+            waitController = if (running == null || shadowOf(running.get()).isStoppedBySelf) {
+                (running ?: Robolectric.buildService(com.yenreh.caligo.waits.WaitService::class.java).create()).startCommand(0, ++waitStartId)
+            } else {
+                running.startCommand(0, ++waitStartId)
+            }
+            scheduler.runCurrent()
+        }
     }
 
     val service: TripService get() = checkNotNull(controller).get()
 
-    /** Start [plan] as the trip screen does, the service taking it */
-    fun start(plan: TripPlan) {
-        desk.start(plan)
+    /** Start [plan] as the trip screen does, the service taking it; null takes the start already asked */
+    fun start(plan: TripPlan?) {
+        plan?.let { desk.start(it) }
         val running = controller
         controller = if (running == null || shadowOf(running.get()).isStoppedBySelf) {
             (running ?: Robolectric.buildService(TripService::class.java, Intent(app, TripService::class.java)).create())
@@ -67,6 +96,7 @@ class TripHarness {
         scheduler.advanceTimeBy(millis)
         scheduler.runCurrent()
         shadowOf(Looper.getMainLooper()).idle()
+        serveWaits()
     }
 
     /**
@@ -80,6 +110,18 @@ class TripHarness {
             advance(minOf(FIX_EVERY, end - now()))
         }
     }
+
+    /** [millis] of fixes every 15 s where [pointAt] puts the rider, none where it gives null */
+    fun move(millis: Long, pointAt: (Long) -> com.yenreh.caligo.domain.GeoPoint?) {
+        val end = now() + millis
+        while (now() < end && desk.running.value != null) {
+            pointAt(now())?.let { location.emit(com.yenreh.caligo.domain.TripFix(it, 10.0, now())) }
+            advance(minOf(FIX_EVERY, end - now()))
+        }
+    }
+
+    /** The waits' notifications on show, by title */
+    val waitTitles: List<String> get() = posted.filter { it.channelId == "waits" || it.channelId?.startsWith("alert") == true }.map { it.title() }
 
     /** The trip's own notification, if on show */
     val shown: Notification?
@@ -107,6 +149,7 @@ class TripHarness {
         assertNull("no trip", desk.running.value)
         assertNull("its notification gone", shown)
         assertTrue(posted.none { it.channelId?.startsWith("trip") == true })
+        assertTrue("no wait of the trip's left: $waitTitles", desk.ended.value?.journey?.awaited.orEmpty().none { key -> app.container.waits.running.value.any { it.key == key } })
         val shadow = shadowOf(service)
         assertTrue("stopped", shadow.isStoppedBySelf)
         assertTrue("out of the foreground", shadow.isForegroundStopped)

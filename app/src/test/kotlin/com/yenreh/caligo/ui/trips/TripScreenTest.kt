@@ -194,10 +194,38 @@ class TripScreenTest {
 
     @Test
     fun theTripEndedSaysHow() {
-        val ended = com.yenreh.caligo.domain.Trip.start(TripFixtures.plan, NOW)
+        val ended = com.yenreh.caligo.domain.Journey.single(TripFixtures.plan, NOW)
         trips.ended.value = com.yenreh.caligo.trips.EndedTrip(ended, com.yenreh.caligo.domain.TripEnding.REACHED)
         show(took = null)
         waitFor("trip_ended")
         compose.onNode(hasText("You reached Pampalinda.")).assertExists()
+    }
+
+    // A planner trip
+
+    @Test
+    fun aPlannerTripOnFootSaysTheWalkAndWhatComesAfter() {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        show(took = null)
+        waitFor("trip_running")
+        compose.onNode(hasText("Trip to Unicentro")).assertExists()
+        compose.onNode(hasText("Walk to Plaza de Cayzedo A1")).assertExists()
+        compose.onNode(hasText("THEN")).assertExists()
+        compose.onNode(hasText("E21 or T31 to Calle 5 con Kr 39, 6 stops")).assertExists()
+        compose.assertControlsAccessible()
+    }
+
+    @Test
+    fun iTookItOnAWaitOfAPlannerTripTakesThatLineAsItsRide() {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        val took = TookRide("T31", "Universidades", TripFixtures.out[0].stopId, TripFixtures.out[0].name, "815001", NOW + 600_000)
+        show(took)
+        waitFor("trip_running")
+        assertEquals(listOf(took), trips.tookRides)
+        assertEquals("T31", trips.running.value?.ride?.plan?.line)
+        // The wait it came from ends as taken; nothing asks where to get off
+        assertEquals(listOf(took.waitKey), waits.took)
+        assertTrue(!exists("trip_choose"))
+        compose.onNode(hasText("Get off at Calle 5 con Kr 39")).assertExists()
     }
 }

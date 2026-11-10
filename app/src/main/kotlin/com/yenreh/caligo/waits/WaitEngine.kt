@@ -53,7 +53,14 @@ interface WaitHost {
 }
 
 /** How starting a wait went */
-enum class WaitStart { STARTED, ALREADY_WAITING, CAP_REACHED }
+enum class WaitStart {
+    STARTED,
+    ALREADY_WAITING,
+    CAP_REACHED,
+
+    /** The system would not start the service: from the background, as a trip's next ride may ask */
+    NOT_ALLOWED,
+}
 
 /**
  * The waits and their rounds, on [scope]'s single thread.

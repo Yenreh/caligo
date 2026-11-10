@@ -360,4 +360,24 @@
     <string name="trip_ended_replaced">Otro viaje tomó su lugar.</string>
     <string name="trip_home_title">En el %1$s</string>
     <string name="trip_open">Abrir el viaje</string>
+    <string name="trip_walk_to">Camina a %1$s, %2$s min</string>
+    <string name="trip_then">Luego el %1$s</string>
+    <string name="trip_your_destination">Tu destino</string>
+    <string name="trip_take">Toma el %1$s en %2$s</string>
+    <string name="trip_next_bus_in">Próximo bus en %1$d min</string>
+    <string name="trip_took_it_hint">Toca Lo tomé en su bus al subir</string>
+    <string name="trip_lines_or">%1$s o %2$s</string>
+    <string name="trip_to_destination">Viaje a %1$s</string>
+    <string name="trip_heading_walk">Camina a %1$s</string>
+    <string name="trip_walk_detail">%1$s min · %2$d m</string>
+    <string name="trip_heading_take">Toma el %1$s</string>
+    <string name="trip_at_stop">En %1$s</string>
+    <string name="trip_then_label">Después</string>
+    <string name="trip_ahead_walk">Camina a %1$s, %2$d min</string>
+    <plurals name="trip_ahead_ride">
+        <item quantity="one">%1$s hasta %2$s, %3$d parada</item>
+        <item quantity="many">%1$s hasta %2$s, %3$d paradas</item>
+        <item quantity="other">%1$s hasta %2$s, %3$d paradas</item>
+    </plurals>
+    <string name="trip_follow_me">Seguir mi posición</string>
 </resources>

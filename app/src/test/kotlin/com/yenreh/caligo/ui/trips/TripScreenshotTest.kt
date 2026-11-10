@@ -59,7 +59,7 @@ class TripScreenshotTest {
 
     private fun choosing(name: String) = shot(name, TripContent.Choosing(TripFixtures.plan), "trip_choose")
 
-    private fun running(name: String) = shot(name, TripContent.Running(riding), "trip_running")
+    private fun running(name: String) = shot(name, TripContent.Running(com.yenreh.caligo.domain.Journey.single(TripFixtures.plan, NOW - 3 * MINUTE).let { it.copy(ride = riding) }), "trip_running")
 
     @Test
     fun chooseLight() = choosing("trip_choose_light")
@@ -82,6 +82,62 @@ class TripScreenshotTest {
     @Test
     @Config(fontScale = 2f)
     fun rideFontScale2() = running("trip_ride_font2")
+
+    // With the map, over fixture tiles
+
+    private fun map(name: String, journey: com.yenreh.caligo.domain.Journey, dark: Boolean) {
+        val tiles = com.yenreh.caligo.ui.map.FixtureTiles(dark = dark)
+        compose.setContentAt(NOW) {
+            CaliGoTheme {
+                TripScreen(
+                    content = TripContent.Running(journey),
+                    title = "Viaje a Unicentro",
+                    tiles = TripMapTiles(androidx.compose.runtime.remember { tiles }, dark = dark, fadeIn = false),
+                )
+            }
+        }
+        // A close map covers a handful of tiles
+        compose.waitUntil(WAIT_TIMEOUT_MS) {
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50))
+            tiles.asked.size >= 4
+        }
+        repeat(5) {
+            Thread.sleep(100)
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(100))
+            compose.waitForIdle()
+        }
+        compose.captureWindow(name)
+    }
+
+    /** On the T31, five minutes into the planner trip, its bus beside the rider */
+    private val onTheT31 = com.yenreh.caligo.domain.Journey.planned(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro", NOW - 10 * MINUTE)
+        .took("T31", NOW - 2 * MINUTE)
+        .fixed(com.yenreh.caligo.trips.JourneyFixtures.fixAt(com.yenreh.caligo.trips.JourneyFixtures.calle5Route.pointAt(900.0), NOW))
+        .withBuses("T31", listOf(com.yenreh.caligo.trips.JourneyFixtures.busOn(com.yenreh.caligo.trips.JourneyFixtures.calle5Route, "41022", 930.0)), NOW)
+
+    private val walking = com.yenreh.caligo.domain.Journey.planned(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro", NOW - 2 * MINUTE)
+
+    @Test
+    fun mapRideLight() = map("trip_map_ride_light", onTheT31, dark = false)
+
+    @Test
+    @Config(qualifiers = "+night")
+    fun mapRideDark() = map("trip_map_ride_dark", onTheT31, dark = true)
+
+    @Test
+    @Config(fontScale = 2f)
+    fun mapRideFontScale2() = map("trip_map_ride_font2", onTheT31, dark = false)
+
+    @Test
+    fun mapWalkLight() = map("trip_map_walk_light", walking, dark = false)
+
+    @Test
+    @Config(qualifiers = "+night")
+    fun mapWalkDark() = map("trip_map_walk_dark", walking, dark = true)
+
+    @Test
+    @Config(fontScale = 2f)
+    fun mapWalkFontScale2() = map("trip_map_walk_font2", walking, dark = false)
 
     // The notification, as the shade would inflate it off a device
 

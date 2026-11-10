@@ -362,4 +362,23 @@
     <string name="trip_ended_replaced">Another trip took its place.</string>
     <string name="trip_home_title">On the %1$s</string>
     <string name="trip_open">Open the trip</string>
+    <string name="trip_walk_to">Walk to %1$s, %2$s min</string>
+    <string name="trip_then">Then the %1$s</string>
+    <string name="trip_your_destination">Your destination</string>
+    <string name="trip_take">Take the %1$s at %2$s</string>
+    <string name="trip_next_bus_in">Next bus in %1$d min</string>
+    <string name="trip_took_it_hint">Tap I took it on its bus as you board</string>
+    <string name="trip_lines_or">%1$s or %2$s</string>
+    <string name="trip_to_destination">Trip to %1$s</string>
+    <string name="trip_heading_walk">Walk to %1$s</string>
+    <string name="trip_walk_detail">%1$s min · %2$d m</string>
+    <string name="trip_heading_take">Take the %1$s</string>
+    <string name="trip_at_stop">At %1$s</string>
+    <string name="trip_then_label">Then</string>
+    <string name="trip_ahead_walk">Walk to %1$s, %2$d min</string>
+    <plurals name="trip_ahead_ride">
+        <item quantity="one">%1$s to %2$s, %3$d stop</item>
+        <item quantity="other">%1$s to %2$s, %3$d stops</item>
+    </plurals>
+    <string name="trip_follow_me">Follow my position</string>
 </resources>
