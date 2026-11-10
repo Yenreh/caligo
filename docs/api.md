@@ -64,6 +64,27 @@ moves up to a minute either way between answers. The app keeps a bus
 that leaves within 2 minutes of its time on its row, at the stop and
 then passed, until 4 minutes past that time.
 
+The service also reuses a vehicle's id for its next pass at the same
+stop: it lists the vehicle about one loop later (45 minutes at stop
+514208, sampled on the phone in November 2026) right as it reaches the
+stop, sometimes without leaving the list in between. Of 1447 pairs of
+answers for the same vehicle at the same stop, its time changed by +0 s
+at the median, +82 s at p99 and +537 s at p99.9; the two next passes
+jumped by +45.2 and +42.1 minutes in 30 s, due within 2.1 and 0.1
+minutes. A delay builds up answer by answer, about as fast as the clock
+at most, so the app takes a listing as the vehicle's next trip when its
+time is later than the time last given by more than the time between the
+two answers plus 5 minutes, and that trip was due within 5 minutes of the
+answer that last listed it; the trip before has then reached the stop. A
+bus stuck far away drifting later stays the same trip (the largest such
+changes seen: +8.9 minutes in 120 s at 22.1 minutes away, +6.4 in 180 s
+at 6.8, +2.5 in 60 s at 6.6).
+
+`vehiculoId` is not the bus number of `operations/{line}`: the A47's live
+buses 22074, 32057 and 32079 ran while the arrivals listed 261001, 815001
+and 939001, all ending in 001, so likely a schedule block. Neither
+`busInfo` nor a route's direction confirms a trip by that id.
+
 ## Catalog, lines and buses
 
 Base: `https://wsmio.siur.com.co:8083/apiMIO/jaxrs`
