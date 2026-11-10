@@ -138,8 +138,12 @@ class PlanTripViewModelTest {
     private fun bus(line: String, vehicle: String, minutes: Int) =
         BusArrival(line, "End", clock + minutes.minutes.inWholeMilliseconds, vehicle)
 
-    private fun arrivals(vararg stops: Pair<String, List<BusArrival>>) =
-        LiveArrivals(clock, stops.map { (id, buses) -> NearbyStop(id, "Stop $id", 0.0, buses) })
+    /** An answer fetched now, listing [stops] with their buses */
+    private fun arrivals(vararg stops: Pair<String, List<BusArrival>>) = LiveArrivals(
+        clock,
+        stops.map { (id, buses) -> NearbyStop(id, "Stop $id", 0.0, buses) },
+        answeredAt = stops.associate { (id, _) -> id to clock },
+    )
 
     private val PlanTripState.options get() = (results as PlanResults.Options).rows
 

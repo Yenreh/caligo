@@ -110,8 +110,12 @@ class TripFixtures(
     fun bus(line: String, vehicle: String, minutes: Int) =
         BusArrival(line, "End", clock + minutes.minutes.inWholeMilliseconds, vehicle)
 
-    fun arrivals(vararg stops: Pair<String, List<BusArrival>>) =
-        LiveArrivals(clock, stops.map { (id, buses) -> NearbyStop(id, "Stop $id", 0.0, buses) })
+    /** An answer fetched now, listing [stops] with their buses */
+    fun arrivals(vararg stops: Pair<String, List<BusArrival>>) = LiveArrivals(
+        clock,
+        stops.map { (id, buses) -> NearbyStop(id, "Stop $id", 0.0, buses) },
+        answeredAt = stops.associate { (id, _) -> id to clock },
+    )
 
     /** Every view model let go, and the work they left */
     fun clear() {

@@ -413,6 +413,26 @@ class StopsRemoteDatasourceTest {
 
         assertTrue(live.stops.isEmpty())
         assertTrue(live.failed)
+        // Not answered: nothing it lists can be taken to have left
+        assertTrue(live.answeredAt.isEmpty())
+    }
+
+    @Test
+    fun aStopAskedAboutCountsAsAnsweredEvenWhenLeftOut() = runTest {
+        val service = arrivals { _, _ -> ok(ARRIVALS_BODY) }
+        val datasource = service.datasource()
+        // Within reach of the area, but not in its answer: no bus coming
+        val quiet = lineStop("quiet", 3.4525, -76.5320)
+
+        val live = datasource.arrivalsFor(listOf(lineStop("500800", 3.4516, -76.5320), quiet))
+
+        assertTrue(live.stops.none { it.id == "quiet" })
+        assertTrue("quiet" in live.answeredAt)
+        assertEquals(live.answeredAt.getValue("quiet"), live.answeredAt.getValue("500800"))
+        // A reused area is the same answer, fetched when it was
+        val again = datasource.arrivalsFor(listOf(quiet))
+        assertEquals(1, service.calls)
+        assertEquals(live.answeredAt.getValue("quiet"), again.answeredAt.getValue("quiet"))
     }
 
     @Test

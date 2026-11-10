@@ -15,6 +15,7 @@ import com.yenreh.caligo.data.location.LocationSource
 import com.yenreh.caligo.data.location.currentDevicePosition
 import com.yenreh.caligo.data.location.lastKnownDevicePosition
 import com.yenreh.caligo.domain.GeoPoint
+import com.yenreh.caligo.domain.FadingArrivals
 import com.yenreh.caligo.domain.LiveArrivals
 import com.yenreh.caligo.domain.TransitNetwork
 import com.yenreh.caligo.domain.TripPlanner
@@ -183,6 +184,12 @@ class PlanTripViewModel(
     private var planRequest = 0
 
     private var fetchingLive = false
+
+    /**
+     * The buses of the answers asked for, at the stops the plans board at,
+     * so one that reaches its stop still counts while it is there
+     */
+    private var fading = FadingArrivals.EMPTY
 
     /**
      * Set when arrivals were wanted while others were on their way, or came
@@ -390,6 +397,7 @@ class PlanTripViewModel(
                 val expanded = state.value.expanded
                 if (open != null && expanded != null && open != expanded) liveAgain = true
                 this@PlanTripViewModel.headways = headways
+                fading = live.feed(fading).only(boardStops(plans))
                 state.update { it.copy(live = if (open == null) live else live.over(it.live)) }
                 retime(sort = true)
                 learnRides(plans)
@@ -435,8 +443,9 @@ class PlanTripViewModel(
         val current = state.value
         val plans = current.plans ?: return
         val now = now()
+        val live = current.live?.copy(atTheStop = fading.atTheStop(now))
         val timed = plans.indices.associateWith { i ->
-            timeTrip(plans[i], start = now, live = current.live, headways = headways, pinned = pinned[i].orEmpty())
+            timeTrip(plans[i], start = now, live = live, headways = headways, pinned = pinned[i].orEmpty())
         }
         val order = if (sort || current.order.size != plans.size) {
             // Ranked as the planner ranks them, now with the buses on their way
@@ -445,6 +454,15 @@ class PlanTripViewModel(
             current.order
         }
         state.update { it.copy(timed = timed, order = order) }
+    }
+
+    /** Every stop [plans] board at, by any of their lines */
+    private fun boardStops(plans: List<TripOption>): Set<String> = buildSet {
+        for (plan in plans) {
+            for (ride in plan.rides) {
+                for (variant in ride.variants.ifEmpty { listOf(ride) }) add(variant.board.stopId)
+            }
+        }
     }
 
     /** Show ride [rideIndex] of plan [plan] as made by [line] */

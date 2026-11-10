@@ -97,9 +97,18 @@ class RideLeg(
      * off at, rather than the estimate from the route
      */
     val liveRide: Boolean = false,
+    /** Whether the bus waited for is at the stop already, gone from the answers when due */
+    val busAtStop: Boolean = false,
 ) : TripLeg() {
     /** The same ride timed: against a live bus, or by the usual figures */
-    fun timed(wait: Duration, duration: Duration, departsAt: Long, liveWait: Boolean, liveRide: Boolean) = RideLeg(
+    fun timed(
+        wait: Duration,
+        duration: Duration,
+        departsAt: Long,
+        liveWait: Boolean,
+        liveRide: Boolean,
+        busAtStop: Boolean = false,
+    ) = RideLeg(
         line = line,
         towards = towards,
         stops = stops,
@@ -109,6 +118,7 @@ class RideLeg(
         departsAt = departsAt,
         liveWait = liveWait,
         liveRide = liveRide,
+        busAtStop = busAtStop,
     )
 
     /** Every line that makes the ride */

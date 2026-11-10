@@ -26,7 +26,9 @@ fun typicalWait(line: String, headways: Map<String, Duration> = emptyMap()): Dur
 
 /**
  * [option] timed from [start], epoch milliseconds: each wait against the
- * first live bus that can still be caught, each ride by following that
+ * first live bus that can still be caught, one already at the stop with
+ * no wait when it is still there once the stop is reached, never one
+ * passed; each ride by following that
  * bus to where it is left, and the usual figures wherever no bus is
  * known. Of the lines making a ride, the one arriving first is taken,
  * unless [pinned] names one for that ride, by its position among the
@@ -65,8 +67,8 @@ fun timeTrip(
             val arrives: Long
             val liveRide: Boolean
             if (bus != null) {
-                departs = bus.arrivalTime
-                val reached = live.reachedAt(bus.vehicleId, variant.alight, departs)
+                departs = bus.departsAt
+                val reached = live.reachedAt(bus.bus.vehicleId, variant.alight, departs)
                 liveRide = reached != null
                 arrives = reached ?: (departs + variant.duration.inWholeMilliseconds)
             } else {
@@ -83,6 +85,7 @@ fun timeTrip(
                     departsAt = departs,
                     liveWait = bus != null,
                     liveRide = liveRide,
+                    busAtStop = bus?.atStop == true,
                 )
             }
         }

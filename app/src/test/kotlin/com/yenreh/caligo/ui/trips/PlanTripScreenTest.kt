@@ -245,6 +245,28 @@ class PlanTripScreenTest {
     }
 
     @Test
+    fun aBusGoneFromTheAnswersWhenDueIsAtTheStop() {
+        // Starting at the stop itself; the next answer no longer lists the bus due in a minute
+        var calls = 0
+        val repository = trips.repository().apply {
+            tripArrivals = {
+                if (++calls == 1) {
+                    trips.arrivals("a0" to listOf(trips.bus("T1", "v1", 1), trips.bus("T1", "v2", 12)), "a12" to listOf(trips.bus("T1", "v1", 23)))
+                } else {
+                    trips.arrivals("a0" to listOf(trips.bus("T1", "v2", 12)), "a12" to listOf(trips.bus("T1", "v1", 23)))
+                }
+            }
+        }
+        val model = trips.planner(repository, location = trips.location(lastKnown = trips.point(0.0, 0.0)))
+        show(model)
+        trips.clock += 30_000
+        compose.onNodeWithContentDescription("Update times").performClick()
+
+        waitFor(hasText("T1 at the stop · a 0"))
+        assertEquals(Duration.ZERO, model.option.firstRide!!.wait)
+    }
+
+    @Test
     fun saysSoWhenSomeArrivalsCouldNotBeAskedFor() {
         val repository = trips.repository().apply { tripArrivals = { LiveArrivals(trips.clock, emptyList(), failed = true) } }
         show(trips.planner(repository))

@@ -125,6 +125,10 @@ class FadingArrivals private constructor(
         .filter { !it.listed && now - it.bus.arrivalTime < AT_STOP_FOR_MS }
         .groupBy({ it.stopId }, { it.bus })
 
+    /** Only what is remembered of [stopIds] */
+    fun only(stopIds: Set<String>): FadingArrivals =
+        FadingArrivals(seen.filter { it.stopId in stopIds }, answeredAt.filterKeys { it in stopIds })
+
     /** Whether nothing is remembered */
     val isEmpty: Boolean get() = seen.isEmpty()
 

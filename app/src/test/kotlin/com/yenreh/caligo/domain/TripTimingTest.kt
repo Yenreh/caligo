@@ -163,6 +163,18 @@ class TripTimingTest {
     }
 
     @Test
+    fun aStopAnsweredAgainWithoutBusesDropsWhatItHad() {
+        val older = live(mapOf(board to listOf(bus("T1", "v1", 1))))
+        // The service leaves out a stop with no bus coming
+        val newer = LiveArrivals(fetchedAt = start + 30_000, stops = emptyList(), answeredAt = mapOf("b" to start + 30_000))
+
+        val merged = newer.over(older)
+
+        assertTrue(merged.stops.isEmpty())
+        assertEquals(mapOf("b" to start + 30_000), merged.answeredAt)
+    }
+
+    @Test
     fun readsHowAFollowedRideRanAgainstItsEstimate() {
         val planned = trip(listOf(ride("T1", board, alight)))
         val timed = timeTrip(
@@ -199,5 +211,56 @@ class TripTimingTest {
             listOf("b", "a", "f", "g"),
             stopsWorthAsking(listOf(trip), start = start, horizon = 600.minutes).map { it.stopId },
         )
+    }
+
+    // A bus at the stop: gone from the answers when due
+
+    /** How long the walk from where [option] starts to its first stop takes, in milliseconds */
+    private fun walkToBoard(option: TripOption) = (option.legs.first() as WalkLeg).duration.inWholeMilliseconds
+
+    @Test
+    fun aBusAtTheStopCountsWithNoWaitWhenReachedWhileStillThere() {
+        val option = trip(listOf(ride("E21", board, alight)))
+        val walk = walkToBoard(option)
+        // Its time 50 s before the rider gets there: there for ten seconds more
+        val there = bus("E21", "v1", 0).copy(arrivalTime = start + walk - 50_000)
+        val live = live(mapOf(board to listOf(bus("E21", "v2", 9)))).copy(atTheStop = mapOf("b" to listOf(there)))
+
+        val ride = timeTrip(option, start = start, live = live).firstRide!!
+
+        assertTrue(ride.busAtStop)
+        assertTrue(ride.liveWait)
+        assertEquals(kotlin.time.Duration.ZERO, ride.wait)
+        assertEquals(start + walk, ride.departsAt)
+    }
+
+    @Test
+    fun aBusAtTheStopIsMissedWhenTheWalkOutlastsIt() {
+        val option = trip(listOf(ride("E21", board, alight)))
+        val walk = walkToBoard(option)
+        // Gone a minute past its time, just as the rider gets there
+        val there = bus("E21", "v1", 0).copy(arrivalTime = start + walk - 60_000)
+        val live = live(mapOf(board to listOf(bus("E21", "v2", 9)))).copy(atTheStop = mapOf("b" to listOf(there)))
+
+        val ride = timeTrip(option, start = start, live = live).firstRide!!
+
+        assertFalse(ride.busAtStop)
+        assertEquals(minutesIn(9), ride.departsAt)
+    }
+
+    @Test
+    fun aPassedBusNeverCounts() {
+        val option = trip(listOf(ride("E21", board, alight)))
+        // Listed due in a minute, then gone: passed 70 s ago by now
+        val fading = FadingArrivals.EMPTY
+            .fed("b", listOf(bus("E21", "v1", 0).copy(arrivalTime = start - 70_000), bus("E21", "v2", 9)), start - 130_000)
+            .fed("b", listOf(bus("E21", "v2", 9)), start - 100_000)
+        assertEquals(ArrivalPhase.Passed(1), fading.rows(start).last().phase)
+        val live = live(mapOf(board to listOf(bus("E21", "v2", 9)))).copy(atTheStop = fading.atTheStop(start))
+
+        val ride = timeTrip(option, start = start, live = live).firstRide!!
+
+        assertFalse(ride.busAtStop)
+        assertEquals(minutesIn(9), ride.departsAt)
     }
 }

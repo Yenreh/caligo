@@ -238,14 +238,24 @@ class StopsRemoteDatasource(
         }
         areas.addAll(answers.filterNotNull())
 
+        // A stop asked about counts as answered by the area covering it,
+        // listed or not; one seen, by the area its buses came from
+        val answeredAt = LinkedHashMap<String, Long>()
+        for (stop in stops) {
+            areas.firstOrNull { covers(it, stop) }?.let { answeredAt[stop.stopId] = it.at }
+        }
         val seen = LinkedHashMap<String, NearbyStop>()
         for (area in areas) {
-            for (stop in area.stops) seen[stop.id] = stop
+            for (stop in area.stops) {
+                seen[stop.id] = stop
+                answeredAt[stop.id] = area.at
+            }
         }
         return LiveArrivals(
             fetchedAt = if (areas.isEmpty()) now else areas.minOf { it.at },
             stops = seen.values.toList(),
             failed = failed.get(),
+            answeredAt = answeredAt,
         )
     }
 

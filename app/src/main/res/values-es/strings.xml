@@ -230,6 +230,7 @@
     </plurals>
     <string name="walk_distance">%1$d m a pie</string>
     <string name="next_bus_now">%1$s llegando</string>
+    <string name="bus_at_the_stop">%1$s en la parada</string>
     <string name="bus_leaves_at">%1$s pasa %2$s (en %3$d min)</string>
     <string name="no_live_bus">Sin bus en vivo · espera aprox. %1$d min</string>
     <string name="step_walk_to">Camina %1$d min hasta %2$s</string>

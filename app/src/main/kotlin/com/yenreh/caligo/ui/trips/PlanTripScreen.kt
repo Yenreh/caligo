@@ -882,7 +882,9 @@ private fun LegsStrip(option: TripOption) {
 private fun FirstBus(ride: RideLeg, now: () -> Long) {
     val p = LabTheme.palette
     val departsAt = ride.departsAt
-    val text = if (ride.liveWait && departsAt != null) {
+    val text = if (ride.busAtStop) {
+        stringResource(R.string.bus_at_the_stop, ride.line)
+    } else if (ride.liveWait && departsAt != null) {
         // Whole seconds, as Dart's inSeconds, then rounded to minutes
         val minutes = (((departsAt - now()) / 1000) / 60.0).roundToInt()
         if (minutes <= 0) {

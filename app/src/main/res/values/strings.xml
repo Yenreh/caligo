@@ -236,6 +236,7 @@
     </plurals>
     <string name="walk_distance">%1$d m on foot</string>
     <string name="next_bus_now">%1$s arriving</string>
+    <string name="bus_at_the_stop">%1$s at the stop</string>
     <string name="bus_leaves_at">%1$s at %2$s (in %3$d min)</string>
     <string name="no_live_bus">No live bus · about %1$d min wait</string>
     <string name="step_walk_to">Walk %1$d min to %2$s</string>
