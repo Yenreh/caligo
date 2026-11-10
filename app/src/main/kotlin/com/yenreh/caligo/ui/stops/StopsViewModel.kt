@@ -171,8 +171,9 @@ class StopsViewModel(
      * Whatever changes while the read or the position is on its way, or
      * a move still being saved, has the stops read again: the Flutter app
      * showed what it had read before waiting, and lost those changes.
+     * Without [keep], the arrivals of the last run are not shown meanwhile.
      */
-    private suspend fun load() {
+    private suspend fun load(keep: Boolean = true) {
         state.update { it.copy(isLoading = true, error = null) }
         try {
             var position: GeoPoint? = null
@@ -188,7 +189,7 @@ class StopsViewModel(
                 }
                 // A fix landing meanwhile has reordered the stops on screen: kept
                 val favorites = arranged(read, position ?: fix.takeIf { settings.value.sortStopsByProximity })
-                val kept = if (state.value.arrivals.isEmpty()) keptArrivals(favorites) else null
+                val kept = if (keep && state.value.arrivals.isEmpty()) keptArrivals(favorites) else null
                 if (state.value.favorites !== before) continue
                 val ids = favorites.mapTo(HashSet()) { it.id }
                 state.update {
@@ -315,11 +316,20 @@ class StopsViewModel(
 
         state.update { it.copy(isRefreshing = true, error = null) }
 
+        // The stop each favorite is asked about: one relinked or removed
+        // meanwhile takes nothing from this refresh
+        val asked = targets.associate { it.id to it.stopId }
+        fun moved(): Set<String> {
+            val listed = state.value.favorites.associateBy { it.id }
+            return asked.filter { (id, stopId) -> listed[id]?.stopId != stopId || id !in listed }.keys
+        }
+
         val results = LinkedHashMap(current.arrivals)
         val answers = LinkedHashMap<String, Answer>()
         val healed = LinkedHashMap<String, FavoriteStop>()
         val saved = LinkedHashMap<String, FavoriteStop>()
         var failure: ApiException? = null
+        var stale = emptySet<String>()
         var ended = false
         try {
             // Every error ends the refresh, of whatever type: the Flutter app
@@ -341,7 +351,10 @@ class StopsViewModel(
                         }.awaitAll()
                     }
                 }
+                val gone = moved()
                 for (stop in healed.values) {
+                    // Its old stop's misses would undo the relink
+                    if (stop.id in gone) continue
                     repository.updateFavorite(stop)
                     saved[stop.id] = stop
                 }
@@ -351,16 +364,21 @@ class StopsViewModel(
             }
 
             lastRefresh = now()
+            stale = moved()
+            for (id in stale) {
+                results.remove(id)
+                answers.remove(id)
+            }
             state.update {
-                val ids = it.favorites.mapTo(HashSet()) { stop -> stop.id }
                 val fading = LinkedHashMap(it.fading)
                 for ((id, answer) in answers) {
-                    if (id !in ids) continue
                     fading[id] = (fading[id] ?: FadingArrivals.EMPTY).fedWhole(answer.stops, answer.fetchedAt)
                 }
+                val arrivals = LinkedHashMap(results)
+                for (id in stale) it.arrivals[id]?.let { kept -> arrivals[id] = kept }
                 it.copy(
                     favorites = if (saved.isEmpty()) it.favorites else it.favorites.map { stop -> saved[stop.id] ?: stop },
-                    arrivals = results,
+                    arrivals = arrivals,
                     fading = fading,
                     isRefreshing = false,
                     error = failure,
@@ -374,6 +392,9 @@ class StopsViewModel(
         }
 
         if (failure == null) viewModelScope.launch { repository.keepArrivals(results) }
+        // A favorite relinked meanwhile gets its new stop's buses at once
+        val relinked = state.value.favorites.any { it.id in stale }
+        if (relinked) return refresh(force = true)
         // A refresh from anywhere resets the clock, and sets its new pace
         if (autoRefreshing) scheduleNext()
     }
@@ -558,9 +579,10 @@ class StopsViewModel(
         if (!saved { repository.updateFavorite(favorite.copy(stopId = stop.id, name = stop.name, missingCount = 0)) }) {
             return@launch
         }
-        // The buses remembered were another stop's
-        state.update { it.copy(fading = it.fading - id) }
-        load()
+        // The buses on show were another stop's: with none, the load asks
+        // for its own, and those kept from the last run are as old
+        state.update { it.copy(arrivals = it.arrivals - id, fading = it.fading - id) }
+        load(keep = false)
     }
 
     /**

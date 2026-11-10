@@ -15,6 +15,7 @@ import com.yenreh.caligo.ui.FakeStopsRepository
 import com.yenreh.caligo.ui.favorite
 import com.yenreh.caligo.ui.nearbyStop
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -179,7 +180,7 @@ class StopsFadingTest {
         val repository = FakeStopsRepository(
             favorites = listOf(favorite("a", 3.4516, -76.5320), favorite("b", 3.4700, -76.5320)),
             nearby = listOf(nearbyStop("a", listOf(bus("1", dueAt = 60))), nearbyStop("b", listOf(bus("2", dueAt = 60)))),
-        )
+        ).apply { applyUpdates = true }
         val (stops, _) = scripted(repository, listOf(repository.nearby))
         stops.refreshArrivals(force = true).join()
         assertEquals(setOf("a", "b"), stops.stops.value.fading.keys)
@@ -187,10 +188,43 @@ class StopsFadingTest {
         stops.removeFavorite("b").join()
         assertNull(stops.stops.value.fading["b"])
 
-        // Another stop: the buses remembered were the old one's
-        repository.nearby = emptyList()
+        // Another stop, with no bus coming: the near bus remembered was the
+        // old one's, and neither shows nor fades
         stops.relinkFavorite("a", NearbyStop(id = "z", name = "Stop z", distanceMeters = 40.0)).join()
+        assertEquals(emptyList<BusArrival>(), stops.stops.value.arrivals["a"])
         assertEquals(emptyList<Pair<String, ArrivalPhase>>(), rows(stops, "a"))
+    }
+
+    @Test
+    fun aFavoriteRelinkedWhileARefreshIsOnItsWayTakesNothingFromIt() = test {
+        val old = bus("1", dueAt = 60)
+        val new = bus("2", dueAt = 300)
+        val repository = FakeStopsRepository(
+            favorites = listOf(favorite("a", 3.4516, -76.5320)),
+            nearby = listOf(nearbyStop("a", listOf(old)), nearbyStop("z", listOf(new))),
+        ).apply { applyUpdates = true }
+        val (stops, times) = scripted(repository, listOf(repository.nearby))
+        assertEquals(listOf("1" to live), rows(stops, "a"))
+
+        // A refresh held on its way while the favorite moves to another stop
+        val gate = CompletableDeferred<Unit>()
+        val script = repository.answer
+        repository.answer = { gate.await() }
+        val held = stops.refreshArrivals(force = true)
+        stops.relinkFavorite("a", NearbyStop(id = "z", name = "Stop z", distanceMeters = 40.0)).join()
+        repository.answer = script
+        gate.complete(Unit)
+        held.join()
+
+        // Asked again at once, for the new stop: the old one's buses neither show nor fade
+        assertEquals(listOf(new), stops.stops.value.arrivals["a"])
+        assertEquals(listOf("2" to live), rows(stops, "a"))
+        assertEquals(3, repository.nearbyCalls)
+        assertEquals(listOf(0L, 0L), times)
+        advanceTimeBy(30.seconds)
+        stops.refreshArrivals(force = true).join()
+        assertEquals(listOf("2" to live), rows(stops, "a"))
+        assertEquals(listOf("z"), repository.saved.map { it.stopId })
     }
 
     private companion object {
