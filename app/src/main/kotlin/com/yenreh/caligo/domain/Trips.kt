@@ -149,6 +149,8 @@ data class FollowedBus(
     val seenAt: Long,
     /** Answers in a row that left it out, or placed it off the route */
     val missed: Int = 0,
+    /** Answers in a row that placed it past the stop to get off at */
+    val pastStop: Int = 0,
 )
 
 /** Where a trip stands at a moment, and what backs it */
@@ -191,7 +193,10 @@ data class Trip(
     val bus: FollowedBus? = null,
     /** When good fixes began to fall beyond the corridor; null while on it */
     val offRouteSince: Long? = null,
-    /** When the rider reached the stop to get off at, by a fix or the bus */
+    /**
+     * When a fix of the rider's own put them at the stop to get off at;
+     * null while their progress is short of it
+     */
     val atStopSince: Long? = null,
     /** The lowest warning level gone out, or that there was no need for: see [warningLevel] */
     val warned: Int = NO_WARNING,
@@ -261,8 +266,10 @@ data class Trip(
         val anchor = progress(fix.at).along
         return when (val follow = route.follow(previous, fix.point, fix.at - confirmedAt, anchor)) {
             is Follow.On -> {
+                // A fix after the bus or the estimate stood in puts the rider where it says, behind them or not
                 val moved = if (confirmedBy == TripSource.FIX) maxOf(confirmed, follow.along) else follow.along
-                copy(confirmed = moved, lastFix = fix, lastFixAlong = moved, offRouteSince = null)
+                // Taken back short of the stop, a count a bus or the estimate began goes too
+                copy(confirmed = moved, lastFix = fix, lastFixAlong = moved, offRouteSince = null, atStopSince = atStop(moved, fix.at, TripSource.FIX))
                     .confirm(moved, fix.at, TripSource.FIX)
             }
             // On the route somewhere: not off it, but nothing to go by
@@ -288,12 +295,18 @@ data class Trip(
             val moved = seen?.takeIf { it.direction == null || it.direction == plan.direction }
                 ?.let { route.follow(known.along, GeoPoint(it.latitude, it.longitude), at - known.seenAt) }
             when (moved) {
-                is Follow.On -> known.copy(along = moved.along, seenAt = at, missed = 0)
-                else -> known.copy(missed = known.missed + 1)
+                is Follow.On -> known.copy(
+                    along = moved.along,
+                    seenAt = at,
+                    missed = 0,
+                    pastStop = if (moved.along >= targetAlong + PASSED_METERS) known.pastStop + 1 else 0,
+                )
+                else -> known.copy(missed = known.missed + 1, pastStop = 0)
             }
         }
         // The rider is not on a bus that a fix of theirs leaves far behind or ahead
         val riderAlong = if (fixFresh) lastFixAlong else null
+        // What it alone moved the rider on went already, with the fix that came after it: see [fixed]
         if (followed != null && (followed.missed >= BUS_LOST_ANSWERS ||
                 (riderAlong != null && abs(followed.along - riderAlong) > BUS_DIVERGES_METERS))
         ) {
@@ -315,16 +328,26 @@ data class Trip(
 
     private fun confirm(along: Double, at: Long, by: TripSource): Trip {
         val moved = maxOf(confirmed, along)
-        val atStop = atStopSince ?: if (moved >= targetAlong - TripRoute.AT_STOP_METERS) at else null
-        return copy(confirmed = moved, confirmedAt = at, confirmedBy = by, atStopSince = atStop)
+        return copy(confirmed = moved, confirmedAt = at, confirmedBy = by, atStopSince = atStop(moved, at, by))
+    }
+
+    /**
+     * When the rider counts as at the stop, at [along] metres by [by]:
+     * only a fix of their own starts the count, and progress short of the
+     * stop clears it
+     */
+    private fun atStop(along: Double, at: Long, by: TripSource): Long? = when {
+        along < targetAlong - TripRoute.AT_STOP_METERS -> null
+        by == TripSource.FIX -> atStopSince ?: at
+        else -> atStopSince
     }
 
     /** Get off at [alight] instead, or just follow the ride when null: the warnings start over */
     fun alightAt(alight: Int?, now: Long): Trip {
         val changed = copy(plan = plan.copy(alight = alight), atStopSince = null)
-        val reached = changed.confirmed >= changed.targetAlong - TripRoute.AT_STOP_METERS
+        val byFix = changed.lastFixAlong?.let { it >= changed.targetAlong - TripRoute.AT_STOP_METERS } == true
         return changed.copy(
-            atStopSince = if (reached) now else null,
+            atStopSince = if (byFix) now else null,
             warned = changed.warningLevel(changed.progress(now).stopsLeft) ?: NO_WARNING,
         )
     }
@@ -332,7 +355,7 @@ data class Trip(
     /** At [now]: whether it goes on, or how it ends */
     fun step(now: Long): TripStep {
         if (now >= startedAt + TIME_LIMIT_MS) return TripStep.Ends(TripEnding.TIME_LIMIT)
-        if (confirmed >= targetAlong + PASSED_METERS) return TripStep.Ends(TripEnding.REACHED)
+        if (confirmed >= targetAlong + PASSED_METERS && passedFor(now)) return TripStep.Ends(TripEnding.REACHED)
         atStopSince?.let { if (now >= it + AT_STOP_FOR_MS) return TripStep.Ends(TripEnding.REACHED) }
         // Only the estimate: once it has had the rider there a good while
         val reachedByEstimate = confirmedAt + (secondsTo(plan.target, confirmed) * 1000).toLong()
@@ -341,6 +364,21 @@ data class Trip(
         }
         offRouteSince?.let { if (now >= it + OFF_ROUTE_FOR_MS) return TripStep.Ends(TripEnding.OFF_ROUTE) }
         return TripStep.Goes
+    }
+
+    /**
+     * Whether the stop to get off at is behind the rider for sure: a fix of
+     * their own at it or past it; or else the bus they are on past it in
+     * two answers in a row, and at least half the route's estimate from
+     * boarding gone since the start, so a bus a little ahead taken for
+     * theirs, or the next of a bunch, does not end the ride early
+     */
+    private fun passedFor(now: Long): Boolean {
+        val fix = lastFixAlong
+        if (fix != null && fix >= targetAlong - TripRoute.AT_STOP_METERS) return true
+        val bus = bus ?: return false
+        val half = secondsTo(plan.target, route.at[plan.board]) * 1000 / 2
+        return bus.pastStop >= BUS_PAST_ANSWERS && now - startedAt >= half
     }
 
     /**
@@ -397,6 +435,9 @@ data class Trip(
 
         /** Answers in a row without the rider's bus before another is matched */
         const val BUS_LOST_ANSWERS = 3
+
+        /** Answers in a row a bus must be past the stop to get off at, as the only sign of it */
+        const val BUS_PAST_ANSWERS = 2
 
         /** A bus this far along from the rider's own fix is not theirs */
         const val BUS_DIVERGES_METERS = 600.0
