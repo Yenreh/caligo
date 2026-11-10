@@ -110,7 +110,7 @@ fun timeTrip(
  * Rides shorter than this say little of how a line runs: a minute either
  * way would swing them
  */
-private val READABLE_RIDE = 5.minutes
+internal val READABLE_RIDE = 5.minutes
 
 /**
  * How long each ride of [timed] took by following its bus, against what

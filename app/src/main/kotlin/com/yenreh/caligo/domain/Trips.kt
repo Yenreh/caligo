@@ -153,6 +153,12 @@ data class FollowedBus(
     val pastStop: Int = 0,
 )
 
+/**
+ * A stop passed on a ride, at [at]; [backed] when a fix or the bus placed
+ * the rider within moments of it, not the estimate across a gap
+ */
+data class StopPass(val index: Int, val at: Long, val backed: Boolean)
+
 /** Where a trip stands at a moment, and what backs it */
 data class TripProgress(
     /** Metres along the route */
@@ -202,6 +208,8 @@ data class Trip(
     val warned: Int = NO_WARNING,
     /** A warning has gone out */
     val alerted: Boolean = false,
+    /** The stops passed so far, as the rider's progress was confirmed past each */
+    val passes: List<StopPass> = emptyList(),
 ) {
     val route: TripRoute by lazy(LazyThreadSafetyMode.NONE) { TripRoute(plan.stops) }
 
@@ -211,6 +219,14 @@ data class Trip(
     }
 
     private val targetAlong: Double get() = route.at[plan.target]
+
+    /**
+     * Where the stop to get off at is behind the rider: past it; or, when
+     * the route given ends there, as a planner's ride does, at it, since
+     * nothing past it can be told
+     */
+    private val passedAlong: Double
+        get() = if (plan.target == plan.stops.lastIndex) targetAlong - TripRoute.AT_STOP_METERS else targetAlong + PASSED_METERS
 
     /** Where the rider is at [now] */
     fun progress(now: Long): TripProgress {
@@ -231,7 +247,7 @@ data class Trip(
     fun millisTo(index: Int, now: Long): Long = (secondsTo(index, progress(now).along) * 1000).toLong()
 
     /** Whole minutes to show for [millis], at least 1 while not there */
-    fun minutes(millis: Long): Int = if (millis <= 0) 0 else (millis / 60_000.0).roundToInt().coerceAtLeast(1)
+    fun minutes(millis: Long): Int = minutesOf(millis)
 
     private fun secondsAt(along: Double): Double {
         val at = route.at
@@ -269,8 +285,14 @@ data class Trip(
                 // A fix after the bus or the estimate stood in puts the rider where it says, behind them or not
                 val moved = if (confirmedBy == TripSource.FIX) maxOf(confirmed, follow.along) else follow.along
                 // Taken back short of the stop, a count a bus or the estimate began goes too
-                copy(confirmed = moved, lastFix = fix, lastFixAlong = moved, offRouteSince = null, atStopSince = atStop(moved, fix.at, TripSource.FIX))
-                    .confirm(moved, fix.at, TripSource.FIX)
+                copy(
+                    confirmed = moved,
+                    lastFix = fix,
+                    lastFixAlong = moved,
+                    offRouteSince = null,
+                    atStopSince = atStop(moved, fix.at, TripSource.FIX),
+                    passes = passesTo(moved, fix.at),
+                ).confirm(moved, fix.at, TripSource.FIX)
             }
             // On the route somewhere: not off it, but nothing to go by
             Follow.Elsewhere -> copy(offRouteSince = null)
@@ -299,7 +321,7 @@ data class Trip(
                     along = moved.along,
                     seenAt = at,
                     missed = 0,
-                    pastStop = if (moved.along >= targetAlong + PASSED_METERS) known.pastStop + 1 else 0,
+                    pastStop = if (moved.along >= passedAlong) known.pastStop + 1 else 0,
                 )
                 else -> known.copy(missed = known.missed + 1, pastStop = 0)
             }
@@ -328,7 +350,49 @@ data class Trip(
 
     private fun confirm(along: Double, at: Long, by: TripSource): Trip {
         val moved = maxOf(confirmed, along)
-        return copy(confirmed = moved, confirmedAt = at, confirmedBy = by, atStopSince = atStop(moved, at, by))
+        return copy(
+            confirmed = moved,
+            confirmedAt = at,
+            confirmedBy = by,
+            atStopSince = atStop(moved, at, by),
+            passes = passesTo(moved, at),
+        )
+    }
+
+    /**
+     * [passes] with the rider confirmed at [along] at [at]: each stop newly
+     * passed since [confirmed], backed when the confirmation before came
+     * within moments; taken back, those beyond go
+     */
+    private fun passesTo(along: Double, at: Long): List<StopPass> {
+        val from = route.stopAt(confirmed)
+        val to = route.stopAt(along)
+        if (to < from) return passes.filter { it.index <= to }
+        val backed = at - confirmedAt <= PASS_BACKED_MS
+        val known = passes.mapTo(HashSet()) { it.index }
+        return passes + (from + 1..to).filter { it !in known }.map { StopPass(it, at, backed) }
+    }
+
+    /**
+     * How the ride really ran against the route's estimate alone, the
+     * line's factor left out, as `observeRides` takes it: from the first
+     * stop after boarding to the one got off at. Null when most of it, or
+     * either end, was timed by the estimate rather than a fix or the bus,
+     * or when it is too short to say much.
+     */
+    fun reading(): Double? {
+        val first = plan.board + 1
+        val last = plan.target
+        if (last <= first) return null
+        val start = passes.firstOrNull { it.index == first } ?: return null
+        val end = passes.firstOrNull { it.index == last } ?: return null
+        val span = passes.filter { it.index in first..last }
+        if (!start.backed || !end.backed || span.count { it.backed } * 2 < last - first + 1) return null
+        val raw = TransitNetwork.routeSeconds(plan.line, plan.stops)
+        val estimate = raw[last] - raw[first]
+        if (estimate < READABLE_RIDE.inWholeSeconds) return null
+        val took = (end.at - start.at) / 1000.0
+        return if (took > 0) took / estimate else null
     }
 
     /**
@@ -355,7 +419,7 @@ data class Trip(
     /** At [now]: whether it goes on, or how it ends */
     fun step(now: Long): TripStep {
         if (now >= startedAt + TIME_LIMIT_MS) return TripStep.Ends(TripEnding.TIME_LIMIT)
-        if (confirmed >= targetAlong + PASSED_METERS && passedFor(now)) return TripStep.Ends(TripEnding.REACHED)
+        if (confirmed >= passedAlong && passedFor(now)) return TripStep.Ends(TripEnding.REACHED)
         atStopSince?.let { if (now >= it + AT_STOP_FOR_MS) return TripStep.Ends(TripEnding.REACHED) }
         // Only the estimate: once it has had the rider there a good while
         val reachedByEstimate = confirmedAt + (secondsTo(plan.target, confirmed) * 1000).toLong()
@@ -400,6 +464,9 @@ data class Trip(
     fun warnedAt(now: Long): Trip = warningDue(now)?.let { copy(warned = it, alerted = true) } ?: this
 
     companion object {
+        /** Whole minutes to show for [millis], at least 1 while not there */
+        fun minutesOf(millis: Long): Int = if (millis <= 0) 0 else (millis / 60_000.0).roundToInt().coerceAtLeast(1)
+
         /** Follow [plan] from [now], the rider at the boarding stop */
         fun start(plan: TripPlan, now: Long): Trip {
             val boarded = Trip(plan, now, confirmed = 0.0, confirmedAt = now).let { it.copy(confirmed = it.route.at[plan.board]) }
@@ -439,6 +506,9 @@ data class Trip(
         /** Answers in a row a bus must be past the stop to get off at, as the only sign of it */
         const val BUS_PAST_ANSWERS = 2
 
+        /** A stop passed this soon after the confirmation before counts as timed, not estimated */
+        val PASS_BACKED = 90.seconds
+
         /** A bus this far along from the rider's own fix is not theirs */
         const val BUS_DIVERGES_METERS = 600.0
 
@@ -448,5 +518,6 @@ data class Trip(
         private val AT_STOP_FOR_MS = AT_STOP_FOR.inWholeMilliseconds
         private val ESTIMATE_GRACE_MS = ESTIMATE_GRACE.inWholeMilliseconds
         private val OFF_ROUTE_FOR_MS = OFF_ROUTE_FOR.inWholeMilliseconds
+        private val PASS_BACKED_MS = PASS_BACKED.inWholeMilliseconds
     }
 }
