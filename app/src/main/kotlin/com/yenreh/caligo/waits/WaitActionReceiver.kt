@@ -20,12 +20,6 @@ class WaitActionReceiver : BroadcastReceiver() {
             WaitNotifications.ACTION_DISMISSED -> WaitEnding.DISMISSED
             else -> return
         }
-        val container = (context.applicationContext as CaliGoApp).container
-        // A wait a trip started is the trip service's own
-        if (intent.getBooleanExtra(WaitNotifications.EXTRA_TRIP_WAIT, false)) {
-            container.trips.endWait(key, ending)
-        } else {
-            container.waits.act(key, ending)
-        }
+        (context.applicationContext as CaliGoApp).container.waits.act(key, ending)
     }
 }

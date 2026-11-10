@@ -28,13 +28,13 @@ object TripNotifications {
     /** Shown only when a start finds no trip to carry the service */
     const val PLACEHOLDER_ID = 4200
 
-    /** The waits a trip starts, one id each, apart from the waits' own service's */
-    const val FIRST_WAIT_ID = 4211
-
-    val waitIds: IntRange get() = FIRST_WAIT_ID until FIRST_WAIT_ID + com.yenreh.caligo.domain.Wait.CAP
 
     const val ACTION_FINISH = "com.yenreh.caligo.trip.FINISH"
     const val ACTION_DISMISSED = "com.yenreh.caligo.trip.DISMISSED"
+
+    /** "I took the A47": the trip takes that line for the ride it awaits */
+    const val ACTION_TAKE_LINE = "com.yenreh.caligo.trip.TAKE_LINE"
+    const val EXTRA_LINE = "line"
 
     /** Opens the trip screen in the app */
     const val ACTION_OPEN_TRIP = "com.yenreh.caligo.OPEN_TRIP"
@@ -89,17 +89,16 @@ object TripNotifications {
         return made.importance != NotificationManagerCompat.IMPORTANCE_NONE
     }
 
-    /** At every process start no trip runs: a notification a killed process left goes, its waits' too */
+    /** At every process start no trip runs: a notification a killed process left goes */
     fun cancelLeftovers(context: Context) {
         val manager = NotificationManagerCompat.from(context)
         manager.cancel(PLACEHOLDER_ID)
         manager.cancel(TRIP_ID)
-        for (id in waitIds) manager.cancel(id)
     }
 
     /** [notice] of the trip started at [startedAt] as its notification */
     fun build(context: Context, startedAt: Long, notice: TripNotice, alerts: Alerts, words: TripWords): Notification {
-        val builder = NotificationCompat.Builder(context, notice.channel.id)
+        val builder = NotificationCompat.Builder(context, notice.channelId)
             .setSmallIcon(R.drawable.ic_directions_bus)
             .setContentTitle(notice.title)
             .setContentText(notice.text)
@@ -112,7 +111,7 @@ object TripNotifications {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(openTrip(context))
             .setDeleteIntent(action(context, startedAt, ACTION_DISMISSED))
-            .addAction(0, words.finish, action(context, startedAt, ACTION_FINISH))
+
             // Older versions draw this bar; Android 16 and later the style's
             .setProgress(notice.progressMax, notice.progress, false)
             // A Live Update on Android 16 and later: promoted while ongoing,
@@ -127,6 +126,9 @@ object TripNotifications {
                     .setProgress(notice.progress)
                     .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_progress_tracker)),
             )
+        // The lines to take first, soonest first, then Finish: three at most, as Android shows
+        for ((i, line) in notice.takeLines.withIndex()) builder.addAction(0, words.tookLine(line), takeLine(context, startedAt, i, line))
+        builder.addAction(0, words.finish, action(context, startedAt, ACTION_FINISH))
         val countdownTo = notice.countdownTo
         if (countdownTo != null) {
             builder.setWhen(countdownTo).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
@@ -157,6 +159,22 @@ object TripNotifications {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
+
+    /** "I took the [line]", the [slot]-th button: straight to the trip service, which runs already */
+    private fun takeLine(context: Context, startedAt: Long, slot: Int, line: String): PendingIntent {
+        val intent = Intent(context, TripActionReceiver::class.java)
+            .setAction(ACTION_TAKE_LINE)
+            .putExtra(EXTRA_STARTED_AT, startedAt)
+            .putExtra(EXTRA_LINE, line)
+        return PendingIntent.getBroadcast(
+            context,
+            TAKE_LINE_CODE + slot,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private const val TAKE_LINE_CODE = 10
 
     /** The trip screen, over whatever the app shows */
     fun openTrip(context: Context): PendingIntent {

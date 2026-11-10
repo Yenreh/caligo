@@ -8,8 +8,6 @@ import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.TookRide
 import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.TripPlan
-import com.yenreh.caligo.domain.WaitEnding
-import com.yenreh.caligo.domain.WaitKey
 import com.yenreh.caligo.domain.entities.TripOption
 import com.yenreh.caligo.waits.Alerts
 import kotlin.coroutines.CoroutineContext
@@ -38,8 +36,14 @@ interface TripControl {
 
     fun start(start: TripStart)
 
-    /** "I took it" on a wait the trip running started: whether it took that bus as its ride */
+    /** "I took it" on a wait of the rider's own for a line the trip awaits: whether it took that bus as its ride */
     fun took(took: TookRide): Boolean = false
+
+    /** The buses the trip awaits for the ride ahead, soonest first */
+    val awaited: StateFlow<List<AwaitedLine>>
+
+    /** "I took the [line]" on the screen: the ride awaited taken on that line */
+    fun takeLine(line: String) {}
 
     /** Get off at [alight] instead, or just follow the ride when null */
     fun alightAt(alight: Int?)
@@ -82,6 +86,17 @@ class TripDesk(
     private val last = MutableStateFlow<EndedTrip?>(null)
     override val ended: StateFlow<EndedTrip?> = last.asStateFlow()
 
+    private val awaitedLines = MutableStateFlow<List<AwaitedLine>>(emptyList())
+    override val awaited: StateFlow<List<AwaitedLine>> = awaitedLines.asStateFlow()
+
+    override fun takeLine(line: String) {
+        service?.takeLine(line)
+    }
+
+    internal fun awaitedChanged(lines: List<AwaitedLine>) {
+        awaitedLines.value = lines
+    }
+
     override fun start(start: TripStart) {
         TripNotifications.createChannels(context)
         last.value = null
@@ -109,9 +124,10 @@ class TripDesk(
         service?.end(TripEnding.FINISHED)
     }
 
-    /** A button or the swipe of a wait's notification the trip started */
-    fun endWait(key: WaitKey, ending: WaitEnding) {
-        service?.endWait(key, ending)
+    /** "I took the A47" on the notification of the trip started at [startedAt] */
+    fun takeLine(startedAt: Long, line: String) {
+        val running = serviceJourney ?: return
+        if (running.startedAt == startedAt) service?.takeLine(line)
     }
 
     /** The notification's Finish or its swipe, for the trip started at [startedAt] */

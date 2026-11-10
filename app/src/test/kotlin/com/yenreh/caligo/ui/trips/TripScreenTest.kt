@@ -228,4 +228,28 @@ class TripScreenTest {
         assertTrue(!exists("trip_choose"))
         compose.onNode(hasText("Get off at Calle 5 con Kr 39")).assertExists()
     }
+
+    @Test
+    fun atTheStopTheAwaitedBusesShowSoonestFirstEachWithItsButton() {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        trips.running.value = trips.running.value!!.fixed(
+            com.yenreh.caligo.trips.JourneyFixtures.fixAt(
+                com.yenreh.caligo.domain.GeoPoint(TripFixtures.out[0].latitude, TripFixtures.out[0].longitude),
+                NOW,
+            ),
+        )
+        trips.awaited.value = listOf(
+            com.yenreh.caligo.trips.AwaitedLine("T31", NOW + 2 * 60_000),
+            com.yenreh.caligo.trips.AwaitedLine("E21", NOW + 5 * 60_000),
+        )
+        show(took = null)
+        waitFor("trip_awaited")
+        compose.onNode(hasText("Take the T31 or E21")).assertExists()
+        compose.onNode(hasText("T31 2 min · E21 5 min")).assertExists()
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_took_T31"))
+        compose.onNodeWithTag("trip_took_T31").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.takenLines.isNotEmpty() }
+        assertEquals(listOf("T31"), trips.takenLines)
+        compose.assertControlsAccessible()
+    }
 }

@@ -72,6 +72,8 @@ data class Journey(
     val awaitedAt: Long? = null,
     /** The ride whose waits the rider stopped themselves: not asked for again */
     val declinedFor: Int? = null,
+    /** The ride for which the alert of its bus near has gone out */
+    val busAlertedFor: Int? = null,
     /** From the planner: whole, with walks; a single ride from "I took it" has its stop to get off at chosen */
     val planned: Boolean = true,
 ) {

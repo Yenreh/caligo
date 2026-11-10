@@ -7,7 +7,7 @@ import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.domain.TripEnding
 
 /**
- * The trip notification's Finish and its swipe, handed to the service
+ * The trip notification's Finish, its "I took the A47" and its swipe, handed to the service
  * through the desk. With no service running, as in a process started
  * anew, there is no trip to end, and the process start has cancelled what
  * was left.
@@ -15,12 +15,17 @@ import com.yenreh.caligo.domain.TripEnding
 class TripActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (!intent.hasExtra(TripNotifications.EXTRA_STARTED_AT)) return
+        val startedAt = intent.getLongExtra(TripNotifications.EXTRA_STARTED_AT, 0)
+        val trips = (context.applicationContext as CaliGoApp).container.trips
+        if (intent.action == TripNotifications.ACTION_TAKE_LINE) {
+            intent.getStringExtra(TripNotifications.EXTRA_LINE)?.let { trips.takeLine(startedAt, it) }
+            return
+        }
         val ending = when (intent.action) {
             TripNotifications.ACTION_FINISH -> TripEnding.FINISHED
             TripNotifications.ACTION_DISMISSED -> TripEnding.DISMISSED
             else -> return
         }
-        val startedAt = intent.getLongExtra(TripNotifications.EXTRA_STARTED_AT, 0)
-        (context.applicationContext as CaliGoApp).container.trips.act(startedAt, ending)
+        trips.act(startedAt, ending)
     }
 }

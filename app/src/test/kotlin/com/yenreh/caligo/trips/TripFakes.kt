@@ -89,6 +89,13 @@ class FakeTripControl(private val now: Long = TripFixtures.NOW) : TripControl {
     val started: List<TripPlan> get() = starts.filterIsInstance<TripStart.Ride>().map { it.plan }
     val alights = mutableListOf<Int?>()
     val tookRides = mutableListOf<TookRide>()
+    override val awaited = MutableStateFlow<List<AwaitedLine>>(emptyList())
+    val takenLines = mutableListOf<String>()
+
+    override fun takeLine(line: String) {
+        takenLines.add(line)
+        running.value = running.value?.let { if (it.planned) it.took(line, now) else it }
+    }
     var finished = 0
 
     override fun start(start: TripStart) {

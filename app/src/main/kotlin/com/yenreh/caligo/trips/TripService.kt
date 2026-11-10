@@ -19,14 +19,14 @@ import com.yenreh.caligo.domain.RunningWait
 import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.Wait
 import com.yenreh.caligo.domain.WaitEnding
+import com.yenreh.caligo.domain.WaitStatus
+import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.waits.WaitChannel
 import com.yenreh.caligo.waits.WaitDesk
 import com.yenreh.caligo.waits.WaitEngine
 import com.yenreh.caligo.waits.WaitHost
-import com.yenreh.caligo.waits.WaitNotice
 import com.yenreh.caligo.waits.WaitNotifications
 import com.yenreh.caligo.waits.WaitStart
-import com.yenreh.caligo.waits.WaitWords
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -62,14 +62,7 @@ class TripService : Service(), TripHost {
     private lateinit var words: TripWords
     private lateinit var waits: WaitDesk
     private lateinit var waitEngine: WaitEngine
-    private lateinit var waitWords: WaitWords
     private var wakeLock: PowerManager.WakeLock? = null
-
-    /** Each trip wait's notification id, in the order they started */
-    private val waitSlots = LinkedHashMap<WaitKey, Int>()
-
-    /** Trip waits whose alert has gone out */
-    private val waitsAlerted = HashSet<WaitKey>()
 
     private val endWaitFromDesk: (WaitKey, WaitEnding) -> Unit = { key, ending -> endWait(key, ending) }
 
@@ -84,7 +77,6 @@ class TripService : Service(), TripHost {
         engine = TripEngine(desk.source, desk.location, desk.now, scope, this)
         waitEngine = WaitEngine(waits.source, desk.now, scope, tripWaits)
         words = TripWords(resources)
-        waitWords = WaitWords(resources)
         TripNotifications.createChannels(this)
         waits.attachTripWaits(endWaitFromDesk)
         desk.attach(this)
@@ -118,9 +110,8 @@ class TripService : Service(), TripHost {
         val manager = NotificationManagerCompat.from(this)
         manager.cancel(TripNotifications.TRIP_ID)
         // Killed with a trip on: the waits it started go with it
-        for (id in TripNotifications.waitIds) manager.cancel(id)
-        waitSlots.clear()
         waits.detachTripWaits(endWaitFromDesk)
+        desk.awaitedChanged(emptyList())
         releaseWakeLock()
         desk.detach(this)
         super.onDestroy()
@@ -134,7 +125,9 @@ class TripService : Service(), TripHost {
 
     internal fun end(ending: TripEnding) = engine.end(ending)
 
-    /** A trip wait ended by a button, its swipe or its bell: by the rider, so not asked for again */
+    internal fun takeLine(line: String) = engine.takeLine(line)
+
+    /** A trip wait's bell tapped on a row: the rider stops awaiting that bus, and its ride is not asked for again */
     internal fun endWait(key: WaitKey, ending: WaitEnding) {
         if (ending != WaitEnding.TOOK) engine.waitDeclined()
         waitEngine.end(key, ending)
@@ -153,10 +146,32 @@ class TripService : Service(), TripHost {
     private fun notification(journey: Journey, now: Long, nextPostIn: Long): Notification {
         val alerts = desk.alerts()
         val warningOn = TripNotifications.channelOn(this, TripChannel.warning(alerts))
-        val next = waitEngine.waits.filter { it.key in journey.awaited }.minOfOrNull { it.last.arrivalTime }
-        val notice = TripNotice.of(journey, now, alerts, words, nextPostIn, warningOn, nextBusAt = next)
+        val awaited = awaitedLines(journey, now)
+        val near = when (val phase = journey.phase(now)) {
+            is JourneyPhase.Waiting -> true
+            is JourneyPhase.Walking -> phase.leg.toStop && phase.meters <= TripEngine.NEAR_BOARD_METERS
+            is JourneyPhase.Riding -> false
+        }
+        val busAlertOn = WaitNotifications.channelOn(this, WaitChannel.alert(alerts))
+        val notice = TripNotice.of(journey, now, alerts, words, nextPostIn, warningOn, awaited, near, busAlertOn)
+        // Once a ride, whoever posts first
+        if (notice.alerting && notice.busChannel != null) engine.busAlerted()
         return TripNotifications.build(this, journey.startedAt, notice, alerts, words)
     }
+
+    /** The buses the trip awaits for the ride ahead, as their waits read now, soonest first */
+    private fun awaitedLines(journey: Journey, now: Long): List<AwaitedLine> = waitEngine.waits
+        .filter { it.key in journey.awaited }
+        .mapNotNull { wait ->
+            when (val status = wait.status(now)) {
+                is WaitStatus.Coming -> AwaitedLine(wait.last.line, status.arrivalTime)
+                WaitStatus.AtStop -> AwaitedLine(wait.last.line, wait.last.arrivalTime, atStop = true)
+                else -> null
+            }
+        }
+        .groupBy { it.line }
+        .map { (_, buses) -> buses.minBy { it.dueAt(now) } }
+        .sortedBy { it.dueAt(now) }
 
     // allowed() holds before every post: the app's notifications are on
     @SuppressLint("MissingPermission")
@@ -173,6 +188,7 @@ class TripService : Service(), TripHost {
     override fun idle() {
         // Nothing of a trip outlives it: its waits, had any been left, go too
         if (waitEngine.waits.isNotEmpty()) waitEngine.endAll(WaitEnding.STOPPED)
+        desk.awaitedChanged(emptyList())
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         val manager = NotificationManagerCompat.from(this)
         manager.cancel(TripNotifications.TRIP_ID)
@@ -203,43 +219,26 @@ class TripService : Service(), TripHost {
 
     override fun runningWaits(): Set<WaitKey> = waitEngine.waits.mapTo(HashSet()) { it.key }
 
-    /** What the trip's wait engine asks of the one that shows its waits: here, with ids apart */
+    /**
+     * What the trip's wait engine asks of the one that shows its waits:
+     * here, where the trip's own notification carries them, soonest first
+     */
     private val tripWaits = object : WaitHost {
         override fun allowed(): Boolean = NotificationManagerCompat.from(this@TripService).areNotificationsEnabled() &&
             WaitNotifications.channelOn(this@TripService, WaitChannel.WAITS)
 
-        // allowed() holds before every post
-        @SuppressLint("MissingPermission")
-        override fun show(waits: List<Wait>, now: Long, nextPostIn: Long) {
-            val context = this@TripService
-            val alerts = desk.alerts()
-            val alertOn = WaitNotifications.channelOn(context, WaitChannel.alert(alerts))
-            val manager = NotificationManagerCompat.from(context)
-            for (wait in waits) {
-                val id = waitSlots.getOrPut(wait.key) { TripNotifications.waitIds.first { it !in waitSlots.values } }
-                val notice = WaitNotice.of(wait, now, alerts, waitWords, nextPostIn, alertOn).let {
-                    if (it.alerting && !waitsAlerted.add(wait.key)) it.copy(alerting = false) else it
-                }
-                manager.notify(id, WaitNotifications.build(context, id, wait, notice, alerts, waitWords, tripWait = true))
-            }
-            holdWakeLock(nextPostIn + WAKE_MARGIN_MS)
-        }
+        // The trip's own notification carries them: nothing of their own
+        override fun show(waits: List<Wait>, now: Long, nextPostIn: Long) {}
 
-        override fun ended(wait: Wait, ending: WaitEnding) {
-            waitsAlerted.remove(wait.key)
-            val id = waitSlots.remove(wait.key) ?: return
-            NotificationManagerCompat.from(this@TripService).cancel(id)
-        }
+        override fun ended(wait: Wait, ending: WaitEnding) {}
 
-        override fun idle() {
-            val manager = NotificationManagerCompat.from(this@TripService)
-            for (id in TripNotifications.waitIds) manager.cancel(id)
-            waitSlots.clear()
-            waitsAlerted.clear()
-        }
+        override fun idle() {}
 
         override fun changed(waits: List<Wait>) {
             this@TripService.waits.tripWaitsChanged(waits.map { RunningWait(it.key, it.last.arrivalTime, it.listedAt) })
+            engine.journey?.let { desk.awaitedChanged(awaitedLines(it, desk.now())) }
+            // The trip's notice carries them: shown again as they change
+            engine.refresh()
         }
     }
 

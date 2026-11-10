@@ -313,18 +313,6 @@
     <string name="trip_warning_channel_sound">Stop warning, sound</string>
     <string name="trip_warning_channel_sound_vibrate">Stop warning, sound and vibration</string>
     <string name="trip_warning_channel_description">Before the stop you get off at</string>
-    <plurals name="trip_get_off_in">
-        <item quantity="one">%1$s, get off at %2$s in %3$s min (%4$d stop)</item>
-        <item quantity="other">%1$s, get off at %2$s in %3$s min (%4$d stops)</item>
-    </plurals>
-    <string name="trip_get_off_next">%1$s, get off at the next stop: %2$s</string>
-    <string name="trip_get_off_here">%1$s, get off here: %2$s</string>
-    <string name="trip_next_in">%1$s, next stop %2$s in %3$s min</string>
-    <string name="trip_at_end">%1$s, at %2$s, the end of the line</string>
-    <string name="trip_ends_at">Ends at %1$s in %2$s min</string>
-    <string name="trip_next_stop">Next stop: %1$s</string>
-    <string name="trip_in_minutes">In %1$s min</string>
-    <string name="trip_at_stop_text">Your stop</string>
     <string name="trip_off_route">Away from the route</string>
     <string name="trip_chip_minutes">%1$s min</string>
     <string name="trip_chip_next">Next</string>
@@ -363,11 +351,11 @@
     <string name="trip_home_title">On the %1$s</string>
     <string name="trip_open">Open the trip</string>
     <string name="trip_walk_to">Walk to %1$s, %2$s min</string>
-    <string name="trip_then">Then the %1$s</string>
-    <string name="trip_your_destination">Your destination</string>
-    <string name="trip_take">Take the %1$s at %2$s</string>
-    <string name="trip_next_bus_in">Next bus in %1$d min</string>
-    <string name="trip_took_it_hint">Tap I took it on its bus as you board</string>
+    <string name="trip_line_in">%1$s in %2$d min</string>
+    <string name="trip_line_minutes">%1$s %2$d min</string>
+    <string name="trip_line_at_stop">%1$s at the stop</string>
+    <string name="trip_took_line">I took the %1$s</string>
+    <string name="trip_took_it_hint">As you board, tap the line you took</string>
     <string name="trip_lines_or">%1$s or %2$s</string>
     <string name="trip_to_destination">Trip to %1$s</string>
     <string name="trip_heading_walk">Walk to %1$s</string>
@@ -382,4 +370,16 @@
     </plurals>
     <string name="trip_follow_me">Follow my position</string>
     <string name="trip_start">Start trip</string>
+    <string name="trip_ride_to">%1$s to %2$s, %3$s min</string>
+    <plurals name="trip_stops_next">
+        <item quantity="one">%1$d stop · next: %2$s</item>
+        <item quantity="other">%1$d stops · next: %2$s</item>
+    </plurals>
+    <string name="trip_get_off_next">%1$s, get off at the next stop</string>
+    <string name="trip_get_off_here">%1$s, get off here</string>
+    <string name="trip_end_of_line">%1$s, end of the line</string>
+    <string name="trip_stop_in">%1$s · in %2$s min</string>
+    <string name="trip_walk_to_stop">Walk to the stop, %1$s min</string>
+    <string name="trip_walk_to_destination">Walk to your destination, %1$s min</string>
+    <string name="trip_then">then the %1$s</string>
 </resources>

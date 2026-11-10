@@ -69,6 +69,7 @@ import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.TripPlan
 import com.yenreh.caligo.domain.TripSource
+import com.yenreh.caligo.trips.AwaitedLine
 import com.yenreh.caligo.trips.EndedTrip
 import com.yenreh.caligo.ui.common.LiveClock
 import com.yenreh.caligo.ui.common.Loaded
@@ -122,6 +123,7 @@ fun TripRoute(viewModel: TripViewModel, onBack: () -> Unit, tiles: TripMapTiles?
     val screen by viewModel.screen.collectAsStateWithLifecycle()
     val running by viewModel.trips.running.collectAsStateWithLifecycle()
     val ended by viewModel.trips.ended.collectAsStateWithLifecycle()
+    val awaited by viewModel.trips.awaited.collectAsStateWithLifecycle()
     val took = viewModel.took
     val content = when {
         !screen.started -> when (val plan = screen.plan) {
@@ -147,6 +149,8 @@ fun TripRoute(viewModel: TripViewModel, onBack: () -> Unit, tiles: TripMapTiles?
         onRetry = viewModel::retry,
         onChoose = viewModel::choose,
         onAlight = viewModel::alightAt,
+        awaited = awaited,
+        onTookLine = viewModel::takeLine,
         onFinish = {
             viewModel.finish()
             onBack()
@@ -213,6 +217,10 @@ fun TripScreen(
     onRetry: () -> Unit = {},
     onChoose: (Int?) -> Unit = {},
     onAlight: (Int?) -> Unit = {},
+    /** The buses a planner trip awaits for the ride ahead, soonest first */
+    awaited: List<AwaitedLine> = emptyList(),
+    /** "I took the A47", while waiting at the stop */
+    onTookLine: (String) -> Unit = {},
     onFinish: () -> Unit = {},
     message: TripMessage? = null,
     onMessageSettings: (TripMessage) -> Unit = {},
@@ -286,7 +294,7 @@ fun TripScreen(
                                 .background(p.ink),
                         )
                     }
-                    Running(content.journey, subtitle, onAlight, Modifier.weight(1f))
+                    Running(content.journey, subtitle, onAlight, awaited, onTookLine, Modifier.weight(1f))
                 }
                 is TripContent.Ended -> LabEmptyState(
                     icon = painterResource(R.drawable.ic_directions_bus),
@@ -364,7 +372,14 @@ private fun Choosing(plan: TripPlan, from: String?, onChoose: (Int?) -> Unit, mo
 
 /** The trip as it goes: the leg on now in words, the ride's stops ahead with their times, and what comes after */
 @Composable
-private fun Running(journey: Journey, from: String?, onAlight: (Int?) -> Unit, modifier: Modifier) {
+private fun Running(
+    journey: Journey,
+    from: String?,
+    onAlight: (Int?) -> Unit,
+    awaited: List<AwaitedLine>,
+    onTookLine: (String) -> Unit,
+    modifier: Modifier,
+) {
     val p = LabTheme.palette
     val now = LocalNow.current
     watchLiveClock()
@@ -380,11 +395,38 @@ private fun Running(journey: Journey, from: String?, onAlight: (Int?) -> Unit, m
                         Heading(stringResource(R.string.trip_heading_walk, phase.leg.toName))
                         Detail(stringResource(R.string.trip_walk_detail, (if (phase.estimated) "~" else "") + minutes, roundTo10(phase.meters)))
                         Source(if (phase.estimated) R.string.trip_by_estimate else R.string.trip_by_fix)
+                        if (awaited.isNotEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                stringResource(R.string.trip_then, TripLines.of(awaited.map { lineIn(it, at) }, orPattern())),
+                                style = MaterialTheme.typography.bodyMedium.copy(color = p.ink),
+                            )
+                        }
                     }
                     is JourneyPhase.Waiting -> {
-                        Heading(stringResource(R.string.trip_heading_take, TripLines.of(phase.leg.ride.lines, stringResource(R.string.trip_lines_or, "%1\$s", "%2\$s"))))
+                        // The soonest first, then the lines with no bus awaited
+                        val ordered = (awaited.map { it.line } + phase.leg.ride.lines).distinct()
+                        Heading(stringResource(R.string.trip_heading_take, TripLines.of(ordered, orPattern())))
                         Detail(stringResource(R.string.trip_at_stop, phase.leg.ride.board.name))
+                        if (awaited.isNotEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                awaited.map { lineMinutes(it, at) }.joinToString(" · "),
+                                style = MaterialTheme.typography.bodyLarge.copy(color = p.ink),
+                                modifier = Modifier.testTag("trip_awaited"),
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
                         Text(stringResource(R.string.trip_took_it_hint), style = LabText.statusLine(p))
+                        for (line in ordered) {
+                            Spacer(Modifier.height(8.dp))
+                            LabOutlinedButton(
+                                onClick = { onTookLine(line) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("trip_took_$line"),
+                            ) { Text(stringResource(R.string.trip_took_line, line)) }
+                        }
                     }
                 }
                 if (from != null) {
@@ -500,6 +542,23 @@ private fun androidx.compose.foundation.lazy.LazyListScope.rideStops(trip: Trip,
                 .testTag(if (alighting) "trip_alight" else "trip_stop_${stop.stopId}"),
         )
     }
+}
+
+@Composable
+private fun orPattern(): String = stringResource(R.string.trip_lines_or, "%1\$s", "%2\$s")
+
+@Composable
+private fun lineIn(bus: AwaitedLine, now: Long): String = if (bus.atStop) {
+    stringResource(R.string.trip_line_at_stop, bus.line)
+} else {
+    stringResource(R.string.trip_line_in, bus.line, Trip.minutesOf(bus.dueAt(now) - now))
+}
+
+@Composable
+private fun lineMinutes(bus: AwaitedLine, now: Long): String = if (bus.atStop) {
+    stringResource(R.string.trip_line_at_stop, bus.line)
+} else {
+    stringResource(R.string.trip_line_minutes, bus.line, Trip.minutesOf(bus.dueAt(now) - now))
 }
 
 /** A leg still to come, in muted words */

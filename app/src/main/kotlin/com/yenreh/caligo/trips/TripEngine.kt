@@ -144,9 +144,31 @@ class TripEngine(
         val running = journey ?: return false
         if (!running.planned || !running.awaits(took.line, took.stopId)) return false
         journey = running.took(took.line, now())
-        settleWaits(keep = setOf(took.waitKey))
+        // Every wait of the ride goes, the one taken too
+        settleWaits()
         poke.trySend(Unit)
         return true
+    }
+
+    /** "I took the [line]" on the notification: the ride awaited taken on that line, every wait of it ending */
+    fun takeLine(line: String) {
+        val running = journey ?: return
+        val pending = running.pendingRide ?: return
+        if (!running.planned || (running.legs[pending] as JourneyLeg.Ride).candidates.none { it.line == line }) return
+        journey = running.took(line, now())
+        settleWaits()
+        poke.trySend(Unit)
+    }
+
+    /** The alert of the awaited bus near has gone out, for the ride awaited */
+    fun busAlerted() {
+        val running = journey ?: return
+        journey = running.copy(busAlertedFor = running.pendingRide)
+    }
+
+    /** What the trip shows changed, as its awaited buses do: show it again now */
+    fun refresh() {
+        poke.trySend(Unit)
     }
 
     /** The rider stopped a wait of the ride waited for themselves: its waits are not asked for again */

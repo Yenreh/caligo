@@ -88,12 +88,12 @@ class TripRideTest {
         val warnings = moments.map { it.warned }.distinct()
         assertEquals(listOf(Trip.NO_WARNING, Trip.WARN_TWO_STOPS, Trip.WARN_NEXT), warnings)
         val first = moments.first { it.warned == Trip.WARN_TWO_STOPS }
-        assertTrue(first.title, first.title.endsWith("(2 stops)"))
+        assertEquals("E21 to Pampalinda, 3 min", first.title)
         assertEquals(TripChannel.WARNING_SILENT.id, first.channel)
         // 2000 m at 5 m/s: 400 s
         assertEquals(6.75, first.minute, 0.5)
         val second = moments.first { it.warned == Trip.WARN_NEXT }
-        assertEquals("E21, get off at the next stop: Pampalinda", second.title)
+        assertEquals("E21, get off at the next stop", second.title)
         assertEquals(8.0, second.minute, 0.5)
 
         // Passed Pampalinda, 2860 m at 5 m/s: about 9.5 minutes in
@@ -110,6 +110,6 @@ class TripRideTest {
         // The last fix 825 m in, 1975 m to go: the planner's estimate for them, of 85.7 s every 400 m
         val left = trip.millisTo(7, h.now()) / 1000.0
         assertEquals(1975 / 400.0 * (400 * 1.15 / 7 + 20), left, 2.0)
-        assertTrue(with(h) { checkNotNull(shown).title() }.startsWith("E21, get off at Pampalinda in 7 min"))
+        assertEquals("E21 to Pampalinda, 7 min", with(h) { checkNotNull(shown).title() })
     }
 }

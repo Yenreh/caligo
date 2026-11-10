@@ -125,9 +125,18 @@ class TripHarness {
         }
     }
 
-    /** The notifications of the waits the trip runs */
-    val tripWaitNotifications: List<Notification>
-        get() = shadowOf(manager).activeNotifications.filter { it.id in TripNotifications.waitIds }.map { it.notification }
+    /** The lines whose buses the trip awaits now, soonest first */
+    val awaitedLines: List<String> get() = service.tripWaitEngine.waits.sortedBy { it.last.arrivalTime }.map { it.last.line }
+
+    /** CaliGo's notifications on show that are not the rider's own waits' */
+    val tripOwn: List<Notification>
+        get() = shadowOf(manager).activeNotifications.filter { it.id !in com.yenreh.caligo.waits.WaitNotifications.ids }.map { it.notification }
+
+    /** Press the trip notification's button titled [title] */
+    fun pressTitled(title: String) {
+        checkNotNull(shown).actions.first { it.title.toString() == title }.actionIntent.send()
+        shadowOf(Looper.getMainLooper()).idle()
+    }
 
     /** The waits' notifications on show, by title */
     val waitTitles: List<String> get() = posted.filter { it.channelId == "waits" || it.channelId?.startsWith("alert") == true }.map { it.title() }
@@ -159,7 +168,6 @@ class TripHarness {
         assertNull("its notification gone", shown)
         assertTrue(posted.none { it.channelId?.startsWith("trip") == true })
         assertTrue("no wait of the trip's left: $waitTitles", desk.ended.value?.journey?.awaited.orEmpty().none { key -> app.container.waits.running.value.any { it.key == key } })
-        assertTrue("no wait notification of the trip's", shadowOf(manager).activeNotifications.none { it.id in TripNotifications.waitIds })
         assertTrue("its wait engine idle", service.tripWaitEngine.isIdle && service.tripWaitEngine.waits.isEmpty())
         val shadow = shadowOf(service)
         assertTrue("stopped", shadow.isStoppedBySelf)

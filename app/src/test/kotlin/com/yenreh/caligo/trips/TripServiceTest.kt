@@ -199,7 +199,7 @@ class TripServiceTest {
     @Test
     fun aNewProcessLeavesNoTripNorNotification() {
         TripNotifications.createChannels(h.app)
-        for (id in listOf(TripNotifications.TRIP_ID, TripNotifications.PLACEHOLDER_ID) + TripNotifications.waitIds) {
+        for (id in listOf(TripNotifications.TRIP_ID, TripNotifications.PLACEHOLDER_ID)) {
             h.manager.notify(id, Notification.Builder(h.app, TripChannel.TRIPS.id).setSmallIcon(android.R.drawable.ic_dialog_info).build())
         }
         TripNotifications.cancelLeftovers(h.app)
@@ -275,7 +275,8 @@ class TripServiceTest {
         assertTrue(shown.hasPromotableCharacteristics())
         assertEquals(null, shown.group)
         assertEquals("~10 min", NotificationCompat.getShortCriticalText(shown))
-        assertEquals("E21, get off at Pampalinda in ~10 min (7 stops)", with(h) { shown.title() })
+        assertEquals("E21 to Pampalinda, ~10 min", with(h) { shown.title() })
+        assertEquals("7 stops · next: Centro", with(h) { shown.text() })
         // Older versions count down with a chronometer to the stop
         assertTrue(NotificationCompat.getUsesChronometer(shown))
         val style = Notification.ProgressStyle::class.java

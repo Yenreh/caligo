@@ -6,6 +6,8 @@ import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.JourneyLeg
 import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.domain.Trip
+import com.yenreh.caligo.domain.Wait
+import com.yenreh.caligo.waits.WaitChannel
 import com.yenreh.caligo.domain.TripSource
 import com.yenreh.caligo.waits.Alerts
 
@@ -36,6 +38,14 @@ enum class TripChannel(val id: String, val sound: Boolean, val vibrate: Boolean)
     }
 }
 
+/**
+ * A bus the trip awaits for the ride ahead, as its wait reads it: due at
+ * [arrivalTime], or [atStop]
+ */
+data class AwaitedLine(val line: String, val arrivalTime: Long, val atStop: Boolean = false) {
+    fun dueAt(now: Long): Long = if (atStop) now else arrivalTime
+}
+
 /** A point of the notification's bar: a stop ahead, at [position] of the bar's length */
 data class TripPoint(val position: Int)
 
@@ -63,13 +73,23 @@ data class TripNotice(
     val alerting: Boolean,
     /** Cancelled by the system after this many milliseconds unless posted again */
     val timeoutAfter: Long,
+    /** Lines to take with a button each, "I took the A47", soonest first */
+    val takeLines: List<String> = emptyList(),
+    /** The channel of the alert for an awaited bus, once due, in place of [channel] */
+    val busChannel: WaitChannel? = null,
 ) {
+    /** The channel it posts on */
+    val channelId: String get() = busChannel?.id ?: channel.id
+
     companion object {
         /**
-         * The notice of [journey] at [now]: on the bus, its ride's, as
-         * [of] a ride; on foot, the walk left and what comes after it; at
-         * the stop, the lines to take and when the first of their waits'
-         * buses is due, [nextBusAt]
+         * The notice of [journey] at [now]: on the bus, its ride's, as [of]
+         * a ride; on foot, the walk left and what comes after it; at the
+         * stop, the lines to take. The buses the trip awaits for the ride
+         * ahead, [awaited], go in it soonest first, with a button for each
+         * of the first [MAX_LINE_ACTIONS] once near the stop; the alert as
+         * the soonest comes within [BUS_ALERT_WITHIN], once a ride, when
+         * [busAlertDue].
          */
         fun of(
             journey: Journey,
@@ -78,36 +98,65 @@ data class TripNotice(
             words: TripWords,
             nextPostIn: Long,
             warningOn: Boolean = true,
-            nextBusAt: Long? = null,
+            awaited: List<AwaitedLine> = emptyList(),
+            near: Boolean = false,
+            busAlertOn: Boolean = true,
         ): TripNotice {
             val title: String
             val text: String
-            val chip: String?
+            var chip: String?
             var countdownTo: Long? = null
             var progress = 0
             var progressMax = 1
+            val soonest = awaited.sortedBy { it.dueAt(now) }
+            var lines = emptyList<String>()
             when (val phase = journey.phase(now)) {
                 is JourneyPhase.Riding -> return of(phase.trip, now, alerts, words, nextPostIn, warningOn)
                 is JourneyPhase.Walking -> {
                     val minutes = Trip.minutesOf(phase.millis)
-                    title = words.walkTo(phase.leg.toName, minutes, phase.estimated)
                     val next = journey.legs.getOrNull(journey.index + 1) as? JourneyLeg.Ride
-                    text = if (next != null) words.then(words.lines(next.ride.lines)) else words.destination
+                    // Short titles, which a collapsed notification shows whole; the stop on the line below
+                    if (phase.leg.toStop && next != null) {
+                        title = words.walkToStop(minutes, phase.estimated)
+                        val then = if (soonest.isEmpty()) {
+                            words.lines(next.ride.lines)
+                        } else {
+                            words.lines(soonest.map { words.lineIn(it, now) })
+                        }
+                        text = "${phase.leg.toName} · ${words.then(then)}"
+                    } else {
+                        title = words.walkToDestination(minutes, phase.estimated)
+                        text = phase.leg.toName
+                    }
                     chip = words.chipMinutes(minutes, phase.estimated)
                     if (phase.millis > 0) countdownTo = now + phase.millis
                     val total = phase.leg.walk.meters.coerceAtLeast(1.0)
                     progressMax = total.toInt().coerceAtLeast(1)
                     progress = (total - phase.meters).coerceIn(0.0, total).toInt()
+                    if (near && next != null) lines = soonest.map { it.line }
                 }
                 is JourneyPhase.Waiting -> {
-                    title = words.take(words.lines(phase.leg.ride.lines), phase.leg.ride.board.name)
-                    val due = nextBusAt?.takeIf { it > now }
-                    text = if (due != null) words.nextBusIn(Trip.minutesOf(due - now)) else words.tookItHint
-                    chip = due?.let { words.chipMinutes(Trip.minutesOf(it - now), estimated = false) }
-                    countdownTo = due
-                    progress = 1
+                    // The soonest first, then the lines with no bus awaited
+                    val ordered = (soonest.map { it.line } + phase.leg.ride.lines).distinct()
+                    title = words.take(words.lines(ordered))
+                    val stop = words.atStop(phase.leg.ride.board.name)
+                    text = if (soonest.isEmpty()) "$stop · ${words.tookItHint}" else "$stop · " + soonest.joinToString(" · ") { words.lineMinutes(it, now) }
+                    val first = soonest.firstOrNull()
+                    chip = first?.let { if (it.atStop) words.chipHere else words.chipMinutes(Trip.minutesOf(it.dueAt(now) - now), estimated = false) }
+                    countdownTo = first?.takeIf { !it.atStop && it.dueAt(now) > now }?.dueAt(now)
+                    // From when the waiting began to the soonest bus, filling as it nears; empty with none awaited
+                    if (first != null) {
+                        val since = journey.waitingSince()
+                        val total = ((first.dueAt(now) - since) / 1000).coerceAtLeast(MIN_WAIT_BAR_SECONDS)
+                        progressMax = total.toInt()
+                        progress = ((now - since) / 1000).coerceIn(0, total).toInt()
+                    }
+                    lines = ordered
                 }
             }
+            val alerting = busAlertOn && journey.pendingRide != null && journey.busAlertedFor != journey.pendingRide &&
+                soonest.firstOrNull()?.let { it.atStop || it.dueAt(now) - now <= BUS_ALERT_WITHIN_MS } == true
+            val alerted = journey.pendingRide != null && journey.busAlertedFor == journey.pendingRide
             return TripNotice(
                 title = title,
                 text = text,
@@ -118,10 +167,31 @@ data class TripNotice(
                 progressMax = progressMax,
                 points = emptyList(),
                 channel = TripChannel.TRIPS,
-                alerting = false,
+                alerting = alerting,
                 timeoutAfter = nextPostIn + TIMEOUT_MARGIN_MS,
+                takeLines = lines.distinct().take(MAX_LINE_ACTIONS),
+                busChannel = if (busAlertOn && (alerting || alerted)) WaitChannel.alert(alerts) else null,
             )
         }
+
+        /** A bus due within the minute still shows a bar worth reading */
+        private const val MIN_WAIT_BAR_SECONDS = 60L
+
+        /** When the waiting at the stop began: the ride's leg on, or the walk to it done by the estimate */
+        private fun Journey.waitingSince(): Long = when (val on = leg) {
+            is JourneyLeg.Walk -> legStartedAt + on.walk.duration.inWholeMilliseconds
+            is JourneyLeg.Ride -> legStartedAt
+        }
+
+        /**
+         * Lines with a button of their own: Android shows three actions at
+         * most, and Finish takes one
+         */
+        const val MAX_LINE_ACTIONS = 2
+
+        /** The awaited bus this close gives the alert, as a wait's does */
+        val BUS_ALERT_WITHIN = Wait.ALERT_WITHIN
+        private val BUS_ALERT_WITHIN_MS = BUS_ALERT_WITHIN.inWholeMilliseconds
 
         /**
          * The notice of [trip] at [now], with [alerts] for the warning. Once
@@ -142,29 +212,23 @@ data class TripNotice(
             val title: String
             val text: String
             val chip: String
-            if (plan.alight != null) {
-                when (left) {
-                    0 -> {
-                        title = words.getOffHere(plan.line, target.name)
-                        text = words.atStopText
-                        chip = words.chipHere
-                    }
-                    1 -> {
-                        title = words.getOffNext(plan.line, target.name)
-                        text = words.inMinutes(minutes, estimated)
-                        chip = words.chipNext
-                    }
-                    else -> {
-                        title = words.getOffIn(plan.line, target.name, minutes, estimated, left)
-                        text = words.nextStop(plan.stops[next].name)
-                        chip = words.chipMinutes(minutes, estimated)
-                    }
+            // Short titles, which a collapsed notification shows whole; the stops on the line below
+            when {
+                left == 0 -> {
+                    title = if (plan.alight != null) words.getOffHere(plan.line) else words.endOfLine(plan.line)
+                    text = target.name
+                    chip = words.chipHere
                 }
-            } else {
-                val toNext = trip.minutes(trip.millisTo(next, now))
-                title = if (left == 0) words.atEnd(plan.line, target.name) else words.nextIn(plan.line, plan.stops[next].name, toNext, estimated)
-                text = words.endsAt(target.name, minutes, estimated)
-                chip = if (left == 0) words.chipHere else words.chipMinutes(minutes, estimated)
+                left == 1 && plan.alight != null -> {
+                    title = words.getOffNext(plan.line)
+                    text = words.stopIn(target.name, minutes, estimated)
+                    chip = words.chipNext
+                }
+                else -> {
+                    title = words.rideTo(plan.line, target.name, minutes, estimated)
+                    text = words.stopsNext(left, plan.stops[next].name)
+                    chip = words.chipMinutes(minutes, estimated)
+                }
             }
             val shownText = if (trip.offRouteSince != null) words.offRoute else text
             val start = trip.route.at[plan.board]
@@ -204,32 +268,18 @@ data class TripNotice(
 class TripWords(private val resources: Resources) {
     private fun about(estimated: Boolean) = if (estimated) "~" else ""
 
-    fun getOffIn(line: String, stop: String, minutes: Int, estimated: Boolean, stops: Int) = resources.getQuantityString(
-        R.plurals.trip_get_off_in,
-        stops,
-        line,
-        stop,
-        about(estimated) + minutes,
-        stops,
-    )
+    fun rideTo(line: String, stop: String, minutes: Int, estimated: Boolean) =
+        resources.getString(R.string.trip_ride_to, line, stop, about(estimated) + minutes)
 
-    fun getOffNext(line: String, stop: String) = resources.getString(R.string.trip_get_off_next, line, stop)
+    fun stopsNext(stops: Int, next: String) = resources.getQuantityString(R.plurals.trip_stops_next, stops, stops, next)
 
-    fun getOffHere(line: String, stop: String) = resources.getString(R.string.trip_get_off_here, line, stop)
+    fun getOffNext(line: String) = resources.getString(R.string.trip_get_off_next, line)
 
-    fun nextIn(line: String, stop: String, minutes: Int, estimated: Boolean) =
-        resources.getString(R.string.trip_next_in, line, stop, about(estimated) + minutes)
+    fun getOffHere(line: String) = resources.getString(R.string.trip_get_off_here, line)
 
-    fun atEnd(line: String, stop: String) = resources.getString(R.string.trip_at_end, line, stop)
+    fun endOfLine(line: String) = resources.getString(R.string.trip_end_of_line, line)
 
-    fun endsAt(stop: String, minutes: Int, estimated: Boolean) =
-        resources.getString(R.string.trip_ends_at, stop, about(estimated) + minutes)
-
-    fun nextStop(stop: String) = resources.getString(R.string.trip_next_stop, stop)
-
-    fun inMinutes(minutes: Int, estimated: Boolean) = resources.getString(R.string.trip_in_minutes, about(estimated) + minutes)
-
-    val atStopText: String get() = resources.getString(R.string.trip_at_stop_text)
+    fun stopIn(stop: String, minutes: Int, estimated: Boolean) = resources.getString(R.string.trip_stop_in, stop, about(estimated) + minutes)
 
     val offRoute: String get() = resources.getString(R.string.trip_off_route)
 
@@ -241,16 +291,32 @@ class TripWords(private val resources: Resources) {
 
     val finish: String get() = resources.getString(R.string.trip_finish)
 
-    fun walkTo(place: String, minutes: Int, estimated: Boolean) =
-        resources.getString(R.string.trip_walk_to, place, about(estimated) + minutes)
+    fun walkToStop(minutes: Int, estimated: Boolean) = resources.getString(R.string.trip_walk_to_stop, about(estimated) + minutes)
+
+    fun walkToDestination(minutes: Int, estimated: Boolean) =
+        resources.getString(R.string.trip_walk_to_destination, about(estimated) + minutes)
 
     fun then(lines: String) = resources.getString(R.string.trip_then, lines)
 
-    val destination: String get() = resources.getString(R.string.trip_your_destination)
+    fun take(lines: String) = resources.getString(R.string.trip_heading_take, lines)
 
-    fun take(lines: String, stop: String) = resources.getString(R.string.trip_take, lines, stop)
+    fun atStop(stop: String) = resources.getString(R.string.trip_at_stop, stop)
 
-    fun nextBusIn(minutes: Int) = resources.getString(R.string.trip_next_bus_in, minutes)
+    /** "A47 in 3 min", for the walk */
+    fun lineIn(bus: AwaitedLine, now: Long) = if (bus.atStop) {
+        resources.getString(R.string.trip_line_at_stop, bus.line)
+    } else {
+        resources.getString(R.string.trip_line_in, bus.line, Trip.minutesOf(bus.dueAt(now) - now))
+    }
+
+    /** "A47 3 min", at the stop */
+    fun lineMinutes(bus: AwaitedLine, now: Long) = if (bus.atStop) {
+        resources.getString(R.string.trip_line_at_stop, bus.line)
+    } else {
+        resources.getString(R.string.trip_line_minutes, bus.line, Trip.minutesOf(bus.dueAt(now) - now))
+    }
+
+    fun tookLine(line: String) = resources.getString(R.string.trip_took_line, line)
 
     val tookItHint: String get() = resources.getString(R.string.trip_took_it_hint)
 

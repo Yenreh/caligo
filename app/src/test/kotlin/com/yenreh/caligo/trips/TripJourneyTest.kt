@@ -1,10 +1,12 @@
 package com.yenreh.caligo.trips
 
+import android.app.Notification
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.domain.TookRide
 import com.yenreh.caligo.domain.TripEnding
+import com.yenreh.caligo.domain.Wait
 import com.yenreh.caligo.domain.WaitAnswer
 import com.yenreh.caligo.trips.JourneyFixtures.DESTINATION
 import com.yenreh.caligo.trips.JourneyFixtures.a47
@@ -19,8 +21,12 @@ import com.yenreh.caligo.trips.JourneyFixtures.secondArrivals
 import com.yenreh.caligo.trips.TripFixtures.MINUTE
 import com.yenreh.caligo.trips.TripFixtures.NOW
 import com.yenreh.caligo.trips.TripFixtures.out
+import com.yenreh.caligo.waits.WaitChannel
+import com.yenreh.caligo.waits.WaitFixtures
+import com.yenreh.caligo.waits.WaitStart
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -28,11 +34,12 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 
 /**
- * A planner trip on virtual time, with scripted fixes, buses and arrivals
- * and the real waits: the walk to the stop, the waits for each line that
- * makes the first ride, "I took it" on one, the change on foot, the next
- * ride's wait, its bus taken by position, the walk to the end; and the
- * ways such a trip ends, with nothing of it left, its waits included.
+ * A planner trip on virtual time, with scripted fixes, buses and arrivals:
+ * the walk to the stop, the buses awaited for each line that makes the
+ * first ride, "I took the T31" on the trip's notification, the change on
+ * foot, the next ride's bus awaited, taken by position, the walk to the
+ * end; one notification of the trip's own all along, the rider's own
+ * waits apart; and the ways such a trip ends, with nothing of it left.
  */
 @RunWith(AndroidJUnit4::class)
 class TripJourneyTest {
@@ -44,9 +51,7 @@ class TripJourneyTest {
     fun setUp() {
         h.source.arrivalsAnswer = { stops, at -> if (stops.any { it.stopId == out[0].stopId }) firstArrivals(at) else secondArrivals(at) }
         // The waits' own answers list the buses as the arrivals did
-        h.waitsAnswering { _, at ->
-            WaitAnswer(firstArrivals(NOW).stops + secondArrivals(NOW + 12 * MINUTE).stops, at)
-        }
+        h.waitsAnswering { _, at -> WaitAnswer(firstArrivals(NOW).stops + secondArrivals(NOW + 12 * MINUTE).stops, at) }
     }
 
     @After
@@ -60,189 +65,267 @@ class TripJourneyTest {
     /** Walking from the origin at 1.2 m/s */
     private fun walking(at: Long) = between(origin, stop, (at - NOW) * 1.2 / 1000)
 
+    /** On foot until 4 min, at the stop from then */
+    private fun toTheStop(at: Long) = if (at < NOW + 4 * MINUTE) walking(at) else stop
+
     private val waits get() = h.app.container.waits
 
-    /** "I took it" on [line]'s wait, as the trip screen it opens does */
-    private fun tookIt(line: String) {
-        val key = waits.running.value.map { it.key }.first { k -> h.waitTitles.isNotEmpty() && k.vehicleId == if (line == "E21") "637001" else "815001" }
-        val took = TookRide(line, "Universidades", key.stopId, out[0].name, key.vehicleId, key.trip)
-        assertTrue(h.desk.took(took))
-        waits.took(key)
-        h.advance(1)
-    }
+    private fun Notification.title() = with(h) { title() }
+
+    private fun Notification.text() = with(h) { text() }
+
+    private val shown get() = checkNotNull(h.shown)
+
+    /** Never more than the trip's own notification, besides the rider's own waits */
+    private fun assertOne() = assertEquals(h.tripOwn.map { it.title() }.toString(), 1, h.tripOwn.size)
 
     @Test
     fun aWholeTripWithItsWalksRidesAndChange() {
         startJourney()
         h.assertRunning()
-        // The walk, and a wait for each line of the first ride
+        // The walk, with the buses of each line awaited, soonest first, in the trip's one notification
         h.move(MINUTE) { walking(it) }
-        with(h) { assertTrue(checkNotNull(shown).title(), checkNotNull(shown).title().startsWith("Walk to Plaza de Cayzedo A1, ")) }
-        assertEquals(setOf("E21", "T31"), h.waitTitles.map { it.substringBefore(" ") }.toSet())
+        assertOne()
+        assertEquals(listOf("E21", "T31"), h.awaitedLines)
+        assertTrue(shown.title(), shown.title().startsWith("Walk to the stop, "))
+        assertEquals("Plaza de Cayzedo A1 · then the E21 in 7 min or T31 in 9 min", shown.text())
         // At the stop
-        h.move(4 * MINUTE) { at -> if (at < NOW + 4 * MINUTE) walking(at) else stop }
-        assertEquals("Take the E21 or T31 at Plaza de Cayzedo A1", with(h) { checkNotNull(shown).title() })
-        // The T31 comes first: its wait ends as taken, the E21's without asking
-        tookIt("T31")
-        assertTrue(h.waitTitles.toString(), h.waitTitles.isEmpty())
+        h.move(4 * MINUTE) { toTheStop(it) }
+        assertOne()
+        assertEquals("Take the E21 or T31", shown.title())
+        assertEquals("At Plaza de Cayzedo A1 · E21 3 min · T31 5 min", shown.text())
+        assertEquals("3 min", androidx.core.app.NotificationCompat.getShortCriticalText(shown))
+        assertEquals(listOf("I took the E21", "I took the T31", "Finish"), shown.actions.map { it.title.toString() })
+        // The T31 taken: every wait of the ride ends
+        h.pressTitled("I took the T31")
+        h.advance(1)
+        assertEquals("T31", h.desk.running.value?.ride?.plan?.line)
+        assertTrue(h.awaitedLines.toString(), h.awaitedLines.isEmpty())
         val t31At = h.now()
         h.source.byLine = { line, at -> if (line == "T31") listOf(busOn(calle5Route, "41022", (at - t31At) * 7.0 / 1000)) else emptyList() }
-        h.move(7 * MINUTE) { at ->
-            if (h.desk.running.value?.ride != null) calle5Route.pointAt((at - t31At) * 7.0 / 1000) else null
-        }
-        // Off at the change: on foot to the A47, whose wait starts
-        val onFoot = checkNotNull(h.desk.running.value)
-        assertEquals(2, onFoot.index)
-        assertTrue(h.waitTitles.toString(), h.waitTitles.any { it.startsWith("A47") })
-        assertTrue(h.waitTitles.none { it.startsWith("T31") || it.startsWith("E21") })
+        h.move(7 * MINUTE) { at -> if (h.desk.running.value?.ride != null) calle5Route.pointAt((at - t31At) * 7.0 / 1000) else null }
+        // Off at the change: on foot to the A47, whose bus is awaited
+        assertEquals(2, h.desk.running.value?.index)
+        assertEquals(listOf("A47"), h.awaitedLines)
+        assertOne()
+        assertTrue(shown.text(), shown.text().startsWith("Kr 22 con Cl 10 · then the A47 in "))
         // The T31 ride taught the planner how it ran
         assertTrue(h.source.observed.toString(), h.source.observed.any { "T31" in it })
         // The change on foot, then away on the A47 beside its bus: taken by position
         val walkAt = h.now()
-        h.move(3 * MINUTE) { at -> between(out[6].let { GeoPoint(it.latitude, it.longitude) }, change, (at - walkAt) * 1.2 / 1000) }
+        h.move(3 * MINUTE) { at -> between(GeoPoint(out[6].latitude, out[6].longitude), change, (at - walkAt) * 1.2 / 1000) }
         assertTrue(h.desk.running.value?.phase(h.now()) is JourneyPhase.Waiting)
         val leftAt = h.now()
         h.source.byLine = { line, at -> if (line == "A47") listOf(busOn(a47Route, "22074", 20 + (at - leftAt) * 8.0 / 1000)) else emptyList() }
         h.move(MINUTE) { at -> a47Route.pointAt((at - leftAt) * 8.0 / 1000) }
         assertEquals("A47", h.desk.running.value?.ride?.plan?.line)
-        assertTrue(h.waitTitles.toString(), h.waitTitles.isEmpty())
+        assertTrue(h.awaitedLines.isEmpty())
         // To the A47's last stop, then the walk to the end
         h.move(4 * MINUTE) { at -> if (h.desk.running.value?.ride != null) a47Route.pointAt((at - leftAt) * 8.0 / 1000) else null }
         assertEquals(4, h.desk.running.value?.index)
-        with(h) { assertTrue(checkNotNull(shown).title(), checkNotNull(shown).title().startsWith("Walk to Unicentro, ")) }
+        assertTrue(shown.title(), shown.title().startsWith("Walk to your destination, "))
+        assertEquals("Unicentro", shown.text())
         h.move(5 * MINUTE) { JourneyFixtures.destination }
         h.assertEnded(TripEnding.REACHED)
-        assertTrue(h.waitTitles.isEmpty())
-        // Every wait ran in the trip's own service: the waits' was never asked to start
+        // Nothing of the waits' own service was ever needed
         assertEquals(0, h.waitServiceStarts)
     }
 
     @Test
-    fun theNextRidesWaitsStartInTheTripServiceWithNoScreenOnShow() {
+    fun theNextRidesBusIsAwaitedInTheTripServiceWithNoScreenOnShow() {
         startJourney()
-        h.move(5 * MINUTE) { at -> if (at < NOW + 4 * MINUTE) walking(at) else stop }
-        tookIt("T31")
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.pressTitled("I took the T31")
         val t31At = h.now()
         // The screen off and the app away: no activity anywhere, only the trip's foreground service
         h.move(7 * MINUTE) { at -> if (h.desk.running.value?.ride != null) calle5Route.pointAt((at - t31At) * 7.0 / 1000) else null }
         assertEquals(2, h.desk.running.value?.index)
-        val a47Waits = h.tripWaitNotifications
-        assertEquals(1, a47Waits.size)
-        with(h) { assertTrue(a47Waits.single().title(), a47Waits.single().title().startsWith("A47 to Valle Grande")) }
+        assertEquals(listOf("A47"), h.awaitedLines)
         assertEquals(0, h.waitServiceStarts)
-        // Shown as waited for, on the rows' bells too
+        assertOne()
+        // Shown as awaited on the rows' bells
         assertTrue(waits.running.value.any { it.key.vehicleId == "261001" })
-        // As any wait's: "I took it" opens the trip screen, and the notification goes by itself if the process dies
-        val shown = a47Waits.single()
-        assertEquals(com.yenreh.caligo.waits.WaitNotifications.ACTION_TOOK, shadowOf(shown.actions[0].actionIntent).savedIntent.action)
-        assertTrue(shown.timeoutAfter in 1..(TripEngine.BEAT.inWholeMilliseconds + com.yenreh.caligo.waits.WaitNotice.TIMEOUT_MARGIN_MS))
         h.desk.finish()
         h.advance(1)
         h.assertEnded(TripEnding.FINISHED)
     }
 
     @Test
-    fun stopWaitingOnATripsWaitEndsItAndItIsNotAskedForAgain() {
+    fun theButtonsTakeTheLineTappedAndEndTheRest() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.pressTitled("I took the E21")
+        h.advance(1)
+        assertEquals("E21", h.desk.running.value?.ride?.plan?.line)
+        assertTrue(h.awaitedLines.isEmpty())
+        assertTrue(waits.running.value.isEmpty())
+        // The ride's own notice from here: no lines to take
+        assertEquals(listOf("Finish"), shown.actions.map { it.title.toString() })
+    }
+
+    @Test
+    fun aButtonLeftFromAnEarlierTripTakesNothing() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.app.sendBroadcast(
+            android.content.Intent(h.app, TripActionReceiver::class.java)
+                .setAction(TripNotifications.ACTION_TAKE_LINE)
+                .putExtra(TripNotifications.EXTRA_STARTED_AT, 1L)
+                .putExtra(TripNotifications.EXTRA_LINE, "T31"),
+        )
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertEquals(null, h.desk.running.value?.ride)
+    }
+
+    @Test
+    fun theAlertComesOnceAsTheSoonestBusNears() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        assertEquals(TripChannel.TRIPS.id, shown.channelId)
+        assertEquals(null, h.desk.running.value?.busAlertedFor)
+        // The E21, due at 8 min, within 2 min from 6: the alert, on the channel the settings ask, marked as gone out
+        h.move(MINUTE + 15_000) { stop }
+        assertEquals(1, h.desk.running.value?.busAlertedFor)
+        assertEquals(WaitChannel.ALERT_SILENT.id, shown.channelId)
+        // Every later post silent, on the same channel
+        h.move(MINUTE) { stop }
+        assertTrue(shown.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+        assertEquals(WaitChannel.ALERT_SILENT.id, shown.channelId)
+    }
+
+    @Test
+    fun theAlertIsItsNoticeOnceARide() {
+        val journey = com.yenreh.caligo.domain.Journey.planned(option, DESTINATION, NOW).fixed(JourneyFixtures.fixAt(stop, NOW + MINUTE))
+        val words = TripWords(h.app.resources)
+        val near = listOf(AwaitedLine("E21", NOW + 3 * MINUTE), AwaitedLine("T31", NOW + 5 * MINUTE))
+        val notice = TripNotice.of(journey, NOW + 90_000, com.yenreh.caligo.waits.Alerts(), words, 15_000, awaited = near, near = true)
+        assertTrue(notice.alerting)
+        assertEquals(WaitChannel.ALERT_SILENT.id, notice.channelId)
+        // Not before the 2 minutes
+        assertFalse(TripNotice.of(journey, NOW, com.yenreh.caligo.waits.Alerts(), words, 15_000, awaited = near, near = true).alerting)
+        // Once gone out, never again for the ride
+        val after = TripNotice.of(journey.copy(busAlertedFor = 1), NOW + 2 * MINUTE, com.yenreh.caligo.waits.Alerts(), words, 15_000, awaited = near, near = true)
+        assertFalse(after.alerting)
+        assertEquals(WaitChannel.ALERT_SILENT.id, after.channelId)
+        // With the alert channel off, no alert, every post on the trips' channel
+        val off = TripNotice.of(journey, NOW + 90_000, com.yenreh.caligo.waits.Alerts(), words, 15_000, awaited = near, near = true, busAlertOn = false)
+        assertFalse(off.alerting)
+        assertEquals(TripChannel.TRIPS.id, off.channelId)
+    }
+
+    @Test
+    fun theRidersOwnWaitsKeepTheirNotificationsApart() {
         startJourney()
         h.move(MINUTE) { walking(it) }
-        assertEquals(2, h.tripWaitNotifications.size)
-        val asked = h.source.arrivalsAsked.size
-        for (n in h.tripWaitNotifications) {
-            n.actions[1].actionIntent.send()
-            shadowOf(android.os.Looper.getMainLooper()).idle()
-        }
+        val bus = WaitFixtures.bus("X1", "x1", NOW + 30 * MINUTE)
+        assertEquals(WaitStart.STARTED, waits.start(WaitFixtures.awaited(bus), null))
         h.advance(1)
-        assertTrue(h.tripWaitNotifications.isEmpty())
+        assertOne()
+        assertEquals(listOf("X1"), h.waitTitles.map { it.substringBefore(" ") })
+        h.desk.finish()
+        h.advance(1)
+        // Their own wait goes on
+        assertEquals(listOf("X1"), h.waitTitles.map { it.substringBefore(" ") })
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun aBellTappedOnABusTheTripAwaitsStopsAwaitingItAndIsNotAskedForAgain() {
+        startJourney()
+        h.move(MINUTE) { walking(it) }
+        val asked = h.source.arrivalsAsked.size
+        val e21 = waits.running.value.first { it.key.vehicleId == "637001" }.key
+        waits.stop(e21)
+        h.advance(1)
+        assertEquals(listOf("T31"), h.awaitedLines)
+        assertFalse(shown.text(), "E21 in" in shown.text())
+        waits.stop(waits.running.value.single().key)
         h.move(3 * MINUTE) { walking(it) }
         assertEquals(asked, h.source.arrivalsAsked.size)
-        assertTrue(h.tripWaitNotifications.isEmpty())
+        assertTrue(h.awaitedLines.isEmpty())
         h.assertRunning()
     }
 
     @Test
-    fun aTripsWaitSwipedOrItsBellTappedEndsIt() {
-        startJourney()
-        h.move(MINUTE) { walking(it) }
-        val first = h.tripWaitNotifications.first()
-        first.deleteIntent.send()
-        shadowOf(android.os.Looper.getMainLooper()).idle()
-        h.advance(1)
-        assertEquals(1, h.tripWaitNotifications.size)
-        // The filled bell on its row
-        waits.stop(waits.running.value.single().key)
-        h.advance(1)
-        assertTrue(h.tripWaitNotifications.isEmpty())
-        assertTrue(waits.running.value.isEmpty())
-    }
-
-    @Test
-    fun theRidersOwnWaitsKeepTheirCapApartFromATripsWaits() {
+    fun theRidersOwnWaitsKeepTheirCapApartFromATripsAwaitedBuses() {
         startJourney()
         h.move(MINUTE) { walking(it) }
         assertEquals(2, waits.running.value.size)
-        // Five of the rider's own still start, beside the trip's two
-        for (i in 1..com.yenreh.caligo.domain.Wait.CAP) {
-            val bus = com.yenreh.caligo.waits.WaitFixtures.bus("X$i", "x$i", NOW + 30 * MINUTE)
-            assertEquals(com.yenreh.caligo.waits.WaitStart.STARTED, waits.start(com.yenreh.caligo.waits.WaitFixtures.awaited(bus), null))
+        for (i in 1..Wait.CAP) {
+            val bus = WaitFixtures.bus("X$i", "x$i", NOW + 30 * MINUTE)
+            assertEquals(WaitStart.STARTED, waits.start(WaitFixtures.awaited(bus), null))
         }
-        assertEquals(com.yenreh.caligo.waits.WaitStart.CAP_REACHED, waits.start(com.yenreh.caligo.waits.WaitFixtures.awaited(com.yenreh.caligo.waits.WaitFixtures.bus("X9", "x9", NOW + 30 * MINUTE)), null))
-        // A bus the trip waits for already has its wait
+        assertEquals(WaitStart.CAP_REACHED, waits.start(WaitFixtures.awaited(WaitFixtures.bus("X9", "x9", NOW + 30 * MINUTE)), null))
+        // A bus the trip awaits already counts as waited for
         val tripKey = waits.running.value.first { it.key.vehicleId == "637001" }.key
         val e21 = firstArrivals(NOW).stops.single().arrivals.first { it.vehicleId == tripKey.vehicleId }
-        assertEquals(com.yenreh.caligo.waits.WaitStart.ALREADY_WAITING, waits.start(com.yenreh.caligo.domain.AwaitedBus(out[0].stopId, out[0].name, e21, stop), null))
+        assertEquals(WaitStart.ALREADY_WAITING, waits.start(com.yenreh.caligo.domain.AwaitedBus(out[0].stopId, out[0].name, e21, stop), null))
     }
 
     @Test
-    fun theOtherWaitOfARideTakenEndsWithoutAsking() {
+    fun iTookItOnTheRidersOwnWaitForALineTheTripAwaitsTakesIt() {
         startJourney()
-        h.move(5 * MINUTE) { at -> if (at < NOW + 4 * MINUTE) walking(at) else stop }
-        assertEquals(2, h.waitTitles.size)
-        tookIt("E21")
-        assertTrue(h.waitTitles.toString(), h.waitTitles.isEmpty())
-        assertTrue(waits.running.value.isEmpty())
-        assertEquals("E21", h.desk.running.value?.ride?.plan?.line)
+        h.move(5 * MINUTE) { toTheStop(it) }
+        val key = waits.running.value.first { it.key.vehicleId == "815001" }.key
+        assertTrue(h.desk.took(TookRide("T31", "Universidades", key.stopId, out[0].name, key.vehicleId, key.trip)))
+        h.advance(1)
+        assertEquals("T31", h.desk.running.value?.ride?.plan?.line)
+        assertTrue(h.awaitedLines.isEmpty())
     }
 
     @Test
     fun aBusTakenByPositionEndsEveryWaitOfItsRide() {
         startJourney()
-        h.move(5 * MINUTE) { at -> if (at < NOW + 4 * MINUTE) walking(at) else stop }
+        h.move(5 * MINUTE) { toTheStop(it) }
         val leftAt = h.now()
         h.source.byLine = { line, at -> if (line == "E21") listOf(busOn(calle5Route, "11002", 20 + (at - leftAt) * 8.0 / 1000)) else emptyList() }
         h.move(MINUTE) { at -> calle5Route.pointAt((at - leftAt) * 8.0 / 1000) }
         assertEquals("E21", h.desk.running.value?.ride?.plan?.line)
-        assertTrue(h.waitTitles.toString(), h.waitTitles.isEmpty())
+        assertTrue(h.awaitedLines.toString(), h.awaitedLines.isEmpty())
+        assertTrue(waits.running.value.isEmpty())
     }
 
+    // Endings
+
     @Test
-    fun finishMidWalkEndsTheTripAndItsWaits() {
+    fun finishMidWalk() {
         startJourney()
         h.move(MINUTE) { walking(it) }
-        assertEquals(2, h.waitTitles.size)
+        assertEquals(2, h.awaitedLines.size)
         h.desk.finish()
         h.advance(1)
-        assertTrue(h.waitTitles.toString(), h.waitTitles.isEmpty())
+        assertTrue(waits.running.value.isEmpty())
         h.assertEnded(TripEnding.FINISHED)
     }
 
     @Test
     fun finishOnTheNotificationWhileWaitingAtTheStop() {
         startJourney()
-        h.move(5 * MINUTE) { at -> if (at < NOW + 4 * MINUTE) walking(at) else stop }
-        h.press(0)
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.pressTitled("Finish")
         h.advance(1)
-        assertTrue(h.waitTitles.isEmpty())
+        assertTrue(waits.running.value.isEmpty())
         h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun swipedAwayWhileWaiting() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.swipe()
+        h.advance(1)
+        assertTrue(waits.running.value.isEmpty())
+        h.assertEnded(TripEnding.DISMISSED)
     }
 
     @Test
     fun swipedAwayMidRide() {
         startJourney()
-        h.move(5 * MINUTE) { at -> if (at < NOW + 4 * MINUTE) walking(at) else stop }
-        tookIt("T31")
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.pressTitled("I took the T31")
+        h.advance(1)
         h.swipe()
         h.advance(1)
-        assertTrue(h.waitTitles.isEmpty())
         h.assertEnded(TripEnding.DISMISSED)
     }
 
@@ -252,17 +335,17 @@ class TripJourneyTest {
         h.move(MINUTE) { walking(it) }
         shadowOf(h.manager).setNotificationsEnabled(false)
         h.advance(TripEngine.BEAT.inWholeMilliseconds)
-        assertTrue(h.waitTitles.isEmpty())
+        assertTrue(waits.running.value.isEmpty())
         h.assertEnded(TripEnding.BLOCKED)
     }
 
     @Test
     fun locationOffWhileWaiting() {
         startJourney()
-        h.move(5 * MINUTE) { at -> if (at < NOW + 4 * MINUTE) walking(at) else stop }
+        h.move(5 * MINUTE) { toTheStop(it) }
         h.location.lose()
         h.advance(1)
-        assertTrue(h.waitTitles.isEmpty())
+        assertTrue(waits.running.value.isEmpty())
         h.assertEnded(TripEnding.NO_LOCATION)
     }
 
@@ -271,28 +354,37 @@ class TripJourneyTest {
         startJourney()
         h.move(com.yenreh.caligo.domain.Journey.TIME_LIMIT.inWholeMilliseconds + MINUTE) { stop }
         h.assertEnded(TripEnding.TIME_LIMIT)
-        assertTrue(h.waitTitles.isEmpty())
+        assertTrue(waits.running.value.isEmpty())
     }
 
     @Test
-    fun waitsAllGoneWithNoneTakenAreAskedForAgain() {
+    fun aKilledServiceLeavesNoAwaitedBus() {
+        startJourney()
+        h.move(MINUTE) { walking(it) }
+        assertEquals(2, waits.running.value.size)
+        h.service.onDestroy()
+        assertTrue(waits.running.value.isEmpty())
+        assertTrue(h.tripOwn.isEmpty())
+    }
+
+    @Test
+    fun awaitedBusesAllGoneWithNoneTakenAreAskedForAgain() {
         // The buses drop out of the waits' answers: no longer seen, the waits end by themselves
         var listed = true
         h.waitsAnswering { _, at -> WaitAnswer(if (listed) firstArrivals(NOW).stops else emptyList(), at) }
         startJourney()
         h.move(MINUTE) { walking(it) }
-        assertEquals(2, h.tripWaitNotifications.size)
+        assertEquals(2, h.awaitedLines.size)
         val asked = h.source.arrivalsAsked.size
         listed = false
         h.move(9 * MINUTE) { stop }
         assertTrue(h.source.arrivalsAsked.size > asked)
-        assertEquals(2, h.tripWaitNotifications.size)
+        assertEquals(2, h.awaitedLines.size)
     }
 
     @Test
     fun theWalkAsksForNoBusesUntilNearTheStop() {
         startJourney()
-        // 300 m out, within the 300 m: asked once near
         h.move(30_000) { origin }
         assertTrue(h.source.askedLines.toString(), h.source.askedLines.isEmpty() || h.source.askedLines.all { it in setOf("E21", "T31") })
     }

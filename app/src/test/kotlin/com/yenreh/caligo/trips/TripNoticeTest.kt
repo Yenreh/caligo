@@ -29,8 +29,8 @@ class TripNoticeTest {
     @Test
     fun onTheEstimateTheTimeReadsAbout() {
         val n = notice(trip, NOW)
-        assertEquals("E21, get off at Pampalinda in ~10 min (7 stops)", n.title)
-        assertEquals("Next stop: Centro", n.text)
+        assertEquals("E21 to Pampalinda, ~10 min", n.title)
+        assertEquals("7 stops · next: Centro", n.text)
         assertEquals("~10 min", n.chip)
         assertEquals(NOW + trip.millisTo(7, NOW), n.countdownTo)
         assertEquals(TripChannel.TRIPS, n.channel)
@@ -41,8 +41,8 @@ class TripNoticeTest {
     fun aFixBacksTheTime() {
         val fixed = trip.fixed(fix(1210.0, NOW + 3 * MINUTE))
         val n = notice(fixed, NOW + 3 * MINUTE)
-        assertEquals("E21, get off at Pampalinda in 6 min (4 stops)", n.title)
-        assertEquals("Next stop: Calle 5 con Kr 22", n.text)
+        assertEquals("E21 to Pampalinda, 6 min", n.title)
+        assertEquals("4 stops · next: Calle 5 con Kr 22", n.text)
         assertEquals("6 min", n.chip)
         // The bar from the boarding stop to Pampalinda, in metres, with the next stops on it
         assertEquals(2800.0, n.progressMax.toDouble(), 3.0)
@@ -62,7 +62,8 @@ class TripNoticeTest {
         val n = notice(near, NOW + 6 * MINUTE, Alerts(sound = true))
         assertTrue(n.alerting)
         assertEquals(TripChannel.WARNING_SOUND, n.channel)
-        assertEquals("E21, get off at Pampalinda in 3 min (2 stops)", n.title)
+        assertEquals("E21 to Pampalinda, 3 min", n.title)
+        assertEquals("2 stops · next: Calle 5 con Kr 39", n.text)
         // Once out, it stays on that channel, silent
         val after = notice(near.warnedAt(NOW + 6 * MINUTE), NOW + 6 * MINUTE + 15_000, Alerts(sound = true))
         assertFalse(after.alerting)
@@ -80,12 +81,13 @@ class TripNoticeTest {
     @Test
     fun theStopNextAndTheStopReached() {
         val next = trip.fixed(fix(2410.0, NOW + 7 * MINUTE))
-        assertEquals("E21, get off at the next stop: Pampalinda", notice(next, NOW + 7 * MINUTE).title)
-        assertEquals("In 1 min", notice(next, NOW + 7 * MINUTE).text)
+        assertEquals("E21, get off at the next stop", notice(next, NOW + 7 * MINUTE).title)
+        assertEquals("Pampalinda · in 1 min", notice(next, NOW + 7 * MINUTE).text)
         assertEquals("Next", notice(next, NOW + 7 * MINUTE).chip)
         val here = next.fixed(fix(2790.0, NOW + 8 * MINUTE))
         val n = notice(here, NOW + 8 * MINUTE)
-        assertEquals("E21, get off here: Pampalinda", n.title)
+        assertEquals("E21, get off here", n.title)
+        assertEquals("Pampalinda", n.text)
         assertEquals("Here", n.chip)
         assertNull(n.countdownTo)
         assertTrue(n.points.isEmpty())
@@ -95,8 +97,8 @@ class TripNoticeTest {
     fun justFollowingTheRideSaysTheNextStopAndTheEnd() {
         val follow = Trip.start(plan.copy(alight = null), NOW)
         val n = notice(follow, NOW)
-        assertEquals("E21, next stop Centro in ~1 min", n.title)
-        assertEquals("Ends at Universidades in ~13 min", n.text)
+        assertEquals("E21 to Universidades, ~13 min", n.title)
+        assertEquals("9 stops · next: Centro", n.text)
     }
 
     @Test
@@ -114,10 +116,10 @@ class TripNoticeTest {
     @Config(qualifiers = "es")
     fun inSpanish() {
         val es = TripWords(ApplicationProvider.getApplicationContext<Context>().resources)
-        assertEquals("E21, bájate en Pampalinda en ~10 min (7 paradas)", TripNotice.of(trip, NOW, Alerts(), es, 15_000).title)
-        val one = Trip.start(plan.copy(alight = 2), NOW)
-        assertEquals("E21, bájate en Calle 5 con Kr 10 en ~3 min (2 paradas)", TripNotice.of(one, NOW, Alerts(), es, 15_000).title)
+        assertEquals("E21 a Pampalinda, ~10 min", TripNotice.of(trip, NOW, Alerts(), es, 15_000).title)
+        assertEquals("7 paradas · próxima: Centro", TripNotice.of(trip, NOW, Alerts(), es, 15_000).text)
         val next = trip.fixed(fix(2410.0, NOW + 7 * MINUTE))
-        assertEquals("E21, bájate en la próxima parada: Pampalinda", TripNotice.of(next, NOW + 7 * MINUTE, Alerts(), es, 15_000).title)
+        assertEquals("E21, bájate en la próxima", TripNotice.of(next, NOW + 7 * MINUTE, Alerts(), es, 15_000).title)
+        assertEquals("Pampalinda · en 1 min", TripNotice.of(next, NOW + 7 * MINUTE, Alerts(), es, 15_000).text)
     }
 }

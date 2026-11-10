@@ -309,19 +309,6 @@
     <string name="trip_warning_channel_sound">Aviso de parada, sonido</string>
     <string name="trip_warning_channel_sound_vibrate">Aviso de parada, sonido y vibración</string>
     <string name="trip_warning_channel_description">Antes de la parada donde te bajas</string>
-    <plurals name="trip_get_off_in">
-        <item quantity="one">%1$s, bájate en %2$s en %3$s min (%4$d parada)</item>
-        <item quantity="many">%1$s, bájate en %2$s en %3$s min (%4$d paradas)</item>
-        <item quantity="other">%1$s, bájate en %2$s en %3$s min (%4$d paradas)</item>
-    </plurals>
-    <string name="trip_get_off_next">%1$s, bájate en la próxima parada: %2$s</string>
-    <string name="trip_get_off_here">%1$s, bájate aquí: %2$s</string>
-    <string name="trip_next_in">%1$s, próxima parada %2$s en %3$s min</string>
-    <string name="trip_at_end">%1$s, en %2$s, fin del recorrido</string>
-    <string name="trip_ends_at">Termina en %1$s en %2$s min</string>
-    <string name="trip_next_stop">Próxima parada: %1$s</string>
-    <string name="trip_in_minutes">En %1$s min</string>
-    <string name="trip_at_stop_text">Tu parada</string>
     <string name="trip_off_route">Fuera de la ruta</string>
     <string name="trip_chip_minutes">%1$s min</string>
     <string name="trip_chip_next">Próx.</string>
@@ -361,11 +348,11 @@
     <string name="trip_home_title">En el %1$s</string>
     <string name="trip_open">Abrir el viaje</string>
     <string name="trip_walk_to">Camina a %1$s, %2$s min</string>
-    <string name="trip_then">Luego el %1$s</string>
-    <string name="trip_your_destination">Tu destino</string>
-    <string name="trip_take">Toma el %1$s en %2$s</string>
-    <string name="trip_next_bus_in">Próximo bus en %1$d min</string>
-    <string name="trip_took_it_hint">Toca Lo tomé en su bus al subir</string>
+    <string name="trip_line_in">%1$s en %2$d min</string>
+    <string name="trip_line_minutes">%1$s %2$d min</string>
+    <string name="trip_line_at_stop">%1$s en la parada</string>
+    <string name="trip_took_line">Tomé el %1$s</string>
+    <string name="trip_took_it_hint">Al subir, toca la línea que tomaste</string>
     <string name="trip_lines_or">%1$s o %2$s</string>
     <string name="trip_to_destination">Viaje a %1$s</string>
     <string name="trip_heading_walk">Camina a %1$s</string>
@@ -381,4 +368,17 @@
     </plurals>
     <string name="trip_follow_me">Seguir mi posición</string>
     <string name="trip_start">Empezar viaje</string>
+    <string name="trip_ride_to">%1$s a %2$s, %3$s min</string>
+    <plurals name="trip_stops_next">
+        <item quantity="one">%1$d parada · próxima: %2$s</item>
+        <item quantity="many">%1$d paradas · próxima: %2$s</item>
+        <item quantity="other">%1$d paradas · próxima: %2$s</item>
+    </plurals>
+    <string name="trip_get_off_next">%1$s, bájate en la próxima</string>
+    <string name="trip_get_off_here">%1$s, bájate aquí</string>
+    <string name="trip_end_of_line">%1$s, fin del recorrido</string>
+    <string name="trip_stop_in">%1$s · en %2$s min</string>
+    <string name="trip_walk_to_stop">Camina a la parada, %1$s min</string>
+    <string name="trip_walk_to_destination">Camina a tu destino, %1$s min</string>
+    <string name="trip_then">luego el %1$s</string>
 </resources>

@@ -149,6 +149,9 @@ class TripViewModel(
 
     fun finish() = trips.finish()
 
+    /** "I took the [line]" on the screen, while a planner trip waits at the stop */
+    fun takeLine(line: String) = trips.takeLine(line)
+
     fun dismissMessage() = state.update { it.copy(message = null) }
 
     /** The notification settings, for the message that asks for them */

@@ -20,8 +20,8 @@ import com.yenreh.caligo.domain.WaitKey
 /**
  * The waits' notifications: their channels, their ids, and each notice
  * built into a notification with its actions. Only [WaitService] posts
- * and cancels the rider's own, with these ids; the trip service those a
- * trip starts, with ids of its own.
+ * and cancels them: the waits a trip starts post nothing of their own,
+ * the trip's notification carrying them.
  */
 object WaitNotifications {
     /** One id per wait at once: [FIRST_ID] and the next [Wait.CAP] - 1 */
@@ -48,8 +48,6 @@ object WaitNotifications {
     const val EXTRA_ANCHOR_LONGITUDE = "anchorLongitude"
     const val EXTRA_LATITUDE = "latitude"
     const val EXTRA_LONGITUDE = "longitude"
-    /** On the actions of a wait a trip started, which the trip service runs */
-    const val EXTRA_TRIP_WAIT = "tripWait"
     const val EXTRA_LINE = "line"
     const val EXTRA_DESTINATION = "destination"
 
@@ -122,19 +120,8 @@ object WaitNotifications {
         return WaitKey(stop, vehicle, intent.getLongExtra(EXTRA_TRIP, 0))
     }
 
-    /**
-     * [notice] of [wait] as the notification with [id]; [tripWait] for a
-     * wait a trip started, whose buttons and swipe reach the trip service
-     */
-    fun build(
-        context: Context,
-        id: Int,
-        wait: Wait,
-        notice: WaitNotice,
-        alerts: Alerts,
-        words: WaitWords,
-        tripWait: Boolean = false,
-    ): Notification {
+    /** [notice] of [wait] as the notification with [id] */
+    fun build(context: Context, id: Int, wait: Wait, notice: WaitNotice, alerts: Alerts, words: WaitWords): Notification {
         val builder = NotificationCompat.Builder(context, notice.channel.id)
             .setSmallIcon(R.drawable.ic_directions_bus)
             .setContentTitle(notice.title)
@@ -147,7 +134,7 @@ object WaitNotifications {
             .setTimeoutAfter(notice.timeoutAfter)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(openStop(context, id, wait))
-            .setDeleteIntent(action(context, id, wait, ACTION_DISMISSED, tripWait))
+            .setDeleteIntent(action(context, id, wait, ACTION_DISMISSED))
             // Older versions draw this bar; Android 16 and later the style's
             .setProgress(notice.progressMax, notice.progress, false)
             // A Live Update on Android 16 and later: promoted while ongoing,
@@ -163,7 +150,7 @@ object WaitNotifications {
         for (action in notice.actions) {
             val intent = when (action) {
                 WaitAction.TOOK -> tookIt(context, id, wait)
-                WaitAction.STOP, WaitAction.NOT_TAKEN -> action(context, id, wait, ACTION_STOP, tripWait)
+                WaitAction.STOP, WaitAction.NOT_TAKEN -> action(context, id, wait, ACTION_STOP)
             }
             builder.addAction(0, words.action(action), intent)
         }
@@ -186,13 +173,12 @@ object WaitNotifications {
         return builder.build()
     }
 
-    private fun action(context: Context, id: Int, wait: Wait, name: String, tripWait: Boolean): PendingIntent {
+    private fun action(context: Context, id: Int, wait: Wait, name: String): PendingIntent {
         val intent = Intent(context, WaitActionReceiver::class.java)
             .setAction(name)
             .putExtra(EXTRA_STOP_ID, wait.bus.stopId)
             .putExtra(EXTRA_VEHICLE_ID, wait.bus.bus.vehicleId)
             .putExtra(EXTRA_TRIP, wait.key.trip)
-        if (tripWait) intent.putExtra(EXTRA_TRIP_WAIT, true)
         val code = (id - PLACEHOLDER_ID) * 4 + listOf(ACTION_STOP, ACTION_DISMISSED).indexOf(name)
         return PendingIntent.getBroadcast(
             context,
