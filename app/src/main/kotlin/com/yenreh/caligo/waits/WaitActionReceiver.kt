@@ -7,7 +7,7 @@ import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.domain.WaitEnding
 
 /**
- * The buttons of a wait's notification and its swipe, handed to the
+ * "Stop waiting" and "No" of a wait's notification and its swipe, handed to the
  * service through the desk. With no service running, as in a process
  * started anew, there is no wait to end, and the process start has
  * cancelled what was left.
@@ -16,7 +16,6 @@ class WaitActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val key = WaitNotifications.keyOf(intent) ?: return
         val ending = when (intent.action) {
-            WaitNotifications.ACTION_TOOK -> WaitEnding.TOOK
             WaitNotifications.ACTION_STOP -> WaitEnding.STOPPED
             WaitNotifications.ACTION_DISMISSED -> WaitEnding.DISMISSED
             else -> return

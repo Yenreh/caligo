@@ -13,6 +13,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.yenreh.caligo.MainActivity
 import com.yenreh.caligo.R
+import com.yenreh.caligo.domain.TookRide
 import com.yenreh.caligo.domain.Wait
 import com.yenreh.caligo.domain.WaitKey
 
@@ -30,6 +31,7 @@ object WaitNotifications {
 
     val ids: IntRange get() = FIRST_ID until FIRST_ID + Wait.CAP
 
+    /** "I took it": opens the trip screen in the app, which ends the wait */
     const val ACTION_TOOK = "com.yenreh.caligo.wait.TOOK"
     const val ACTION_STOP = "com.yenreh.caligo.wait.STOP"
     const val ACTION_DISMISSED = "com.yenreh.caligo.wait.DISMISSED"
@@ -45,6 +47,8 @@ object WaitNotifications {
     const val EXTRA_ANCHOR_LONGITUDE = "anchorLongitude"
     const val EXTRA_LATITUDE = "latitude"
     const val EXTRA_LONGITUDE = "longitude"
+    const val EXTRA_LINE = "line"
+    const val EXTRA_DESTINATION = "destination"
 
     private val VIBRATION = longArrayOf(0, 250, 150, 250)
 
@@ -143,11 +147,11 @@ object WaitNotifications {
                     .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_progress_tracker)),
             )
         for (action in notice.actions) {
-            val name = when (action) {
-                WaitAction.TOOK -> ACTION_TOOK
-                WaitAction.STOP, WaitAction.NOT_TAKEN -> ACTION_STOP
+            val intent = when (action) {
+                WaitAction.TOOK -> tookIt(context, id, wait)
+                WaitAction.STOP, WaitAction.NOT_TAKEN -> action(context, id, wait, ACTION_STOP)
             }
-            builder.addAction(0, words.action(action), action(context, id, wait, name))
+            builder.addAction(0, words.action(action), intent)
         }
         val countdownTo = notice.countdownTo
         if (countdownTo != null) {
@@ -174,7 +178,7 @@ object WaitNotifications {
             .putExtra(EXTRA_STOP_ID, wait.bus.stopId)
             .putExtra(EXTRA_VEHICLE_ID, wait.bus.bus.vehicleId)
             .putExtra(EXTRA_TRIP, wait.key.trip)
-        val code = (id - PLACEHOLDER_ID) * 4 + listOf(ACTION_TOOK, ACTION_STOP, ACTION_DISMISSED).indexOf(name)
+        val code = (id - PLACEHOLDER_ID) * 4 + listOf(ACTION_STOP, ACTION_DISMISSED).indexOf(name)
         return PendingIntent.getBroadcast(
             context,
             code,
@@ -182,6 +186,47 @@ object WaitNotifications {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
+
+    /**
+     * "I took it": the trip screen, opened straight from the button, as
+     * Android 12 and later require of a notification's action that opens
+     * the app. With the app on show the trip may follow the location with
+     * the while-in-use permission alone.
+     */
+    private fun tookIt(context: Context, id: Int, wait: Wait): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java)
+            .setAction(ACTION_TOOK)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(EXTRA_STOP_ID, wait.bus.stopId)
+            .putExtra(EXTRA_VEHICLE_ID, wait.bus.bus.vehicleId)
+            .putExtra(EXTRA_TRIP, wait.key.trip)
+            .putExtra(EXTRA_STOP_NAME, wait.bus.stopName)
+            .putExtra(EXTRA_LINE, wait.bus.bus.line)
+            .putExtra(EXTRA_DESTINATION, wait.bus.bus.destination)
+        return PendingIntent.getActivity(
+            context,
+            id + TOOK_REQUEST_OFFSET,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    /** The ride "I took it" names, from its intent */
+    fun tookOf(intent: Intent): TookRide? {
+        if (intent.action != ACTION_TOOK) return null
+        val key = keyOf(intent) ?: return null
+        return TookRide(
+            line = intent.getStringExtra(EXTRA_LINE) ?: return null,
+            destination = intent.getStringExtra(EXTRA_DESTINATION).orEmpty(),
+            stopId = key.stopId,
+            stopName = intent.getStringExtra(EXTRA_STOP_NAME).orEmpty(),
+            vehicleId = key.vehicleId,
+            trip = key.trip,
+        )
+    }
+
+    /** Apart from the stop each notification opens, by its id */
+    private const val TOOK_REQUEST_OFFSET = 1000
 
     private fun openStop(context: Context, id: Int, wait: Wait): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)

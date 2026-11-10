@@ -135,16 +135,7 @@ class WaitService : Service(), WaitHost {
             engine.waits.firstOrNull()?.let { next -> show(listOf(next), desk.now(), WaitEngine.BEAT.inWholeMilliseconds) }
         }
         NotificationManagerCompat.from(this).cancel(id)
-        if (ending == WaitEnding.TOOK) tookIt(wait)
     }
-
-    /**
-     * The rider boarded [wait]'s bus. In 5.1 the wait just ends; 5.2
-     * starts following the trip from here, with its line, direction and
-     * boarding stop.
-     */
-    @Suppress("UNUSED_PARAMETER")
-    private fun tookIt(wait: Wait) {}
 
     override fun idle() {
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)

@@ -26,6 +26,9 @@ interface WaitControl {
 
     /** Stop waiting for [key]: the filled bell tapped */
     fun stop(key: WaitKey)
+
+    /** [key]'s bus taken: "I took it" opened the trip screen, which ends the wait */
+    fun took(key: WaitKey) {}
 }
 
 /**
@@ -67,6 +70,11 @@ class WaitDesk(
     override fun stop(key: WaitKey) {
         if (pending.removeAll { it.first.key == key }) publish()
         service?.end(key, WaitEnding.BELL)
+    }
+
+    override fun took(key: WaitKey) {
+        if (pending.removeAll { it.first.key == key }) publish()
+        service?.end(key, WaitEnding.TOOK)
     }
 
     /** A button of [key]'s notification, or its swipe */

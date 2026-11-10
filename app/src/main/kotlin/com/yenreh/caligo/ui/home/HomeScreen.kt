@@ -44,7 +44,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.yenreh.caligo.AppInfo
 import com.yenreh.caligo.R
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
+import com.yenreh.caligo.domain.Trip
+import com.yenreh.caligo.domain.TripSource
 import com.yenreh.caligo.domain.entities.HomeContent
+import com.yenreh.caligo.ui.common.LocalNow
+import com.yenreh.caligo.ui.common.watchLiveClock
+import com.yenreh.caligo.ui.lab.LabListTile
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.ui.cards.CardItem
 import com.yenreh.caligo.ui.cards.CardsState
@@ -74,6 +81,8 @@ class HomeActions(
     val onPlan: () -> Unit = {},
     /** The stops screen: "See all" and the bar's favorites button */
     val onStops: () -> Unit = {},
+    /** The trip screen, while a trip runs */
+    val onTrip: () -> Unit = {},
 )
 
 /**
@@ -93,6 +102,8 @@ fun HomeScreen(
     onRefreshStops: () -> Unit = {},
     actions: HomeActions = HomeActions(),
     snackbars: LabSnackbars = rememberLabSnackbars(),
+    /** The trip running, shown over the bar as the way back to it */
+    trip: Trip? = null,
 ) {
     val p = LabTheme.palette
     val showsCards = settings.showsCards
@@ -114,7 +125,12 @@ fun HomeScreen(
             containerColor = p.bg,
             contentWindowInsets = WindowInsets(0),
             snackbarHost = { LabSnackbarHost(snackbars) },
-            bottomBar = { ManageBar(actions) },
+            bottomBar = {
+                Column {
+                    trip?.let { TripBar(it, actions.onTrip) }
+                    ManageBar(actions)
+                }
+            },
         ) { padding ->
             val body = Modifier
                 .padding(padding)
@@ -304,6 +320,39 @@ private fun ManageBar(actions: HomeActions) {
         Spacer(Modifier.width(8.dp))
         BarButton(painterResource(R.drawable.ic_signpost), stringResource(R.string.favorites_short), actions.onStops)
     }
+}
+
+/** The trip running, a tap away: its line and where it gets off, with the time left */
+@Composable
+private fun TripBar(trip: Trip, onTrip: () -> Unit) {
+    val p = LabTheme.palette
+    watchLiveClock()
+    val now = LocalNow.current()
+    val plan = trip.plan
+    val progress = trip.progress(now)
+    val target = plan.stops[plan.target].name
+    val minutes = trip.minutes(trip.millisTo(plan.target, now)).let { if (progress.source == TripSource.ESTIMATE) "~$it" else "$it" }
+    val heading = when {
+        plan.alight != null && progress.stopsLeft == 0 -> stringResource(R.string.trip_heading_here)
+        plan.alight != null -> stringResource(R.string.trip_heading_get_off, target)
+        else -> stringResource(R.string.trip_heading_follow, target)
+    }
+    LabListTile(
+        title = stringResource(R.string.trip_home_title, plan.line),
+        subtitle = if (progress.stopsLeft > 0) "$heading · ${stringResource(R.string.trip_minutes, minutes)}" else heading,
+        leading = painterResource(R.drawable.ic_directions_bus),
+        leadingTint = p.accent,
+        trailing = { Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null, tint = p.muted) },
+        modifier = Modifier
+            .background(p.paper)
+            .drawBehind {
+                val rule = 1.dp.toPx()
+                drawLine(p.rule, Offset(0f, rule / 2), Offset(size.width, rule / 2), rule)
+            }
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.trip_open), onClick = onTrip)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+            .testTag("home_trip"),
+    )
 }
 
 /** A bar button: an icon, named by its tooltip */

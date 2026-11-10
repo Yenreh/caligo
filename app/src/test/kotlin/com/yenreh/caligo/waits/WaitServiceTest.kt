@@ -199,18 +199,40 @@ class WaitServiceTest {
 
     // 4. I took it
 
+    /** "I took it" opens the trip screen in the one activity, with the ride; the screen ends the wait */
+    private fun tookIt(line: String) {
+        val intent = shadowOf(notificationOf(line).actions[0].actionIntent).savedIntent
+        assertEquals(WaitNotifications.ACTION_TOOK, intent.action)
+        assertEquals(com.yenreh.caligo.MainActivity::class.java.name, intent.component?.className)
+        val took = checkNotNull(WaitNotifications.tookOf(intent))
+        assertEquals(line, took.line)
+        assertEquals(WaitFixtures.STOP, took.stopId)
+        desk.took(took.waitKey)
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
     @Test
     fun tookIt() {
         start(awaited(t31))
-        press("T31", 0)
+        tookIt("T31")
         assertLeft()
     }
 
     @Test
     fun tookItOneOfSeveral() {
         start(awaited(t31), awaited(a47))
-        press("A47", 0)
+        tookIt("A47")
         assertLeft("T31")
+    }
+
+    @Test
+    fun tookItNamesTheRideForTheTripScreen() {
+        start(awaited(t31))
+        val intent = shadowOf(notificationOf("T31").actions[0].actionIntent).savedIntent
+        val took = checkNotNull(WaitNotifications.tookOf(intent))
+        assertEquals(com.yenreh.caligo.domain.TookRide("T31", "Universidades", WaitFixtures.STOP, WaitFixtures.STOP_NAME, "t31", t31.arrivalTime), took)
+        // An activity, opened straight from the button: no trampoline
+        assertTrue(shadowOf(notificationOf("T31").actions[0].actionIntent).isActivity)
     }
 
     // 5. The bus passes

@@ -60,6 +60,13 @@ import com.yenreh.caligo.ui.trips.PlacePickerRoute
 import com.yenreh.caligo.ui.trips.PlacePickerViewModel
 import com.yenreh.caligo.ui.trips.PlanTripRoute
 import com.yenreh.caligo.ui.trips.PlanTripViewModel
+import com.yenreh.caligo.ui.trips.TripRoute
+import com.yenreh.caligo.ui.trips.TripViewModel
+import com.yenreh.caligo.domain.TookRide
+import com.yenreh.caligo.domain.Trip
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
@@ -93,6 +100,12 @@ fun AppNavigation(
     placePickerViewModel: @Composable () -> PlacePickerViewModel = { viewModel(factory = PlacePickerViewModel.Factory) },
     /** Stops whose details to show over whatever screen is on, as a wait's notification opens them */
     openedStops: Flow<OpenStop> = emptyFlow(),
+    /** Trip screens to open over whatever screen is on, as "I took it" and the trip's notification open them */
+    openedTrips: Flow<Route.Trip> = emptyFlow(),
+    /** The trip running, which the home leads back to */
+    runningTrip: StateFlow<Trip?> = MutableStateFlow(null),
+    /** The view model of a trip screen, for the ride it names: its own, or a test's */
+    tripViewModel: @Composable (took: TookRide?) -> TripViewModel = { viewModel(factory = TripViewModel.factory(it)) },
 ) {
     val activity: ViewModelStoreOwner = checkNotNull(LocalViewModelStoreOwner.current)
     // Read inside the entries, so they follow every change of the settings
@@ -133,6 +146,15 @@ fun AppNavigation(
         StopDetailsFor(open, stops(), onDismiss = { opened = null }, fetchOnOpen = true, onGoHere = ::goTo)
     }
 
+    // A trip screen opened from a notification: in place of one on top, never two
+    LaunchedEffect(openedTrips) {
+        openedTrips.collect { route ->
+            if (backStack.lastOrNull() is Route.Trip) backStack.removeAt(backStack.lastIndex)
+            open(route)
+        }
+    }
+    val trip by runningTrip.collectAsStateWithLifecycle()
+
     NavDisplay(
         backStack = backStack,
         modifier = modifier,
@@ -153,7 +175,9 @@ fun AppNavigation(
                         onSearch = { open(Route.SearchStops) },
                         onPlan = { open(Route.PlanTrip()) },
                         onStops = { open(Route.Stops) },
+                        onTrip = { open(Route.Trip()) },
                     ),
+                    trip = trip,
                     cardsViewModel = cards(),
                     stopsViewModel = { stops() },
                 )
@@ -262,6 +286,9 @@ fun AppNavigation(
             }
             entry<Route.EditCard> { key ->
                 EditCardRoute(key.cardId, cards(), onBack = ::back, onDone = { backFrom(key) })
+            }
+            entry<Route.Trip> { key ->
+                TripRoute(tripViewModel(key.took?.ride), onBack = { backFrom(key) })
             }
             entry<Route.Settings> {
                 SettingsRoute(onBack = ::back, onLicenses = { open(Route.Licenses) })

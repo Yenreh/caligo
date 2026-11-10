@@ -18,6 +18,9 @@ import com.yenreh.caligo.ui.navigation.AppNavigation
 import com.yenreh.caligo.ui.stops.OpenStop
 import com.yenreh.caligo.ui.stops.WaitBellsHost
 import com.yenreh.caligo.ui.theme.CaliGoTheme
+import com.yenreh.caligo.trips.TripNotifications
+import com.yenreh.caligo.ui.navigation.Route
+import com.yenreh.caligo.ui.navigation.key
 import com.yenreh.caligo.waits.WaitNotifications
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -33,7 +36,10 @@ class MainActivity : ComponentActivity() {
         container.location.attach(this)
         container.notificationAccess.attach(this)
         // A wait's notification tapped: its stop, once, not again on a rotation
-        if (savedInstanceState == null) openedStop(intent)?.let(openedStops::trySend)
+        if (savedInstanceState == null) {
+            openedStop(intent)?.let(openedStops::trySend)
+            openedTrip(intent)?.let(openedTrips::trySend)
+        }
         enableEdgeToEdge()
         setContent {
             val settings by container.settings.settings.collectAsStateWithLifecycle()
@@ -53,7 +59,12 @@ class MainActivity : ComponentActivity() {
             }
             CaliGoTheme(darkTheme = dark) {
                 WaitBellsHost(container.waits, container.notificationAccess) {
-                    AppNavigation(settings, openedStops = openedStopsFlow)
+                    AppNavigation(
+                        settings,
+                        openedStops = openedStopsFlow,
+                        openedTrips = openedTripsFlow,
+                        runningTrip = container.trips.running,
+                    )
                 }
             }
         }
@@ -63,11 +74,23 @@ class MainActivity : ComponentActivity() {
     private val openedStops = Channel<OpenStop>(Channel.CONFLATED)
     private val openedStopsFlow = openedStops.receiveAsFlow()
 
+    /** Trip screens to show, from "I took it" or the trip's notification */
+    private val openedTrips = Channel<Route.Trip>(Channel.CONFLATED)
+    private val openedTripsFlow = openedTrips.receiveAsFlow()
+
     // One activity: a notification tapped while it runs comes here
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         openedStop(intent)?.let(openedStops::trySend)
+        openedTrip(intent)?.let(openedTrips::trySend)
+    }
+
+    /** The trip screen [intent] opens: the ride "I took it" names, or the trip running */
+    private fun openedTrip(intent: Intent?): Route.Trip? {
+        intent ?: return null
+        if (intent.action == TripNotifications.ACTION_OPEN_TRIP) return Route.Trip()
+        return WaitNotifications.tookOf(intent)?.let { Route.Trip(it.key) }
     }
 
     /** The stop a wait's notification opens, from [intent] */

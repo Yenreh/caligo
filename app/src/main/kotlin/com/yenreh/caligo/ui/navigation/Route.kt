@@ -1,6 +1,7 @@
 package com.yenreh.caligo.ui.navigation
 
 import androidx.navigation3.runtime.NavKey
+import com.yenreh.caligo.domain.TookRide
 import com.yenreh.caligo.domain.entities.TripPlace
 import kotlinx.serialization.Serializable
 
@@ -69,6 +70,14 @@ sealed interface Route : NavKey {
         val longitude: Double,
     ) : Route
 
+    /**
+     * The trip screen: the ride [took] names, from its wait's "I took
+     * it", asking where to get off; or, without one, the trip running, as
+     * its notification and the home open it
+     */
+    @Serializable
+    data class Trip(val took: TookKey? = null) : Route
+
     /** `/settings` */
     @Serializable
     data object Settings : Route
@@ -94,3 +103,18 @@ data class PlaceKey(
 }
 
 val TripPlace.key: PlaceKey get() = PlaceKey(latitude, longitude, name, isDevice)
+
+/** A [TookRide] as a key carries it, saved with the back stack */
+@Serializable
+data class TookKey(
+    val line: String,
+    val destination: String,
+    val stopId: String,
+    val stopName: String,
+    val vehicleId: String,
+    val trip: Long,
+) {
+    val ride: TookRide get() = TookRide(line, destination, stopId, stopName, vehicleId, trip)
+}
+
+val TookRide.key: TookKey get() = TookKey(line, destination, stopId, stopName, vehicleId, trip)
