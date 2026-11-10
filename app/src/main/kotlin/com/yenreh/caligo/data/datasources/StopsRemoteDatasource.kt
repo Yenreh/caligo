@@ -159,7 +159,10 @@ class StopsRemoteDatasource(
         latitude: Double,
         longitude: Double,
         radiusMeters: Int = MAX_RADIUS_METERS,
-    ): List<NearbyStop> {
+    ): List<NearbyStop> = askArea(latitude, longitude, radiusMeters).stops
+
+    /** The answer around a position, as the area it is kept as: one moment it was fetched at */
+    private suspend fun askArea(latitude: Double, longitude: Double, radiusMeters: Int = MAX_RADIUS_METERS): Area {
         val radius = if (radiusMeters > MAX_RADIUS_METERS) MAX_RADIUS_METERS else radiusMeters
         val url = "$ARRIVALS_URL?latitud=${dartDouble(latitude)}" +
             "&longitud=${dartDouble(longitude)}&radio=$radius"
@@ -180,14 +183,15 @@ class StopsRemoteDatasource(
         // Whoever asked, the answer also serves trips planned nearby and
         // teaches how often each line comes
         val now = now()
+        val area = Area(latitude, longitude, now, ticks(), stops)
         if (radius == MAX_RADIUS_METERS) {
             synchronized(recentAreas) {
-                recentAreas.addLast(Area(latitude, longitude, now, ticks(), stops))
+                recentAreas.addLast(area)
                 if (recentAreas.size > MAX_RECENT_AREAS) recentAreas.removeFirst()
             }
         }
         scope.launch { headways.observe(stops, now) }
-        return stops
+        return area
     }
 
     private fun placed(stop: NearbyStop, known: Map<String, List<Double>>): NearbyStop =
@@ -228,8 +232,8 @@ class StopsRemoteDatasource(
             centres.map { centre ->
                 async {
                     try {
-                        val found = getNearbyStops(centre.latitude, centre.longitude)
-                        Area(centre.latitude, centre.longitude, now(), ticks(), found)
+                        // The very area kept for reuse, so a later reuse tells the same time
+                        askArea(centre.latitude, centre.longitude)
                     } catch (_: ApiException) {
                         failed.set(true)
                         null
