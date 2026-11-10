@@ -272,6 +272,7 @@
         <item quantity="other">Ya esperas %1$d buses, el máximo a la vez. Deja de esperar uno para seguir otro.</item>
     </plurals>
     <string name="wait_needs_notifications">CaliGo sigue el bus en una notificación, y sus notificaciones están desactivadas.</string>
+    <string name="wait_close">Cerrar</string>
     <string name="wait_open_settings">Ajustes de notificaciones</string>
     <string name="wait_title_minutes">%1$s a %2$s, %3$d min</string>
     <string name="wait_title_now">%1$s a %2$s, llegando</string>

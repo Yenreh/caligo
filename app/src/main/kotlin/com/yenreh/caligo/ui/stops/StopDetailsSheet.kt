@@ -37,7 +37,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.ArrivalPhase
+import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.FadingArrivals
+import com.yenreh.caligo.domain.FadingRow
+import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.shown
 import com.yenreh.caligo.domain.entities.StopLine
@@ -212,7 +215,15 @@ fun StopDetailsContent(
             when {
                 // Nothing known yet: the first answer is on its way
                 fetchOnOpen && updatedAt == null && !failed -> Progress(Modifier.padding(vertical = 16.dp))
-                else -> SheetArrivals(fading)
+                else -> SheetArrivals(fading) { row ->
+                    AwaitedBus(
+                        stopId = stop.id,
+                        stopName = stop.name,
+                        bus = row.bus,
+                        anchor = GeoPoint(anchorLatitude, anchorLongitude),
+                        place = stop.latitude?.let { lat -> stop.longitude?.let { GeoPoint(lat, it) } },
+                    )
+                }
             }
             LabDivider()
             Spacer(Modifier.height(16.dp))
@@ -311,7 +322,7 @@ fun StopDetailsContent(
  * works the rows out again, with what has reached the stop or passed.
  */
 @Composable
-private fun SheetArrivals(fading: FadingArrivals) {
+private fun SheetArrivals(fading: FadingArrivals, awaited: (FadingRow) -> AwaitedBus) {
     watchLiveClock()
     val rows = fading.rows(LocalNow.current()).shown(SHEET_ROWS)
     if (rows.none { it.phase !is ArrivalPhase.Passed }) {
@@ -326,7 +337,12 @@ private fun SheetArrivals(fading: FadingArrivals) {
     Column {
         rows.forEachIndexed { i, row ->
             if (i > 0) LabDivider()
-            ArrivalRow(row.bus, phase = row.phase, padding = PaddingValues(vertical = 8.dp))
+            ArrivalRow(
+                row.bus,
+                phase = row.phase,
+                padding = PaddingValues(vertical = 8.dp),
+                bell = { RowBell(row, awaited(row), fading) },
+            )
         }
     }
 }

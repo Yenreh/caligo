@@ -276,6 +276,7 @@
         <item quantity="other">You are already waiting for %1$d buses, the most at once. Stop one to follow another.</item>
     </plurals>
     <string name="wait_needs_notifications">CaliGo follows the bus in a notification, and notifications are off for it.</string>
+    <string name="wait_close">Close</string>
     <string name="wait_open_settings">Notification settings</string>
     <string name="wait_title_minutes">%1$s to %2$s, %3$d min</string>
     <string name="wait_title_now">%1$s to %2$s, arriving now</string>

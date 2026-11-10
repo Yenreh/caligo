@@ -9,7 +9,11 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -24,6 +28,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.yenreh.caligo.BuildConfig
+import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.TripPlace
@@ -43,6 +48,8 @@ import com.yenreh.caligo.ui.map.rememberAppMapTiles
 import com.yenreh.caligo.ui.settings.SettingsRoute
 import com.yenreh.caligo.ui.stops.AddStopScreen
 import com.yenreh.caligo.ui.stops.MapStopsRoute
+import com.yenreh.caligo.ui.stops.OpenStop
+import com.yenreh.caligo.ui.stops.StopDetailsFor
 import com.yenreh.caligo.ui.stops.StationStopsScreen
 import com.yenreh.caligo.ui.stops.StopsRoute
 import com.yenreh.caligo.ui.stops.StopsViewModel
@@ -53,6 +60,8 @@ import com.yenreh.caligo.ui.trips.PlacePickerRoute
 import com.yenreh.caligo.ui.trips.PlacePickerViewModel
 import com.yenreh.caligo.ui.trips.PlanTripRoute
 import com.yenreh.caligo.ui.trips.PlanTripViewModel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * The app's screens on one back stack, the home at its root; back, and
@@ -82,6 +91,8 @@ fun AppNavigation(
     },
     /** The view model of a place picker: its own, or a test's */
     placePickerViewModel: @Composable () -> PlacePickerViewModel = { viewModel(factory = PlacePickerViewModel.Factory) },
+    /** Stops whose details to show over whatever screen is on, as a wait's notification opens them */
+    openedStops: Flow<OpenStop> = emptyFlow(),
 ) {
     val activity: ViewModelStoreOwner = checkNotNull(LocalViewModelStoreOwner.current)
     // Read inside the entries, so they follow every change of the settings
@@ -114,6 +125,13 @@ fun AppNavigation(
 
     // "Go here" of a stop's details
     fun goTo(place: TripPlace) = open(Route.PlanTrip(place.key))
+
+    // A stop opened from a wait's notification, over the screen on show
+    var opened by rememberSaveable(stateSaver = OpenStopSaver) { mutableStateOf<OpenStop?>(null) }
+    LaunchedEffect(openedStops) { openedStops.collect { opened = it } }
+    opened?.let { open ->
+        StopDetailsFor(open, stops(), onDismiss = { opened = null }, fetchOnOpen = true, onGoHere = ::goTo)
+    }
 
     NavDisplay(
         backStack = backStack,
@@ -261,6 +279,37 @@ fun AppNavigation(
         },
     )
 }
+
+/** A stop opened from a notification, kept through a rotation */
+private val OpenStopSaver = listSaver<OpenStop?, Any>(
+    save = { open ->
+        if (open == null) {
+            emptyList()
+        } else {
+            listOf(
+                open.stop.id,
+                open.stop.name,
+                open.stop.latitude ?: Double.NaN,
+                open.stop.longitude ?: Double.NaN,
+                open.anchorLatitude,
+                open.anchorLongitude,
+            )
+        }
+    },
+    restore = { saved ->
+        if (saved.isEmpty()) {
+            null
+        } else {
+            val latitude = (saved[2] as Double).takeUnless { it.isNaN() }
+            val longitude = (saved[3] as Double).takeUnless { it.isNaN() }
+            OpenStop(
+                NearbyStop(saved[0] as String, saved[1] as String, 0.0, latitude = latitude, longitude = longitude),
+                saved[4] as Double,
+                saved[5] as Double,
+            )
+        }
+    },
+)
 
 /**
  * Close to Flutter's zoom page transition, its default on Android: the

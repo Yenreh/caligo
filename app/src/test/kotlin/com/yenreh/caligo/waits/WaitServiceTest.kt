@@ -354,6 +354,17 @@ class WaitServiceTest {
     }
 
     @Test
+    fun tappingANotificationOpensItsStopInTheOneActivity() {
+        start(awaited(t31))
+        val intent = shadowOf(posted.single().contentIntent).savedIntent
+        assertEquals(WaitNotifications.ACTION_OPEN_STOP, intent.action)
+        assertEquals(com.yenreh.caligo.MainActivity::class.java.name, intent.component?.className)
+        assertTrue(intent.flags and Intent.FLAG_ACTIVITY_SINGLE_TOP != 0)
+        assertEquals(WaitFixtures.STOP, intent.getStringExtra(WaitNotifications.EXTRA_STOP_ID))
+        assertEquals(WaitFixtures.place.latitude, intent.getDoubleExtra(WaitNotifications.EXTRA_LATITUDE, 0.0), 0.0)
+    }
+
+    @Test
     fun eachNotificationGoesByItselfSoonAfterItsNextUpdateIsDue() {
         start(awaited(t31))
         val timeout = posted.single().timeoutAfter

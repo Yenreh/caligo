@@ -87,10 +87,10 @@ object WaitNotifications {
         else -> R.string.alert_channel_silent
     }
 
-    /** Whether [channel] is on: made, and not turned off by the user */
+    /** Whether [channel] is on: not turned off by the user, or not made yet */
     fun channelOn(context: Context, channel: WaitChannel): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
-        val made = NotificationManagerCompat.from(context).getNotificationChannelCompat(channel.id) ?: return false
+        val made = NotificationManagerCompat.from(context).getNotificationChannelCompat(channel.id) ?: return true
         return made.importance != NotificationManagerCompat.IMPORTANCE_NONE
     }
 

@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -30,7 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.ArrivalPhase
+import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.FadingArrivals
+import com.yenreh.caligo.domain.FadingRow
+import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.asLiveRows
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.shown
@@ -202,7 +208,12 @@ private fun FavoriteArrivals(stop: FavoriteStop, arrivals: List<BusArrival>, fad
     Column(Modifier.padding(vertical = 4.dp)) {
         rows.forEachIndexed { i, row ->
             if (i > 0) LabDivider(indent = 16.dp)
-            ArrivalRow(row.bus, phase = row.phase, showStopName = stop.isArea)
+            ArrivalRow(
+                row.bus,
+                phase = row.phase,
+                showStopName = stop.isArea,
+                bell = { RowBell(row, row.awaitedAt(stop), fading) },
+            )
         }
     }
 }
@@ -218,13 +229,23 @@ fun ArrivalRow(
     phase: ArrivalPhase = ArrivalPhase.Live,
     showStopName: Boolean = false,
     padding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    // The bell after the countdown, when the list has them
+    bell: (@Composable () -> Unit)? = null,
 ) {
     val p = LabTheme.palette
     val passed = phase is ArrivalPhase.Passed
+    val direction = LocalLayoutDirection.current
+    // A bell brings its own inset: the row's end gives up as much of it
+    val end = padding.calculateEndPadding(direction).let { if (bell != null) (it - BELL_INSET).coerceAtLeast(0.dp) else it }
     Row(
         modifier = modifier
             .testTag(if (passed) "arrival_passed" else "arrival")
-            .padding(padding),
+            .padding(
+                start = padding.calculateStartPadding(direction),
+                top = padding.calculateTopPadding(),
+                end = end,
+                bottom = padding.calculateBottomPadding(),
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         LabLineChip(arrival.line, color = if (passed) p.muted else p.accent)
@@ -263,7 +284,37 @@ fun ArrivalRow(
                 style = LabText.mono(p, size = 14f, color = p.muted),
             )
         }
+        bell?.invoke()
     }
+}
+
+/**
+ * The bell of [row], waiting for [bus]: none on a row that passed, only
+ * its room, so the countdowns above line up
+ */
+@Composable
+fun RowBell(row: FadingRow, bus: AwaitedBus?, seed: FadingArrivals?) {
+    if (LocalWaitBells.current == null) return
+    if (row.phase is ArrivalPhase.Passed) {
+        Spacer(Modifier.width(BELL_SIZE))
+        return
+    }
+    WaitBell(bus, row.bus.line, seed)
+}
+
+/**
+ * The bus of this row on [favorite], to wait for; null while its stop is
+ * not known, as for an area's rows kept from the last run
+ */
+fun FadingRow.awaitedAt(favorite: FavoriteStop): AwaitedBus? {
+    val stopId = stopId.ifEmpty { favorite.stopId ?: return null }
+    return AwaitedBus(
+        stopId = stopId,
+        stopName = bus.stopName.ifEmpty { favorite.name },
+        bus = bus,
+        anchor = GeoPoint(favorite.anchorLatitude, favorite.anchorLongitude),
+        area = favorite.isArea,
+    )
 }
 
 /**
@@ -291,6 +342,9 @@ private fun Modifier.atMostHalf() = layout { measurable, constraints ->
     }
     layout(placeable.width, placeable.height) { placeable.place(0, 0) }
 }
+
+/** The room around a bell's icon, which a row's end padding need not repeat */
+private val BELL_INSET = 12.dp
 
 /** Rows a favorite's card lists, besides those passed */
 private const val FAVORITE_ROWS = 5
