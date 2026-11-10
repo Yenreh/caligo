@@ -2,6 +2,9 @@ package com.yenreh.caligo.ui.common
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -23,4 +26,23 @@ fun hourMinuteText(epochMillis: Long): String = SimpleDateFormat("HH:mm", Locale
 /** [content] on screen with the screens' clock stopped at [now], as [AtTime] */
 fun ComposeContentTestRule.setContentAt(now: Long, content: @Composable () -> Unit) {
     setContent { AtTime(now, content) }
+}
+
+/**
+ * A clock the test moves by hand: what reads it on screen through
+ * [LocalNow] follows each move, with no time passing for real
+ */
+class MovingClock(start: Long) {
+    var now by mutableLongStateOf(start)
+        private set
+
+    fun advance(millis: Long) {
+        now += millis
+    }
+}
+
+/** [content] with the screens' clock at [clock], as the test moves it */
+@Composable
+fun AtTime(clock: MovingClock, content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalNow provides { clock.now }, content = content)
 }

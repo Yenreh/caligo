@@ -186,6 +186,7 @@ fun HomeScreen(
                             FavoriteStopCard(
                                 stop = stop,
                                 arrivals = stops?.arrivals?.get(stop.id),
+                                fading = stops?.fading?.get(stop.id),
                                 isLoading = stops?.isRefreshing == true,
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)

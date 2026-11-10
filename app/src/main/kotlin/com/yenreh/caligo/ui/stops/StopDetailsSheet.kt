@@ -36,13 +36,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yenreh.caligo.R
+import com.yenreh.caligo.domain.ArrivalPhase
+import com.yenreh.caligo.domain.FadingArrivals
 import com.yenreh.caligo.domain.entities.NearbyStop
+import com.yenreh.caligo.domain.shown
 import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.LiveClock
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.common.LocalNow
 import com.yenreh.caligo.ui.common.rememberLoader
+import com.yenreh.caligo.ui.common.watchLiveClock
 import com.yenreh.caligo.ui.lab.LabBottomSheet
 import com.yenreh.caligo.ui.lab.LabDivider
 import com.yenreh.caligo.ui.lab.LabFilledButton
@@ -128,10 +132,12 @@ fun StopDetailsContent(
     val p = LabTheme.palette
     val scope = rememberCoroutineScope()
     var stop by remember { mutableStateOf(initial) }
+    val now = LocalNow.current
+    // The buses it opens with count as listed when it opens
+    var fading by remember { mutableStateOf(FadingArrivals.EMPTY.fed(initial.id, initial.arrivals, now())) }
     // When the arrivals on screen were fetched; null until a refresh, since
     // the list the sheet came from does not say
     var updatedAt by remember { mutableStateOf<Long?>(null) }
-    val now = LocalNow.current
     var refreshing by remember { mutableStateOf(fetchOnOpen) }
     var failed by remember { mutableStateOf(false) }
     var naming by rememberSaveable { mutableStateOf(false) }
@@ -144,8 +150,11 @@ fun StopDetailsContent(
     suspend fun refresh() {
         refreshing = true
         try {
-            stop = actions.refresh(stop)
-            updatedAt = now()
+            val fresh = actions.refresh(stop)
+            val at = now()
+            stop = fresh
+            fading = fading.fed(fresh.id, fresh.arrivals, at)
+            updatedAt = at
             failed = false
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -203,15 +212,7 @@ fun StopDetailsContent(
             when {
                 // Nothing known yet: the first answer is on its way
                 fetchOnOpen && updatedAt == null && !failed -> Progress(Modifier.padding(vertical = 16.dp))
-                stop.arrivals.isEmpty() -> Text(
-                    stringResource(R.string.no_buses_coming),
-                    modifier = Modifier.padding(vertical = 12.dp),
-                    style = MaterialTheme.typography.bodyMedium.copy(color = p.muted),
-                )
-                else -> stop.arrivals.take(6).forEachIndexed { i, arrival ->
-                    if (i > 0) LabDivider()
-                    ArrivalRow(arrival, padding = PaddingValues(vertical = 8.dp))
-                }
+                else -> SheetArrivals(fading)
             }
             LabDivider()
             Spacer(Modifier.height(16.dp))
@@ -304,6 +305,34 @@ fun StopDetailsContent(
         )
     }
 }
+
+/**
+ * The stop's rows as they read now. Alone on the live clock: each beat
+ * works the rows out again, with what has reached the stop or passed.
+ */
+@Composable
+private fun SheetArrivals(fading: FadingArrivals) {
+    watchLiveClock()
+    val rows = fading.rows(LocalNow.current()).shown(SHEET_ROWS)
+    if (rows.none { it.phase !is ArrivalPhase.Passed }) {
+        Text(
+            stringResource(R.string.no_buses_coming),
+            modifier = Modifier.padding(vertical = 12.dp),
+            style = MaterialTheme.typography.bodyMedium.copy(color = LabTheme.palette.muted),
+        )
+        if (rows.isEmpty()) return
+        LabDivider()
+    }
+    Column {
+        rows.forEachIndexed { i, row ->
+            if (i > 0) LabDivider()
+            ArrivalRow(row.bus, phase = row.phase, padding = PaddingValues(vertical = 8.dp))
+        }
+    }
+}
+
+/** Rows the sheet lists, besides those passed */
+private const val SHEET_ROWS = 6
 
 /** A thin bar for something on its way, as the theme's LinearProgressIndicator */
 @Composable

@@ -46,7 +46,23 @@ stop may still be coming; stops with no bus coming are left out. The
 service takes coordinates only and does not say where each stop is. The
 routes below give every stop they call at, with the same ids; only for a
 stop they leave out does the app query the same area from two nearby
-points and place the stop from the three distances.
+points and place the stop from the three distances. (Answers sampled in
+November 2026 also carry each stop's `latitud` and `longitud`, which the
+app does not read.)
+
+How buses leave the lists, from 40 answers around two central stations,
+one request every 30 s, each point every minute, over 20 minutes in
+November 2026: `vehiculoId` was never empty nor repeated within a stop,
+and each vehicle kept it, with its line and destination at each stop,
+from one answer to the next. One vehicle can be listed at up to four
+stops at once, at the farther ones at times under the destination of its
+next trip. A bus leaves a stop's list before the time it gave, never
+after: of 107 that left for good, 68% were due within 2 minutes when
+last listed (median 82 s), the rest up to 11 minutes away. A bus due
+after the fifth one is pushed out and usually comes back. The time given
+moves up to a minute either way between answers. The app keeps a bus
+that leaves within 2 minutes of its time on its row, at the stop and
+then passed, until 4 minutes past that time.
 
 ## Catalog, lines and buses
 

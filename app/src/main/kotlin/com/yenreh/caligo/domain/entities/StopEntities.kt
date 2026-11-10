@@ -82,7 +82,10 @@ data class FavoriteStop(
 
     /** The arrivals worth showing from [arrivals], by [lines] */
     fun pick(arrivals: List<BusArrival>): List<BusArrival> =
-        if (lines.isEmpty()) arrivals else arrivals.filter { it.line in lines }
+        if (lines.isEmpty()) arrivals else arrivals.filter { picks(it.line) }
+
+    /** Whether [line] is worth showing, by [lines] */
+    fun picks(line: String): Boolean = lines.isEmpty() || line in lines
 
     /** What to show as the title */
     val displayName: String

@@ -119,16 +119,16 @@ fun LabChip(
 
 /** Bus line tag: accent outline, mono, a minimum width so the destinations line up */
 @Composable
-fun LabLineChip(label: String, modifier: Modifier = Modifier) {
+fun LabLineChip(label: String, modifier: Modifier = Modifier, color: Color = LabTheme.palette.accent) {
     val p = LabTheme.palette
     Box(
         modifier = modifier
             .widthIn(min = 48.dp)
-            .border(1.dp, p.accent)
+            .border(1.dp, color)
             .padding(horizontal = 9.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, textAlign = TextAlign.Center, style = LabText.mono(p, size = 13f, color = p.accent))
+        Text(label, textAlign = TextAlign.Center, style = LabText.mono(p, size = 13f, color = color))
     }
 }
 

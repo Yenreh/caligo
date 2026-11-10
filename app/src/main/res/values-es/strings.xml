@@ -95,6 +95,8 @@
     <string name="no_buses_coming">Sin buses próximos</string>
     <string name="arriving_now">Ya</string>
     <string name="minutes_short">%1$d min</string>
+    <string name="at_the_stop">En la parada</string>
+    <string name="passed_minutes_ago">Pasó hace %1$d min</string>
 
     <!-- Cards screen -->
     <string name="new_card">Nueva tarjeta</string>

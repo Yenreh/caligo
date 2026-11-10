@@ -304,6 +304,7 @@ private fun FavoritesList(
         FavoriteStopCard(
             stop = stop,
             arrivals = stops.arrivals[stop.id],
+            fading = stops.fading[stop.id],
             isLoading = stops.isRefreshing,
             modifier = Modifier.padding(bottom = 12.dp),
             onRemove = { actions.onRemove(stop.id) },

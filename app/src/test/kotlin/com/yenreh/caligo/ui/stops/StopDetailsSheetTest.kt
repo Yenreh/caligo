@@ -4,6 +4,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -15,13 +16,16 @@ import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.entities.TripPlace
+import com.yenreh.caligo.ui.common.AtTime
 import com.yenreh.caligo.ui.common.Loaded
+import com.yenreh.caligo.ui.common.MovingClock
 import com.yenreh.caligo.ui.common.hourMinuteText
 import com.yenreh.caligo.ui.common.setContentAt
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -88,6 +92,52 @@ class StopDetailsSheetTest {
         compose.onNodeWithText("Updated: ${hourMinuteText(now)}").assertExists()
         compose.onNodeWithText("10 min").assertExists()
         assertFalse(exists(hasText("120 m")))
+    }
+
+    @Test
+    fun aNearBusGoneFromARefreshIsAtTheStopThenPassedAsTheClockMoves() {
+        val clock = MovingClock(now)
+        val near = bus.copy(line = "E21", destination = "Universidades", arrivalTime = now + 90_000, vehicleId = "2")
+        compose.setContent {
+            AtTime(clock) {
+                CaliGoTheme {
+                    StopDetailsContent(
+                        initial = stop.copy(arrivals = listOf(near, bus)),
+                        isSaved = false,
+                        lines = Loaded.Ready(emptyList()),
+                        // The next answer no longer lists the near bus
+                        actions = StopDetailsActions(
+                            refresh = { it.copy(arrivals = listOf(bus)) },
+                            loadLines = { emptyList() },
+                            save = { FavoriteSave.Saved },
+                        ),
+                        onDismiss = {},
+                    )
+                }
+            }
+        }
+        compose.onNodeWithText("2 min").assertExists()
+
+        clock.advance(30_000)
+        compose.onNodeWithContentDescription("Update arrivals").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { exists(hasText("At the stop")) }
+        compose.onNodeWithText("Universidades").assertExists()
+
+        // A minute past its time
+        clock.advance(120_000)
+        compose.waitForIdle()
+        compose.onNodeWithText("Passed 1 min ago").assertExists()
+        assertFalse(exists(hasText("At the stop")))
+        // Below the live row
+        val passed = compose.onNodeWithTag("arrival_passed", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val live = compose.onNodeWithText("Valle Grande").fetchSemanticsNode().boundsInRoot
+        assertTrue(passed.top > live.top)
+
+        // Four minutes past its time, gone
+        clock.advance(180_000)
+        compose.waitForIdle()
+        assertFalse(exists(hasText("Universidades")))
+        compose.onNodeWithText("Valle Grande").assertExists()
     }
 
     @Test

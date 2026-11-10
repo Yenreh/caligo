@@ -14,6 +14,7 @@ import com.yenreh.caligo.data.location.LocationPermissionException
 import com.yenreh.caligo.data.location.LocationSource
 import com.yenreh.caligo.data.location.currentDevicePosition
 import com.yenreh.caligo.domain.ARRIVALS_REACH_METERS
+import com.yenreh.caligo.domain.FadingArrivals
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.areasCovering
 import com.yenreh.caligo.domain.distanceBetween
@@ -53,8 +54,18 @@ import kotlinx.coroutines.launch
 /** The favorite stops and their upcoming buses */
 data class StopsState(
     val favorites: List<FavoriteStop> = emptyList(),
-    /** By favorite id; a favorite missing here has no answer yet */
+    /**
+     * By favorite id, as the latest answer lists them; a favorite missing
+     * here has no answer yet. What paces the refreshes and is kept for the
+     * next launch.
+     */
     val arrivals: Map<String, List<BusArrival>> = emptyMap(),
+    /**
+     * By favorite id, the buses of recent answers, so those reaching the
+     * stop fade out; kept in memory only. A favorite missing here shows
+     * [arrivals] as they are.
+     */
+    val fading: Map<String, FadingArrivals> = emptyMap(),
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val error: ApiException? = null,
@@ -179,8 +190,15 @@ class StopsViewModel(
                 val favorites = arranged(read, position ?: fix.takeIf { settings.value.sortStopsByProximity })
                 val kept = if (state.value.arrivals.isEmpty()) keptArrivals(favorites) else null
                 if (state.value.favorites !== before) continue
+                val ids = favorites.mapTo(HashSet()) { it.id }
                 state.update {
-                    it.copy(favorites = favorites, arrivals = kept ?: it.arrivals, isLoading = false)
+                    it.copy(
+                        favorites = favorites,
+                        arrivals = kept ?: it.arrivals,
+                        // The memory of a favorite gone, or relinked elsewhere, goes with it
+                        fading = it.fading.filterKeys { id -> id in ids },
+                        isLoading = false,
+                    )
                 }
                 break
             }
@@ -298,6 +316,7 @@ class StopsViewModel(
         state.update { it.copy(isRefreshing = true, error = null) }
 
         val results = LinkedHashMap(current.arrivals)
+        val answers = LinkedHashMap<String, Answer>()
         val healed = LinkedHashMap<String, FavoriteStop>()
         val saved = LinkedHashMap<String, FavoriteStop>()
         var failure: ApiException? = null
@@ -312,7 +331,7 @@ class StopsViewModel(
                         batch.map { group ->
                             async {
                                 try {
-                                    refreshGroup(group, results, healed) { e -> failure = failure ?: e.asApiException() }
+                                    refreshGroup(group, results, answers, healed) { e -> failure = failure ?: e.asApiException() }
                                 } catch (e: Exception) {
                                     if (e is CancellationException) throw e
                                     // A failed request says nothing about the stops themselves
@@ -333,9 +352,16 @@ class StopsViewModel(
 
             lastRefresh = now()
             state.update {
+                val ids = it.favorites.mapTo(HashSet()) { stop -> stop.id }
+                val fading = LinkedHashMap(it.fading)
+                for ((id, answer) in answers) {
+                    if (id !in ids) continue
+                    fading[id] = (fading[id] ?: FadingArrivals.EMPTY).fedWhole(answer.stops, answer.fetchedAt)
+                }
                 it.copy(
                     favorites = if (saved.isEmpty()) it.favorites else it.favorites.map { stop -> saved[stop.id] ?: stop },
                     arrivals = results,
+                    fading = fading,
                     isRefreshing = false,
                     error = failure,
                     lastUpdated = now(),
@@ -352,23 +378,30 @@ class StopsViewModel(
         if (autoRefreshing) scheduleNext()
     }
 
+    /** The answer a favorite took: by stop id, the buses of each stop it covers */
+    private class Answer(val stops: Map<String, List<BusArrival>>, val fetchedAt: Long)
+
     /**
-     * Ask for [group] and hand each favorite its arrivals. A favorite's own
-     * second request failing goes to [failed] and leaves that favorite as
-     * it was; the rest of the group still takes the shared answer, where
-     * the Flutter app left it all stale.
+     * Ask for [group] and hand each favorite its arrivals, and to
+     * [answers] the answer they came from. A favorite's own second request
+     * failing goes to [failed] and leaves that favorite as it was; the rest
+     * of the group still takes the shared answer, where the Flutter app
+     * left it all stale.
      */
     private suspend fun refreshGroup(
         group: Group,
         results: MutableMap<String, List<BusArrival>>,
+        answers: MutableMap<String, Answer>,
         healed: MutableMap<String, FavoriteStop>,
         failed: (Exception) -> Unit,
     ) {
         val nearby = repository.getNearbyStops(group.latitude, group.longitude)
+        val nearbyAt = now()
 
         for (favorite in group.stops) {
             var arrivals = arrivalsFor(favorite, nearby)
             var seen = nearby
+            var seenAt = nearbyAt
 
             // A placed stop within reach that the answer leaves out has no
             // bus coming. One asked about around an anchor is worth asking
@@ -380,6 +413,7 @@ class StopsViewModel(
             if (arrivals == null && elsewhere) {
                 try {
                     seen = repository.getNearbyStops(favorite.anchorLatitude, favorite.anchorLongitude)
+                    seenAt = now()
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e
                     // Says nothing about the stop itself
@@ -390,6 +424,14 @@ class StopsViewModel(
             }
 
             results[favorite.id] = arrivals ?: emptyList()
+            // An area's answer covers each stop around; a stop's, the stop alone
+            val stopId = favorite.stopId
+            val stops = if (stopId == null) {
+                seen.associate { it.id to it.arrivals }
+            } else {
+                mapOf(stopId to (arrivals ?: emptyList()))
+            }
+            answers[favorite.id] = Answer(stops, seenAt)
 
             reconcile(favorite, seen, found = arrivals != null)?.let { healed[favorite.id] = it }
         }
@@ -516,6 +558,8 @@ class StopsViewModel(
         if (!saved { repository.updateFavorite(favorite.copy(stopId = stop.id, name = stop.name, missingCount = 0)) }) {
             return@launch
         }
+        // The buses remembered were another stop's
+        state.update { it.copy(fading = it.fading - id) }
         load()
     }
 
@@ -610,6 +654,7 @@ class StopsViewModel(
             current.copy(
                 favorites = current.favorites.filter { it.id != stopId },
                 arrivals = current.arrivals - stopId,
+                fading = current.fading - stopId,
             )
         }
     }

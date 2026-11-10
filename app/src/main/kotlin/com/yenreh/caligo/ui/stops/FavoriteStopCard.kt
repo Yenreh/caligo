@@ -20,14 +20,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yenreh.caligo.R
+import com.yenreh.caligo.domain.ArrivalPhase
+import com.yenreh.caligo.domain.FadingArrivals
+import com.yenreh.caligo.domain.asLiveRows
 import com.yenreh.caligo.domain.entities.BusArrival
+import com.yenreh.caligo.domain.shown
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.ui.common.LocalNow
 import com.yenreh.caligo.ui.common.watchLiveClock
@@ -50,6 +56,9 @@ fun FavoriteStopCard(
     // Null while the stop has no answer yet
     arrivals: List<BusArrival>?,
     modifier: Modifier = Modifier,
+    // The buses of recent answers, so those reaching the stop fade out;
+    // null shows [arrivals] as they are
+    fading: FadingArrivals? = null,
     // A refresh on its way, which tells an empty card apart from one
     // still waiting for its first answer
     isLoading: Boolean = false,
@@ -61,7 +70,6 @@ fun FavoriteStopCard(
     onToggleHome: (() -> Unit)? = null,
 ) {
     val p = LabTheme.palette
-    val list = arrivals?.let(stop::pick)
     val muted = MaterialTheme.typography.bodyMedium.copy(color = p.muted)
     val hasActions = onRename != null || onRemove != null || onToggleHome != null
 
@@ -154,7 +162,7 @@ fun FavoriteStopCard(
         }
         LabDivider()
         when {
-            list == null && isLoading -> LinearProgressIndicator(
+            arrivals == null && isLoading -> LinearProgressIndicator(
                 modifier = Modifier
                     .padding(horizontal = 16.dp, vertical = 18.dp)
                     .fillMaxWidth()
@@ -164,65 +172,103 @@ fun FavoriteStopCard(
                 strokeCap = StrokeCap.Butt,
                 gapSize = 0.dp,
             )
-            list == null -> Text(stringResource(R.string.arrivals_unknown), Modifier.padding(16.dp), style = muted)
-            list.isEmpty() -> Text(
-                // Buses may be coming, just none of the lines followed
-                text = stringResource(
-                    if (arrivals.orEmpty().isNotEmpty()) R.string.no_buses_of_lines else R.string.no_buses_coming,
-                ),
-                modifier = Modifier.padding(16.dp),
-                style = muted,
-            )
-            else -> Column(Modifier.padding(vertical = 4.dp)) {
-                list.take(5).forEachIndexed { i, arrival ->
-                    if (i > 0) LabDivider(indent = 16.dp)
-                    ArrivalRow(arrival, showStopName = stop.isArea)
-                }
-            }
+            arrivals == null -> Text(stringResource(R.string.arrivals_unknown), Modifier.padding(16.dp), style = muted)
+            else -> FavoriteArrivals(stop, arrivals, fading)
         }
     }
 }
 
-/** A single line, destination and countdown row */
+/**
+ * A favorite's rows as they read now. Alone on the live clock: each beat
+ * works the rows out again, with what has reached the stop or passed.
+ */
+@Composable
+private fun FavoriteArrivals(stop: FavoriteStop, arrivals: List<BusArrival>, fading: FadingArrivals?) {
+    watchLiveClock()
+    val now = LocalNow.current()
+    val rows = (fading?.rows(now) ?: arrivals.asLiveRows())
+        .filter { stop.picks(it.bus.line) }
+        .shown(FAVORITE_ROWS)
+    if (rows.none { it.phase !is ArrivalPhase.Passed }) {
+        Text(
+            // Buses may be coming, just none of the lines followed
+            text = stringResource(if (arrivals.isNotEmpty()) R.string.no_buses_of_lines else R.string.no_buses_coming),
+            modifier = Modifier.padding(16.dp),
+            style = MaterialTheme.typography.bodyMedium.copy(color = LabTheme.palette.muted),
+        )
+        if (rows.isEmpty()) return
+        LabDivider(indent = 16.dp)
+    }
+    Column(Modifier.padding(vertical = 4.dp)) {
+        rows.forEachIndexed { i, row ->
+            if (i > 0) LabDivider(indent = 16.dp)
+            ArrivalRow(row.bus, phase = row.phase, showStopName = stop.isArea)
+        }
+    }
+}
+
+/**
+ * A single line, destination and countdown row; at the stop or passed,
+ * a label in place of the countdown, and passed, greyed
+ */
 @Composable
 fun ArrivalRow(
     arrival: BusArrival,
     modifier: Modifier = Modifier,
+    phase: ArrivalPhase = ArrivalPhase.Live,
     showStopName: Boolean = false,
     padding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
 ) {
+    val p = LabTheme.palette
+    val passed = phase is ArrivalPhase.Passed
     Row(
         modifier = modifier
-            .testTag("arrival")
+            .testTag(if (passed) "arrival_passed" else "arrival")
             .padding(padding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LabLineChip(arrival.line)
+        LabLineChip(arrival.line, color = if (passed) p.muted else p.accent)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 text = arrival.destination,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.let { if (passed) it.copy(color = p.muted) else it },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             if (showStopName && arrival.stopName.isNotEmpty()) {
                 Text(
                     text = arrival.stopName,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.let { if (passed) it.copy(color = p.muted) else it },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
         }
         Spacer(Modifier.width(8.dp))
-        Countdown(arrival)
+        when (phase) {
+            ArrivalPhase.Live -> Countdown(arrival)
+            // At most half the row, on two lines when large text needs it,
+            // so the destination keeps the other half
+            ArrivalPhase.AtStop -> Text(
+                text = stringResource(R.string.at_the_stop),
+                modifier = Modifier.atMostHalf(),
+                textAlign = TextAlign.End,
+                style = LabText.mono(p, size = 14f, color = p.ok),
+            )
+            is ArrivalPhase.Passed -> Text(
+                text = stringResource(R.string.passed_minutes_ago, phase.minutes),
+                modifier = Modifier.atMostHalf(),
+                textAlign = TextAlign.End,
+                style = LabText.mono(p, size = 14f, color = p.muted),
+            )
+        }
     }
 }
 
 /**
- * Minutes left, the only part of an arrival that changes on its own: it
- * alone follows the live clock above
+ * Minutes left, the only part of a live arrival that changes on its own:
+ * it alone follows the live clock above
  */
 @Composable
 private fun Countdown(arrival: BusArrival) {
@@ -234,6 +280,20 @@ private fun Countdown(arrival: BusArrival) {
         style = LabText.mono(p, size = 16f, color = if (minutes <= 2) p.ok else p.ink),
     )
 }
+
+/** No wider than half of what the row has left for it */
+private fun Modifier.atMostHalf() = layout { measurable, constraints ->
+    val placeable = if (constraints.hasBoundedWidth) {
+        val half = constraints.maxWidth / 2
+        measurable.measure(constraints.copy(minWidth = minOf(constraints.minWidth, half), maxWidth = half))
+    } else {
+        measurable.measure(constraints)
+    }
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+}
+
+/** Rows a favorite's card lists, besides those passed */
+private const val FAVORITE_ROWS = 5
 
 /** The least the missing stop's notice keeps beside its button */
 private val NOTICE_MIN_WIDTH = 160.dp

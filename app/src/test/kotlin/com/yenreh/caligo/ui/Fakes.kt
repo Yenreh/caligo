@@ -106,7 +106,8 @@ class FakeCardRepository(
  */
 class FakeStopsRepository(
     favorites: List<FavoriteStop>,
-    private val nearby: List<NearbyStop>,
+    /** What the arrivals service answers; a test may script it */
+    var nearby: List<NearbyStop>,
     /** Where the stops stand, for those whose place is known */
     private val positions: Map<String, GeoPoint> = emptyMap(),
     var stations: List<Station> = emptyList(),
