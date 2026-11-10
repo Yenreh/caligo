@@ -293,6 +293,7 @@
     <string name="wait_chip_here">Aquí</string>
     <string name="wait_took_it">Lo tomé</string>
     <string name="wait_stop_waiting">Dejar de esperar</string>
+    <string name="wait_not_taken">No</string>
     <string name="wait_channel">Buses esperados</string>
     <string name="wait_channel_description">La cuenta regresiva de cada bus que esperas</string>
     <string name="alert_channel_silent">Bus cerca, en silencio</string>

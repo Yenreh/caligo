@@ -297,6 +297,7 @@
     <string name="wait_chip_here">Here</string>
     <string name="wait_took_it">I took it</string>
     <string name="wait_stop_waiting">Stop waiting</string>
+    <string name="wait_not_taken">No</string>
     <string name="wait_channel">Awaited buses</string>
     <string name="wait_channel_description">The countdown of each bus you wait for</string>
     <string name="alert_channel_silent">Bus near, silent</string>

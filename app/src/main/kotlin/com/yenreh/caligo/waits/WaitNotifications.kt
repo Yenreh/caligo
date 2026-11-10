@@ -143,7 +143,7 @@ object WaitNotifications {
         for (action in notice.actions) {
             val name = when (action) {
                 WaitAction.TOOK -> ACTION_TOOK
-                WaitAction.STOP -> ACTION_STOP
+                WaitAction.STOP, WaitAction.NOT_TAKEN -> ACTION_STOP
             }
             builder.addAction(0, words.action(action), action(context, id, wait, name))
         }

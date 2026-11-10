@@ -52,6 +52,7 @@ class WaitNoticeTest {
         assertEquals("T31 a Universidades, 4 min, Plaza de Cayzedo A1", notice.summary)
         assertEquals("Lo tomé", spanish.action(WaitAction.TOOK))
         assertEquals("Dejar de esperar", spanish.action(WaitAction.STOP))
+        assertEquals("No", spanish.action(WaitAction.NOT_TAKEN))
     }
 
     @Test
@@ -82,7 +83,10 @@ class WaitNoticeTest {
         assertEquals("Did you take the E21?", asking.title)
         assertEquals("E21 to Terminal Paso del Comercio, Plaza de Cayzedo A1", asking.text)
         assertNull(asking.chip)
-        assertEquals(listOf(WaitAction.TOOK, WaitAction.STOP), asking.actions)
+        // Answered: "I took it" or "No"
+        assertEquals(listOf(WaitAction.TOOK, WaitAction.NOT_TAKEN), asking.actions)
+        assertEquals("No", words.action(WaitAction.NOT_TAKEN))
+        assertEquals(listOf(WaitAction.TOOK, WaitAction.STOP), at.actions)
     }
 
     @Test

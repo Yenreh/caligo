@@ -231,6 +231,17 @@ class WaitServiceTest {
     }
 
     @Test
+    fun noToDidYouTakeItStopsWaiting() {
+        e21Passes()
+        start(awaited(e21))
+        advance(e21.arrivalTime + MINUTE + 15_000 - now())
+        val asking = notificationOf("E21")
+        assertEquals(listOf("I took it", "No"), asking.actions.map { it.title.toString() })
+        press("E21", 1)
+        assertLeft()
+    }
+
+    @Test
     fun busPassesOneOfSeveral() {
         e21Passes()
         start(awaited(e21), awaited(t31))

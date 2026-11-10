@@ -35,7 +35,13 @@ enum class WaitChannel(val id: String, val sound: Boolean, val vibrate: Boolean)
 }
 
 /** What the buttons of a wait's notification do */
-enum class WaitAction { TOOK, STOP }
+enum class WaitAction {
+    TOOK,
+    STOP,
+
+    /** "No", the answer to "Did you take it?": stops waiting, as [STOP] */
+    NOT_TAKEN,
+}
 
 /**
  * A wait's notification as it reads at a moment: a pure function of the
@@ -132,7 +138,10 @@ data class WaitNotice(
                 countdownTo = countdownTo,
                 progress = done,
                 progressMax = total,
-                actions = listOf(WaitAction.TOOK, WaitAction.STOP),
+                actions = listOf(
+                    WaitAction.TOOK,
+                    if (status == WaitStatus.Asking) WaitAction.NOT_TAKEN else WaitAction.STOP,
+                ),
                 channel = if (alertOn && (alerting || wait.alerted)) WaitChannel.alert(alerts) else WaitChannel.WAITS,
                 alerting = alerting,
                 timeoutAfter = nextPostIn + TIMEOUT_MARGIN_MS,
@@ -185,6 +194,7 @@ class WaitWords(private val resources: Resources) {
         when (action) {
             WaitAction.TOOK -> R.string.wait_took_it
             WaitAction.STOP -> R.string.wait_stop_waiting
+            WaitAction.NOT_TAKEN -> R.string.wait_not_taken
         },
     )
 }
