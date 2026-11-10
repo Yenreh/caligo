@@ -65,12 +65,21 @@ data class WaitNotice(
         /**
          * The notice of [wait] at [now], with [alerts] for the alert. Once
          * alerted, it stays on the alert channel, silent from then on; the
-         * next post comes within [nextPostIn] milliseconds.
+         * next post comes within [nextPostIn] milliseconds. With that
+         * channel turned off, [alertOn] false, there is no alert and every
+         * post stays on the channel of updates: never on one that is off.
          */
-        fun of(wait: Wait, now: Long, alerts: Alerts, words: WaitWords, nextPostIn: Long): WaitNotice {
+        fun of(
+            wait: Wait,
+            now: Long,
+            alerts: Alerts,
+            words: WaitWords,
+            nextPostIn: Long,
+            alertOn: Boolean = true,
+        ): WaitNotice {
             val bus = wait.last
             val status = wait.status(now)
-            val alerting = wait.alertDue(now)
+            val alerting = alertOn && wait.alertDue(now)
             val title: String
             val text: String
             var chip: String? = null
@@ -124,7 +133,7 @@ data class WaitNotice(
                 progress = done,
                 progressMax = total,
                 actions = listOf(WaitAction.TOOK, WaitAction.STOP),
-                channel = if (alerting || wait.alerted) WaitChannel.alert(alerts) else WaitChannel.WAITS,
+                channel = if (alertOn && (alerting || wait.alerted)) WaitChannel.alert(alerts) else WaitChannel.WAITS,
                 alerting = alerting,
                 timeoutAfter = nextPostIn + TIMEOUT_MARGIN_MS,
             )

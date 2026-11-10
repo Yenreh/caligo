@@ -85,7 +85,7 @@ class AppContainer(private val context: Context) {
     }
 
     /** Whether a wait's notification may show, asked from the activity on screen */
-    val notificationAccess = AndroidNotificationAccess(context) { waits.alerts() }
+    val notificationAccess = AndroidNotificationAccess(context)
 
     val backup = Backup(database, cardRepository, stopsRepository, settings)
 

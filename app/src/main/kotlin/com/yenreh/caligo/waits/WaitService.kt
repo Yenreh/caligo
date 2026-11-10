@@ -98,20 +98,19 @@ class WaitService : Service(), WaitHost {
     /** The engine, for tests to see that nothing runs */
     internal val waitEngine: WaitEngine get() = engine
 
-    override fun allowed(): Boolean {
-        if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return false
-        return WaitNotifications.channelOn(this, WaitChannel.WAITS) &&
-            WaitNotifications.channelOn(this, WaitChannel.alert(desk.alerts()))
-    }
+    // The alert channel off only silences the alert: the waits go on, on their own channel
+    override fun allowed(): Boolean = NotificationManagerCompat.from(this).areNotificationsEnabled() &&
+        WaitNotifications.channelOn(this, WaitChannel.WAITS)
 
     // allowed() holds before every post: the app's notifications are on
     @SuppressLint("MissingPermission")
     override fun show(waits: List<Wait>, now: Long, nextPostIn: Long) {
         val alerts = desk.alerts()
+        val alertOn = WaitNotifications.channelOn(this, WaitChannel.alert(alerts))
         val manager = NotificationManagerCompat.from(this)
         for (wait in waits) {
             val id = slots.getOrPut(wait.key) { WaitNotifications.ids.first { it !in slots.values } }
-            val notice = WaitNotice.of(wait, now, alerts, words, nextPostIn).let {
+            val notice = WaitNotice.of(wait, now, alerts, words, nextPostIn, alertOn).let {
                 // One alert per wait, whoever posts first
                 if (it.alerting && !alerted.add(wait.key)) it.copy(alerting = false) else it
             }

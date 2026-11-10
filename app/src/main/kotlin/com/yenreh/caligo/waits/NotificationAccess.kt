@@ -35,7 +35,7 @@ interface NotificationAccess {
  * [NotificationAccess] of the device. Asking takes an activity, which
  * [attach] lends it, as the location permission is asked.
  */
-class AndroidNotificationAccess(private val context: Context, private val alerts: () -> Alerts) : NotificationAccess {
+class AndroidNotificationAccess(private val context: Context) : NotificationAccess {
     private var launcher: ActivityResultLauncher<String>? = null
     private var pending: CompletableDeferred<Boolean>? = null
 
@@ -72,9 +72,9 @@ class AndroidNotificationAccess(private val context: Context, private val alerts
         return waiting.await()
     }
 
+    // An alert channel turned off only silences the alert
     override fun enabled(): Boolean = NotificationManagerCompat.from(context).areNotificationsEnabled() &&
-        WaitNotifications.channelOn(context, WaitChannel.WAITS) &&
-        WaitNotifications.channelOn(context, WaitChannel.alert(alerts()))
+        WaitNotifications.channelOn(context, WaitChannel.WAITS)
 
     override fun openSettings() {
         val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

@@ -338,6 +338,33 @@ class WaitServiceTest {
         assertLeft()
     }
 
+    @Test
+    fun theAlertChannelTurnedOffOnlySilencesTheAlert() {
+        // The user turned the silent alert off in the system, say to stop its peek
+        WaitNotifications.createChannels(app)
+        manager.getNotificationChannel(WaitChannel.ALERT_SILENT.id).importance = NotificationManager.IMPORTANCE_NONE
+        assertTrue(AndroidNotificationAccess(app).enabled())
+        start(awaited(t31))
+        advance(t31.arrivalTime - 2 * MINUTE - now() + 1_000)
+        // No ending, no alert, every post on the channel of updates
+        val shown = posted.single()
+        assertEquals(WaitChannel.WAITS.id, shown.channelId)
+        assertTrue(shown.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+        assertEquals(1, service.waitEngine.waits.size)
+        assertFalse(shadowOf(service).isStoppedBySelf)
+    }
+
+    @Test
+    fun aWaitAlertedMovesBackWhenItsAlertChannelIsTurnedOff() {
+        start(awaited(t31))
+        advance(t31.arrivalTime - 2 * MINUTE - now() + 1_000)
+        assertEquals(WaitChannel.ALERT_SILENT.id, posted.single().channelId)
+        manager.getNotificationChannel(WaitChannel.ALERT_SILENT.id).importance = NotificationManager.IMPORTANCE_NONE
+        advance(WaitEngine.BEAT.inWholeMilliseconds)
+        assertEquals(WaitChannel.WAITS.id, posted.single().channelId)
+        assertEquals(1, service.waitEngine.waits.size)
+    }
+
     // 10. The process goes away
 
     @Test

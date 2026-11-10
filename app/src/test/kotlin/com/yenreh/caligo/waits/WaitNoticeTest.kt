@@ -116,6 +116,11 @@ class WaitNoticeTest {
         val after = notice(start.copy(alerted = true), near + 15_000, Alerts(sound = true))
         assertEquals(WaitChannel.ALERT_SOUND, after.channel)
         assertFalse(after.alerting)
+        // Its channel turned off: no alert, and never a post there
+        val off = WaitNotice.of(start, near, Alerts(sound = true), words, 15_000, alertOn = false)
+        assertFalse(off.alerting)
+        assertEquals(WaitChannel.WAITS, off.channel)
+        assertEquals(WaitChannel.WAITS, WaitNotice.of(start.copy(alerted = true), near, Alerts(), words, 15_000, alertOn = false).channel)
         // Before it, the silent channel of updates
         assertEquals(WaitChannel.WAITS, notice(start, near - 1, Alerts(sound = true)).channel)
     }
