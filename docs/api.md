@@ -43,12 +43,12 @@ An array of stops, each with the buses on their way:
 `tiempoEstimadoDeSalida` is epoch milliseconds. Each stop lists its next
 five buses at most, whatever their line, so a line missing from a busy
 stop may still be coming; stops with no bus coming are left out. The
-service takes coordinates only and does not say where each stop is. The
-routes below give every stop they call at, with the same ids; only for a
-stop they leave out does the app query the same area from two nearby
-points and place the stop from the three distances. (Answers sampled in
-November 2026 also carry each stop's `latitud` and `longitud`, which the
-app does not read.)
+service takes coordinates only. It used to give no stop positions;
+answers sampled in November 2026 carry each stop's `latitud` and
+`longitud`, which the app does not read yet. The routes below give every
+stop they call at, with the same ids; only for a stop they leave out does
+the app query the same area from two nearby points and place the stop
+from the three distances.
 
 How buses leave the lists, from 40 answers around two central stations,
 one request every 30 s, each point every minute, over 20 minutes in
