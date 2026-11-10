@@ -1,6 +1,7 @@
 package com.yenreh.caligo
 
 import android.app.Application
+import com.yenreh.caligo.trips.TripNotifications
 import com.yenreh.caligo.waits.WaitNotifications
 
 class CaliGoApp : Application() {
@@ -9,8 +10,9 @@ class CaliGoApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // No wait runs in a process just started: none of their notifications may stay
+        // No wait nor trip runs in a process just started: none of their notifications may stay
         WaitNotifications.cancelLeftovers(this)
+        TripNotifications.cancelLeftovers(this)
         seedOnLaunch(this)
     }
 }

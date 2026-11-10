@@ -171,9 +171,9 @@
     <string name="map_credit_carto" translatable="false">CARTO</string>
     <string name="alerts_section">Alerts</string>
     <string name="alert_sound">Sound when the bus is near</string>
-    <string name="alert_sound_desc">As an awaited bus comes within about 2 minutes. Off, the alert is silent</string>
+    <string name="alert_sound_desc">As an awaited bus comes within about 2 minutes, and before the stop you get off at on a trip. Off, the alerts are silent</string>
     <string name="alert_vibrate">Vibrate</string>
-    <string name="alert_vibrate_desc">With the same alert</string>
+    <string name="alert_vibrate_desc">With the same alerts</string>
     <string name="dark_map">Dark map</string>
     <string name="dark_map_desc">Dark tiles on the stops map, whatever the app theme</string>
     <string name="sharp_map">Sharp map</string>
@@ -305,4 +305,61 @@
     <string name="alert_channel_sound">Bus near, sound</string>
     <string name="alert_channel_sound_vibrate">Bus near, sound and vibration</string>
     <string name="alert_channel_description">When an awaited bus is about 2 minutes away</string>
+    <!-- Trip tracking -->
+    <string name="trip_channel">Trips</string>
+    <string name="trip_channel_description">Your ride, stop by stop</string>
+    <string name="trip_warning_channel_silent">Stop warning, silent</string>
+    <string name="trip_warning_channel_vibrate">Stop warning, vibration</string>
+    <string name="trip_warning_channel_sound">Stop warning, sound</string>
+    <string name="trip_warning_channel_sound_vibrate">Stop warning, sound and vibration</string>
+    <string name="trip_warning_channel_description">Before the stop you get off at</string>
+    <plurals name="trip_get_off_in">
+        <item quantity="one">%1$s, get off at %2$s in %3$s min (%4$d stop)</item>
+        <item quantity="other">%1$s, get off at %2$s in %3$s min (%4$d stops)</item>
+    </plurals>
+    <string name="trip_get_off_next">%1$s, get off at the next stop: %2$s</string>
+    <string name="trip_get_off_here">%1$s, get off here: %2$s</string>
+    <string name="trip_next_in">%1$s, next stop %2$s in %3$s min</string>
+    <string name="trip_at_end">%1$s, at %2$s, the end of the line</string>
+    <string name="trip_ends_at">Ends at %1$s in %2$s min</string>
+    <string name="trip_next_stop">Next stop: %1$s</string>
+    <string name="trip_in_minutes">In %1$s min</string>
+    <string name="trip_at_stop_text">Your stop</string>
+    <string name="trip_off_route">Away from the route</string>
+    <string name="trip_chip_minutes">%1$s min</string>
+    <string name="trip_chip_next">Next</string>
+    <string name="trip_chip_here">Here</string>
+    <string name="trip_finish">Finish</string>
+    <string name="trip_title">%1$s to %2$s</string>
+    <string name="trip_from">From %1$s</string>
+    <string name="trip_where_off">Where do you get off?</string>
+    <string name="trip_skip">Just follow the ride</string>
+    <string name="trip_not_on_route">The routes of the %1$s do not show this stop, so there is no ride to follow.</string>
+    <string name="trip_minutes">%1$s min</string>
+    <string name="trip_you_get_off">You get off here</string>
+    <string name="trip_get_off_at_action">Get off at %1$s</string>
+    <string name="trip_heading_get_off">Get off at %1$s</string>
+    <string name="trip_heading_follow">Following the ride to %1$s</string>
+    <string name="trip_heading_here">You are at your stop</string>
+    <plurals name="trip_heading_detail">
+        <item quantity="one">%1$s min · %2$d stop</item>
+        <item quantity="other">%1$s min · %2$d stops</item>
+    </plurals>
+    <string name="trip_by_fix">By your location</string>
+    <string name="trip_by_bus">By the bus you are on</string>
+    <string name="trip_by_estimate">Estimated: no position yet</string>
+    <string name="trip_stops_ahead">Stops ahead</string>
+    <string name="trip_needs_location">CaliGo follows the ride with your location while it lasts. Allow it to start.</string>
+    <string name="trip_location_off">Location is off. Turn it on to follow the ride.</string>
+    <string name="trip_open_settings">Settings</string>
+    <string name="trip_ended_reached">You reached %1$s.</string>
+    <string name="trip_ended_finished">The trip is finished.</string>
+    <string name="trip_ended_dismissed">The trip ended as its notification was dismissed.</string>
+    <string name="trip_ended_time_limit">The trip ended after 2 hours.</string>
+    <string name="trip_ended_off_route">You left the route, so the trip ended.</string>
+    <string name="trip_ended_blocked">Notifications are off, so the trip ended.</string>
+    <string name="trip_ended_no_location">Without your location the ride cannot be followed.</string>
+    <string name="trip_ended_replaced">Another trip took its place.</string>
+    <string name="trip_home_title">On the %1$s</string>
+    <string name="trip_open">Open the trip</string>
 </resources>

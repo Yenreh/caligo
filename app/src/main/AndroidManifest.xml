@@ -9,9 +9,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- A ride followed, from the trip screen, with the while-in-use location permission -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- A wait's notification as a Live Update, on Android 16 and later -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
-    <!-- The rounds of a wait stay on time with the screen off -->
+    <!-- The rounds of a wait, and of a trip, stay on time with the screen off -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
@@ -50,6 +52,20 @@
         <!-- The buttons and the swipe of a wait's notification -->
         <receiver
             android:name=".waits.WaitActionReceiver"
+            android:exported="false" />
+
+        <!--
+            Follows the ride the rider took. Not exported, never restarted:
+            each start comes from the trip screen, with the app on show
+        -->
+        <service
+            android:name=".trips.TripService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- The trip notification's Finish and its swipe -->
+        <receiver
+            android:name=".trips.TripActionReceiver"
             android:exported="false" />
 
         <!-- Backups go out through the share sheet from here -->

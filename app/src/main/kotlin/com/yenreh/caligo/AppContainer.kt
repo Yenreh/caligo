@@ -14,12 +14,15 @@ import com.yenreh.caligo.data.datasources.StopsLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsRemoteDatasource
 import com.yenreh.caligo.data.datasources.UpdateChecker
 import com.yenreh.caligo.data.location.AndroidLocationSource
+import com.yenreh.caligo.data.location.AndroidLocationUpdates
 import com.yenreh.caligo.data.map.MapTileCache
 import com.yenreh.caligo.data.map.MapTileLoader
 import com.yenreh.caligo.data.repositories.CardRepositoryImpl
 import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.repositories.CardRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
+import com.yenreh.caligo.trips.RepositoryTripSource
+import com.yenreh.caligo.trips.TripDesk
 import com.yenreh.caligo.ui.trips.TransitNetworkLoader
 import com.yenreh.caligo.waits.Alerts
 import com.yenreh.caligo.waits.AndroidNotificationAccess
@@ -81,6 +84,11 @@ class AppContainer(private val context: Context) {
 
     /** The buses waited for, which the wait service follows */
     val waits = WaitDesk(context, RepositoryWaitSource(stopsRepository)).apply {
+        alerts = { settings.settings.value.let { Alerts(sound = it.alertSound, vibrate = it.alertVibrate) } }
+    }
+
+    /** The ride followed, which the trip service follows apart from the waits */
+    val trips = TripDesk(context, RepositoryTripSource(stopsRepository), AndroidLocationUpdates(context)).apply {
         alerts = { settings.settings.value.let { Alerts(sound = it.alertSound, vibrate = it.alertVibrate) } }
     }
 
