@@ -140,8 +140,11 @@ gets the stops.
 - The exceptions are what the rider started and can see in a notification
   until it ends: a bus waited for is asked about at the same pace, and a
   ride followed asks for its line's buses every 30 s, the request the line
-  screen makes. The rider's own position never leaves the phone: the bus
-  is told among the line's by where each one is.
+  screen makes. A trip started from the planner asks, for each ride, the
+  arrivals of its stops once, as the planner does, to wait for the next
+  bus of each of its lines, and, from 300 m before its stop until a bus is
+  taken, those lines' buses every 30 s. The rider's own position never
+  leaves the phone: the bus is told among the line's by where each one is.
 - One request answers for every stop within 280 m of the point asked
   around, so favorites and the stops of a trip are grouped to need as few
   as possible, and a trip reuses areas asked about within a minute. With
