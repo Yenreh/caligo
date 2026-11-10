@@ -138,7 +138,7 @@ object WaitNotifications {
                 NotificationCompat.ProgressStyle()
                     .setProgressSegments(listOf(NotificationCompat.ProgressStyle.Segment(notice.progressMax)))
                     .setProgress(notice.progress)
-                    .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_directions_bus)),
+                    .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_progress_tracker)),
             )
         for (action in notice.actions) {
             val name = when (action) {
