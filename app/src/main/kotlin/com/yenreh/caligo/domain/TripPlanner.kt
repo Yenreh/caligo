@@ -131,6 +131,22 @@ class TransitNetwork private constructor(
         /** Time spent at each stop along the way */
         private const val DWELL_SECONDS = 20.0
 
+        /**
+         * The estimated seconds from the first of [ordered], one direction
+         * of [line] in route order, to each of its stops: what the planner
+         * times its rides by, before the line's ride factor
+         */
+        fun routeSeconds(line: String, ordered: List<LineStop>): DoubleArray {
+            val seconds = DoubleArray(ordered.size)
+            for (i in 1 until ordered.size) {
+                val previous = ordered[i - 1]
+                val stop = ordered[i]
+                val meters = metersBetween(previous.latitude, previous.longitude, stop.latitude, stop.longitude)
+                seconds[i] = seconds[i - 1] + meters * ROUTE_DETOUR / speed(line) + DWELL_SECONDS
+            }
+            return seconds
+        }
+
         /** Build from each line's stops, by line name */
         fun fromRoutes(routes: Map<String, List<LineStop>>): TransitNetwork {
             val index = HashMap<String, Int>()
@@ -144,17 +160,13 @@ class TransitNetwork private constructor(
                     if (ordered.size < 2) continue
 
                     val positions = IntArray(ordered.size)
-                    val seconds = DoubleArray(ordered.size)
                     for ((i, stop) in ordered.withIndex()) {
                         positions[i] = index.getOrPut(stop.stopId) {
                             stops.add(stop)
                             stops.size - 1
                         }
-                        if (i == 0) continue
-                        val previous = ordered[i - 1]
-                        val meters = metersBetween(previous.latitude, previous.longitude, stop.latitude, stop.longitude)
-                        seconds[i] = seconds[i - 1] + meters * ROUTE_DETOUR / speed(line) + DWELL_SECONDS
                     }
+                    val seconds = routeSeconds(line, ordered)
                     patterns.add(Pattern(line, ordered.last().name, positions, seconds, ordered))
                 }
             }
