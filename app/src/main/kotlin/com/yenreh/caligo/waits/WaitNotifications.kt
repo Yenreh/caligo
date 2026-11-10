@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.graphics.drawable.IconCompat
 import com.yenreh.caligo.MainActivity
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.Wait
@@ -127,7 +128,18 @@ object WaitNotifications {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(openStop(context, id, wait))
             .setDeleteIntent(action(context, id, wait, ACTION_DISMISSED))
+            // Older versions draw this bar; Android 16 and later the style's
             .setProgress(notice.progressMax, notice.progress, false)
+            // A Live Update on Android 16 and later: promoted while ongoing,
+            // with the minutes as its status bar chip
+            .setRequestPromotedOngoing(true)
+            .setShortCriticalText(notice.chip ?: "")
+            .setStyle(
+                NotificationCompat.ProgressStyle()
+                    .setProgressSegments(listOf(NotificationCompat.ProgressStyle.Segment(notice.progressMax)))
+                    .setProgress(notice.progress)
+                    .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_directions_bus)),
+            )
         for (action in notice.actions) {
             val name = when (action) {
                 WaitAction.TOOK -> ACTION_TOOK

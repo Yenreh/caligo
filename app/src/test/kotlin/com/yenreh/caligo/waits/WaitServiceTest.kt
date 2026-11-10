@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.content.Intent
 import android.os.Looper
+import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.CaliGoApp
@@ -361,6 +362,22 @@ class WaitServiceTest {
         assertTrue(intent.flags and Intent.FLAG_ACTIVITY_SINGLE_TOP != 0)
         assertEquals(WaitFixtures.STOP, intent.getStringExtra(WaitNotifications.EXTRA_STOP_ID))
         assertEquals(WaitFixtures.place.latitude, intent.getDoubleExtra(WaitNotifications.EXTRA_LATITUDE, 0.0), 0.0)
+    }
+
+    @Test
+    fun eachWaitIsALiveUpdateWithTheMinutesAsItsChip() {
+        start(awaited(t31), awaited(a47))
+        for (notification in posted) {
+            assertTrue(NotificationCompat.isRequestPromotedOngoing(notification))
+            // Ongoing, titled, progress style, not colorized, no group summary: promotable
+            assertTrue(notification.hasPromotableCharacteristics())
+            assertEquals(null, notification.group)
+        }
+        assertEquals("10 min", NotificationCompat.getShortCriticalText(notificationOf("T31")))
+        // Older versions count down with a chronometer to the bus
+        val t31Shown = notificationOf("T31")
+        assertTrue(NotificationCompat.getUsesChronometer(t31Shown))
+        assertEquals(t31.arrivalTime, t31Shown.`when`)
     }
 
     @Test
