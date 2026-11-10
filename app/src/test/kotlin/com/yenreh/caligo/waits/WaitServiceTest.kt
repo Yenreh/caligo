@@ -470,6 +470,8 @@ class WaitServiceTest {
         assertTrue(intent.flags and Intent.FLAG_ACTIVITY_SINGLE_TOP != 0)
         assertEquals(WaitFixtures.STOP, intent.getStringExtra(WaitNotifications.EXTRA_STOP_ID))
         assertEquals(WaitFixtures.place.latitude, intent.getDoubleExtra(WaitNotifications.EXTRA_LATITUDE, 0.0), 0.0)
+        // Its details are titled as the service names the stop
+        assertEquals(WaitFixtures.STOP_NAME, intent.getStringExtra(WaitNotifications.EXTRA_STOP_NAME))
     }
 
     @Test

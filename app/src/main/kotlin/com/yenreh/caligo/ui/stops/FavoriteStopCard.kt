@@ -310,7 +310,8 @@ fun FadingRow.awaitedAt(favorite: FavoriteStop): AwaitedBus? {
     val stopId = stopId.ifEmpty { favorite.stopId ?: return null }
     return AwaitedBus(
         stopId = stopId,
-        stopName = bus.stopName.ifEmpty { favorite.name },
+        // As the card titles it: the user's own name when it has one
+        stopName = favorite.displayName,
         bus = bus,
         anchor = GeoPoint(favorite.anchorLatitude, favorite.anchorLongitude),
         area = favorite.isArea,

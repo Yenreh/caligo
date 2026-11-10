@@ -105,7 +105,8 @@ class WaitBellTest {
         assertEquals(1, access.requests)
         val (bus, seed) = control.started.single()
         assertEquals(WaitKey("500800", "637001", t31.arrivalTime), bus.key)
-        assertEquals("Plaza de Cayzedo A1", bus.stopName)
+        // Named as the card titles it: the user's own name
+        assertEquals("Trabajo", bus.stopName)
         assertEquals(stop.anchorLatitude, bus.anchor.latitude, 0.0)
         assertTrue(!bus.area)
         assertEquals(fading, seed)
@@ -204,7 +205,26 @@ class WaitBellTest {
         val (bus, _) = control.started.single()
         assertEquals("261001", bus.bus.vehicleId)
         assertEquals(t("14:46:39") + 2_808_000, bus.bus.arrivalTime)
+        assertEquals("Calimio-Sanin", bus.stopName)
         assertTrue(control.stopped.isEmpty())
+    }
+
+    @Test
+    fun aWaitFromAStopsDetailsIsNamedAsTheSheetIs() {
+        access.granted = true
+        val stop = com.yenreh.caligo.domain.entities.NearbyStop("500800", "Plaza de Cayzedo A1", 40.0, listOf(t31))
+        show {
+            StopDetailsContent(
+                initial = stop,
+                isSaved = false,
+                lines = com.yenreh.caligo.ui.common.Loaded.Ready(emptyList<com.yenreh.caligo.domain.entities.StopLine>()),
+                actions = StopDetailsActions(refresh = { it }, loadLines = { emptyList() }, save = { FavoriteSave.Saved }),
+                onDismiss = {},
+            )
+        }
+        tapBell()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { control.started.isNotEmpty() }
+        assertEquals("Plaza de Cayzedo A1", control.started.single().first.stopName)
     }
 
     @Test

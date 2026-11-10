@@ -188,7 +188,8 @@ object WaitNotifications {
             .setAction(ACTION_OPEN_STOP)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(EXTRA_STOP_ID, wait.bus.stopId)
-            .putExtra(EXTRA_STOP_NAME, wait.bus.stopName)
+            // The stop's own name, as its details title it
+            .putExtra(EXTRA_STOP_NAME, wait.bus.bus.stopName.ifEmpty { wait.bus.stopName })
             .putExtra(EXTRA_ANCHOR_LATITUDE, wait.bus.anchor.latitude)
             .putExtra(EXTRA_ANCHOR_LONGITUDE, wait.bus.anchor.longitude)
         // The stop's own place, when known: its details ask around it
