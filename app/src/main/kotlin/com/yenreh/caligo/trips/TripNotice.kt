@@ -225,6 +225,8 @@ data class TripNotice(
             val title: String
             val text: String
             val chip: String
+            // Off the route, the text names the line where the title does not
+            var lineInTitle = true
             // Short titles, which a collapsed notification shows whole; the stops on the line below
             when {
                 left == 0 -> {
@@ -240,6 +242,7 @@ data class TripNotice(
                 // Where the rider gets off, the line below; following the line to its end, the bus's own destination
                 plan.alight != null -> {
                     title = words.getOffAt(target.name, minutes, estimated)
+                    lineInTitle = false
                     text = words.withLine(plan.line, words.stopsNext(left, plan.stops[next].name))
                     chip = words.chipMinutes(minutes, estimated)
                 }
@@ -249,7 +252,11 @@ data class TripNotice(
                     chip = words.chipMinutes(minutes, estimated)
                 }
             }
-            val shownText = if (trip.offRouteSince != null) words.withLine(plan.line, words.offRoute) else text
+            val shownText = when {
+                trip.offRouteSince == null -> text
+                lineInTitle -> words.offRoute
+                else -> words.withLine(plan.line, words.offRoute)
+            }
             val start = trip.route.at[plan.board]
             val length = (trip.route.at[plan.target] - start).coerceAtLeast(1.0)
             val progressMax = length.toInt().coerceAtLeast(1)
