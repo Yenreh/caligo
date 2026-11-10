@@ -125,6 +125,17 @@ class WaitTest {
     }
 
     @Test
+    fun aBusDueAfterTheTimeLimitGetsTenMinutesPastItsTime() {
+        // The service lists buses up to about 50 minutes ahead
+        val far = bus("T31", "t31", NOW + 48 * MINUTE)
+        val wait = Wait.start(awaited(far), NOW).fed(answer(NOW + 46 * MINUTE, far))
+        assertTrue(wait.step(NOW + Wait.TIME_LIMIT.inWholeMilliseconds) is WaitStep.Goes)
+        assertEquals(WaitStatus.Coming(far.arrivalTime), wait.status(NOW + 46 * MINUTE))
+        assertTrue(wait.step(NOW + 58 * MINUTE - 1) is WaitStep.Goes)
+        assertEquals(WaitEnding.TIME_LIMIT, wait.ends(NOW + 58 * MINUTE))
+    }
+
+    @Test
     fun theAlertIsDueOnceWithinTwoMinutes() {
         assertFalse(start.alertDue(t31.arrivalTime - 2 * MINUTE - 1))
         assertTrue(start.alertDue(t31.arrivalTime - 2 * MINUTE))

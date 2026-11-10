@@ -240,8 +240,9 @@ class WaitServiceTest {
 
     // 6. The time limit
 
-    private val far = bus("T31", "t31", NOW + 60 * MINUTE)
-    private val farther = bus("A47", "a47", NOW + 70 * MINUTE, destination = "Valle Grande")
+    /** Due within the limit, and still listed long after: only the limit ends their waits */
+    private val far = bus("T31", "t31", NOW + 30 * MINUTE)
+    private val farther = bus("A47", "a47", NOW + 32 * MINUTE, destination = "Valle Grande")
 
     @Test
     fun timeLimit() {
@@ -261,6 +262,20 @@ class WaitServiceTest {
         start(awaited(farther))
         advance(Wait.TIME_LIMIT.inWholeMilliseconds - 10 * MINUTE + 15_000)
         assertLeft("A47")
+    }
+
+    @Test
+    fun aBusListedFarAheadIsWaitedForPastTheLimit() {
+        val late = bus("T31", "t31", NOW + 48 * MINUTE)
+        listed = { listOf(late) }
+        start(awaited(late))
+        advance(Wait.TIME_LIMIT.inWholeMilliseconds + MINUTE)
+        assertEquals("T31 to Universidades, 2 min", posted.single().title())
+        // Ten minutes past the time it gave at the start
+        advance(late.arrivalTime + Wait.PAST_DUE.inWholeMilliseconds - now() - 15_000)
+        assertEquals(1, posted.size)
+        advance(30_000)
+        assertLeft()
     }
 
     // 7. No longer seen

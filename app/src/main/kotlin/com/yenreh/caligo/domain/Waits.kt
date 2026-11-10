@@ -171,7 +171,7 @@ data class Wait(
 
     /** At [now]: the wait as it goes on, or how it ends */
     fun step(now: Long): WaitStep {
-        if (now >= startedAt + TIME_LIMIT_MS) return WaitStep.Ends(WaitEnding.TIME_LIMIT)
+        if (now >= endsBy) return WaitStep.Ends(WaitEnding.TIME_LIMIT)
         telling?.let { ending ->
             return if (now >= tellingSince + TELL_FOR_MS) WaitStep.Ends(ending) else WaitStep.Goes(this)
         }
@@ -189,6 +189,13 @@ data class Wait(
         }
         return WaitStep.Goes(this)
     }
+
+    /**
+     * When it ends at the latest: [TIME_LIMIT] after it started, or
+     * [PAST_DUE] after the time its bus gave then, whichever is later, so
+     * a bus listed far ahead still gets its wait
+     */
+    val endsBy: Long get() = maxOf(startedAt + TIME_LIMIT_MS, bus.bus.arrivalTime + PAST_DUE_MS)
 
     private fun tell(ending: WaitEnding, now: Long) = copy(telling = ending, tellingSince = now)
 
@@ -222,8 +229,11 @@ data class Wait(
         /** Waits at once, at most */
         const val CAP = 5
 
-        /** How long a wait lasts at most */
+        /** How long a wait lasts at most, unless its bus was due later: see [Wait.endsBy] */
         val TIME_LIMIT = 45.minutes
+
+        /** How long past the time its bus gave at the start a wait lasts at least */
+        val PAST_DUE = 10.minutes
 
         /** How long "Did you take it?" asks once the bus passed */
         val ASK_FOR = 1.minutes
@@ -248,6 +258,7 @@ data class Wait(
         val ALERT_WITHIN = 2.minutes
 
         private val TIME_LIMIT_MS = TIME_LIMIT.inWholeMilliseconds
+        private val PAST_DUE_MS = PAST_DUE.inWholeMilliseconds
         private val ASK_FOR_MS = ASK_FOR.inWholeMilliseconds
         private val MISSING_FOR_MS = MISSING_FOR.inWholeMilliseconds
         private val WELL_PAST_MS = WELL_PAST.inWholeMilliseconds
