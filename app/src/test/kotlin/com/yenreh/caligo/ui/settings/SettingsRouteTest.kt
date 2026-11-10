@@ -223,6 +223,8 @@ class SettingsRouteTest {
         tap("Favorite stops only")
         tap("Dark map")
         tap("Refresh balances on opening")
+        tap("Sound when the bus is near")
+        tap("Vibrate")
         compose.waitForIdle()
 
         val settings = device.store.settings.value
@@ -230,6 +232,8 @@ class SettingsRouteTest {
         assertEquals(com.yenreh.caligo.domain.entities.HomeContent.STOPS, settings.homeContent)
         assertTrue(settings.darkMap)
         assertEquals(false, settings.refreshBalancesOnOpen)
+        assertTrue(settings.alertSound)
+        assertTrue(settings.alertVibrate)
     }
 
     @Test

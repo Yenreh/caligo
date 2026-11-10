@@ -84,6 +84,8 @@ class SettingsActions(
     val onDarkMap: (Boolean) -> Unit = {},
     val onSharpMap: (Boolean) -> Unit = {},
     val onRefreshBalancesOnOpen: (Boolean) -> Unit = {},
+    val onAlertSound: (Boolean) -> Unit = {},
+    val onAlertVibrate: (Boolean) -> Unit = {},
     val onSaveFarePrice: (String) -> Unit = {},
     val onExport: () -> Unit = {},
     val onImport: () -> Unit = {},
@@ -211,6 +213,24 @@ fun SettingsScreen(
                     icon = painterResource(R.drawable.ic_hd),
                     checked = settings.sharpMap,
                     onChange = actions.onSharpMap,
+                )
+            }
+
+            Section(stringResource(R.string.alerts_section)) {
+                SwitchTile(
+                    title = stringResource(R.string.alert_sound),
+                    subtitle = stringResource(R.string.alert_sound_desc),
+                    icon = painterResource(R.drawable.ic_volume_up),
+                    checked = settings.alertSound,
+                    onChange = actions.onAlertSound,
+                )
+                LabDivider()
+                SwitchTile(
+                    title = stringResource(R.string.alert_vibrate),
+                    subtitle = stringResource(R.string.alert_vibrate_desc),
+                    icon = painterResource(R.drawable.ic_vibration),
+                    checked = settings.alertVibrate,
+                    onChange = actions.onAlertVibrate,
                 )
             }
 

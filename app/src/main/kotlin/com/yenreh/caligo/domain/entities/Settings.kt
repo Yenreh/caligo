@@ -27,6 +27,13 @@ data class Settings(
     val sharpMap: Boolean = true,
     /** Ask for every balance when the app opens */
     val refreshBalancesOnOpen: Boolean = true,
+    /**
+     * The alert as an awaited bus comes near makes a sound; off, it is
+     * silent. In 5.2 the warning before the stop to get off at too.
+     */
+    val alertSound: Boolean = false,
+    /** The same alert vibrates */
+    val alertVibrate: Boolean = false,
     /** Not stored: true until the saved settings have been read */
     val isLoading: Boolean = true,
 ) {

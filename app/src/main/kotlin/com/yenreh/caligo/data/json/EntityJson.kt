@@ -96,6 +96,8 @@ fun Settings.toJson(): JsonObject = buildJsonObject {
     put("darkMap", darkMap)
     put("sharpMap", sharpMap)
     put("refreshBalancesOnOpen", refreshBalancesOnOpen)
+    put("alertSound", alertSound)
+    put("alertVibrate", alertVibrate)
 }
 
 /**
@@ -110,6 +112,8 @@ fun settingsFromJson(json: JsonObject) = Settings(
     darkMap = json["darkMap"].boolOrNull() ?: false,
     sharpMap = json["sharpMap"].boolOrNull() ?: true,
     refreshBalancesOnOpen = json["refreshBalancesOnOpen"].boolOrNull() ?: true,
+    alertSound = json["alertSound"].boolOrNull() ?: false,
+    alertVibrate = json["alertVibrate"].boolOrNull() ?: false,
     isLoading = false,
 )
 

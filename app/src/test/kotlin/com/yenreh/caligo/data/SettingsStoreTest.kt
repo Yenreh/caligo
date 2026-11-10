@@ -61,6 +61,20 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun keepsTheAlertsAndTakesThemOffWhenAFileLacksThem() = runTest {
+        file.writeText("""{"alertSound":true,"alertVibrate":true}""")
+        assertEquals(Settings(alertSound = true, alertVibrate = true, isLoading = false), store().settings.value)
+        // The Flutter app's file has none: both off
+        file.writeText("""{"themeMode":0}""")
+        val store = store()
+        assertFalse(store.settings.value.alertSound)
+        assertFalse(store.settings.value.alertVibrate)
+        store.setAlertVibrate(true)
+        advanceUntilIdle()
+        assertTrue(file.readText().endsWith(""""alertSound":false,"alertVibrate":true}"""))
+    }
+
+    @Test
     fun aFileThatCannotBeReadLeavesTheDefaults() = runTest {
         for (text in listOf("not json", """{"themeMode": 3}""", """{"farePrice": "3500"}""", "[]")) {
             file.writeText(text)
@@ -79,7 +93,8 @@ class SettingsStoreTest {
 
         assertEquals(
             """{"themeMode":0,"farePrice":3700,"homeContent":1,"sortStopsByProximity":true,""" +
-                """"darkMap":false,"sharpMap":true,"refreshBalancesOnOpen":true}""",
+                """"darkMap":false,"sharpMap":true,"refreshBalancesOnOpen":true,""" +
+                """"alertSound":false,"alertVibrate":false}""",
             file.readText(),
         )
         assertTrue(store.settings.value.showsStops)

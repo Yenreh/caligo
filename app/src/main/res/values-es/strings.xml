@@ -165,6 +165,11 @@
     <string name="near_stop">Cerca de %1$s</string>
     <string name="reset_north">Orientar al norte</string>
     <string name="map_credits">Créditos del mapa</string>
+    <string name="alerts_section">Alertas</string>
+    <string name="alert_sound">Sonido cuando el bus está cerca</string>
+    <string name="alert_sound_desc">Cuando un bus esperado está a unos 2 minutos. Apagado, el aviso es silencioso</string>
+    <string name="alert_vibrate">Vibrar</string>
+    <string name="alert_vibrate_desc">Con el mismo aviso</string>
     <string name="dark_map">Mapa oscuro</string>
     <string name="dark_map_desc">Mapa de paradas con fondo oscuro, sin importar el tema de la app</string>
     <string name="sharp_map">Mapa nítido</string>

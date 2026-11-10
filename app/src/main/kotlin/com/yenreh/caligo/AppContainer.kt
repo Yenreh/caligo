@@ -21,6 +21,7 @@ import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.repositories.CardRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import com.yenreh.caligo.ui.trips.TransitNetworkLoader
+import com.yenreh.caligo.waits.Alerts
 import com.yenreh.caligo.waits.AndroidNotificationAccess
 import com.yenreh.caligo.waits.RepositoryWaitSource
 import com.yenreh.caligo.waits.WaitDesk
@@ -79,7 +80,9 @@ class AppContainer(private val context: Context) {
     val location = AndroidLocationSource(context)
 
     /** The buses waited for, which the wait service follows */
-    val waits = WaitDesk(context, RepositoryWaitSource(stopsRepository))
+    val waits = WaitDesk(context, RepositoryWaitSource(stopsRepository)).apply {
+        alerts = { settings.settings.value.let { Alerts(sound = it.alertSound, vibrate = it.alertVibrate) } }
+    }
 
     /** Whether a wait's notification may show, asked from the activity on screen */
     val notificationAccess = AndroidNotificationAccess(context) { waits.alerts() }

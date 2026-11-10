@@ -75,7 +75,6 @@ class WaitServiceTest {
         desk.source = source
         desk.now = now
         desk.coroutineContext = StandardTestDispatcher(scheduler)
-        desk.alerts = { Alerts() }
     }
 
     @After
@@ -403,7 +402,8 @@ class WaitServiceTest {
 
     @Test
     fun theAlertGoesToTheChannelTheSettingsAsk() {
-        desk.alerts = { Alerts(sound = true) }
+        // As the settings' "Alerts" have it
+        app.container.settings.setAlertSound(true)
         start(awaited(t31))
         assertEquals(WaitChannel.WAITS.id, posted.single().channelId)
         advance(t31.arrivalTime - 2 * MINUTE - now() + 1_000)

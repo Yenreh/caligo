@@ -58,6 +58,8 @@ fun SettingsRoute(
             onDarkMap = viewModel::setDarkMap,
             onSharpMap = viewModel::setSharpMap,
             onRefreshBalancesOnOpen = viewModel::setRefreshBalancesOnOpen,
+            onAlertSound = viewModel::setAlertSound,
+            onAlertVibrate = viewModel::setAlertVibrate,
             onSaveFarePrice = viewModel::saveFarePrice,
             onExport = { viewModel.export() },
             onImport = {

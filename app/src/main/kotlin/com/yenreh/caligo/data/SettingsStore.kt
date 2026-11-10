@@ -79,6 +79,10 @@ class SettingsStore(private val file: File, private val scope: CoroutineScope) {
 
     fun setSortStopsByProximity(enabled: Boolean) = set { it.copy(sortStopsByProximity = enabled) }
 
+    fun setAlertSound(enabled: Boolean) = set { it.copy(alertSound = enabled) }
+
+    fun setAlertVibrate(enabled: Boolean) = set { it.copy(alertVibrate = enabled) }
+
     /**
      * Apply the settings found in a backup, defaults for what it lacks.
      * Throws, changing nothing, when a value has the wrong type.

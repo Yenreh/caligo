@@ -111,6 +111,10 @@ class SettingsViewModel(
 
     fun setRefreshBalancesOnOpen(enabled: Boolean) = store.setRefreshBalancesOnOpen(enabled)
 
+    fun setAlertSound(enabled: Boolean) = store.setAlertSound(enabled)
+
+    fun setAlertVibrate(enabled: Boolean) = store.setAlertVibrate(enabled)
+
     /** Save [text] as the fare when it is a whole number above zero; anything else is ignored */
     fun saveFarePrice(text: String) {
         val price = dartIntTryParse(text) ?: return

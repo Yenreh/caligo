@@ -131,7 +131,9 @@ class BackupTest {
                 "sortStopsByProximity": true,
                 "darkMap": false,
                 "sharpMap": true,
-                "refreshBalancesOnOpen": true
+                "refreshBalancesOnOpen": true,
+                "alertSound": false,
+                "alertVibrate": false
               }
             }
             """.trimIndent(),
