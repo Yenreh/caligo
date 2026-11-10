@@ -2,6 +2,7 @@ package com.yenreh.caligo.trips
 
 import android.app.Notification
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.NBSP
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.domain.TookRide
@@ -88,13 +89,13 @@ class TripJourneyTest {
         assertOne()
         assertEquals(listOf("E21", "T31"), h.awaitedLines)
         assertTrue(shown.title(), shown.title().startsWith("Walk to the stop, "))
-        assertEquals("Plaza de Cayzedo A1 · then the E21 in 7 min or T31 in 9 min", shown.text())
+        assertEquals("Plaza de Cayzedo A1 · then the E21 in 7${NBSP}min or T31 in 9${NBSP}min", shown.text())
         // At the stop
         h.move(4 * MINUTE) { toTheStop(it) }
         assertOne()
         assertEquals("Take the E21 or T31", shown.title())
-        assertEquals("At Plaza de Cayzedo A1 · E21 3 min · T31 5 min", shown.text())
-        assertEquals("3 min", androidx.core.app.NotificationCompat.getShortCriticalText(shown))
+        assertEquals("At Plaza de Cayzedo A1 · E21 3${NBSP}min · T31 5${NBSP}min", shown.text())
+        assertEquals("3${NBSP}min", androidx.core.app.NotificationCompat.getShortCriticalText(shown))
         assertEquals(listOf("I took the E21", "I took the T31", "Finish"), shown.actions.map { it.title.toString() })
         // The T31 taken: every wait of the ride ends
         h.pressTitled("I took the T31")

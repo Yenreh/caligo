@@ -9,6 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.CaliGoApp
+import com.yenreh.caligo.NBSP
 import com.yenreh.caligo.domain.AskPoint
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.FadingArrivals
@@ -299,10 +300,10 @@ class WaitServiceTest {
             advance(15_000)
         }
         // Counted down, at the stop as its next trip showed, asked, then gone
-        assertTrue(titles.first(), titles.first().startsWith("A47 to Valle Grande, 6 min"))
+        assertTrue(titles.first(), titles.first().startsWith("A47 to Valle Grande, 6${NBSP}min"))
         assertTrue(titles.toString(), "A47 to Valle Grande, at the stop" in titles)
         assertTrue(titles.toString(), "Did you take the A47?" in titles)
-        assertTrue(titles.toString(), titles.none { Regex("A47 to Valle Grande, (4[0-9]|1[0-9]|[2-3][0-9]) min").matches(it) })
+        assertTrue(titles.toString(), titles.none { Regex("A47 to Valle Grande, (4[0-9]|1[0-9]|[2-3][0-9])${NBSP}min").matches(it) })
         assertLeft()
     }
 
@@ -322,7 +323,7 @@ class WaitServiceTest {
         assertEquals(WaitStart.STARTED, desk.start(AwaitedBus(PhoneSamples.STOP, "Calimio-Sanin", next, WaitFixtures.anchor, place = WaitFixtures.place), null))
         advance(1)
         val titles = posted.map { it.title() }.sorted()
-        assertEquals(listOf("A47 to Valle Grande, 46 min", "A47 to Valle Grande, at the stop"), titles)
+        assertEquals(listOf("A47 to Valle Grande, 46${NBSP}min", "A47 to Valle Grande, at the stop"), titles)
     }
 
     private fun awaitedKeyOf(bus: BusArrival) = com.yenreh.caligo.domain.WaitKey(PhoneSamples.STOP, bus.vehicleId, bus.arrivalTime)
@@ -359,7 +360,7 @@ class WaitServiceTest {
         listed = { listOf(late) }
         start(awaited(late))
         advance(Wait.TIME_LIMIT.inWholeMilliseconds + MINUTE)
-        assertEquals("T31 to Universidades, 2 min", posted.single().title())
+        assertEquals("T31 to Universidades, 2${NBSP}min", posted.single().title())
         // Ten minutes past the time it gave at the start
         advance(late.arrivalTime + Wait.PAST_DUE.inWholeMilliseconds - now() - 15_000)
         assertEquals(1, posted.size)
@@ -506,7 +507,7 @@ class WaitServiceTest {
             assertTrue(notification.hasPromotableCharacteristics())
             assertEquals(null, notification.group)
         }
-        assertEquals("10 min", NotificationCompat.getShortCriticalText(notificationOf("T31")))
+        assertEquals("10${NBSP}min", NotificationCompat.getShortCriticalText(notificationOf("T31")))
         // Older versions count down with a chronometer to the bus
         val t31Shown = notificationOf("T31")
         assertTrue(NotificationCompat.getUsesChronometer(t31Shown))

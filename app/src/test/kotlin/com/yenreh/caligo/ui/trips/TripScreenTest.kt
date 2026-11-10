@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.NBSP
 import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.data.location.LocationPermission
@@ -245,7 +246,7 @@ class TripScreenTest {
         show(took = null)
         waitFor("trip_awaited")
         compose.onNode(hasText("Take the T31 or E21")).assertExists()
-        compose.onNode(hasText("T31 2 min · E21 5 min")).assertExists()
+        compose.onNode(hasText("T31 2${NBSP}min · E21 5${NBSP}min")).assertExists()
         compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_took_T31"))
         compose.onNodeWithTag("trip_took_T31").performClick()
         compose.waitUntil(WAIT_TIMEOUT_MS) { trips.takenLines.isNotEmpty() }

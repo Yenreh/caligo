@@ -279,7 +279,7 @@
     <string name="wait_needs_notifications">CaliGo sigue el bus en una notificación, y sus notificaciones están desactivadas.</string>
     <string name="wait_close">Cerrar</string>
     <string name="wait_open_settings">Ajustes de notificaciones</string>
-    <string name="wait_title_minutes">%1$s a %2$s, %3$d min</string>
+    <string name="wait_title_minutes">%1$s a %2$s, %3$d\u00A0min</string>
     <string name="wait_title_now">%1$s a %2$s, llegando</string>
     <string name="wait_title_at_stop">%1$s a %2$s, en la parada</string>
     <string name="wait_title_no_data">%1$s a %2$s, sin datos</string>
@@ -288,7 +288,7 @@
     <string name="wait_title_no_data_ended">Sin datos hace un rato</string>
     <string name="wait_not_seen_now">%1$s · no se ve por ahora</string>
     <string name="wait_bus_at">%1$s a %2$s, %3$s</string>
-    <string name="wait_chip_minutes">%1$d min</string>
+    <string name="wait_chip_minutes">%1$d\u00A0min</string>
     <string name="wait_chip_now">Ya</string>
     <string name="wait_chip_here">Aquí</string>
     <string name="wait_took_it">Lo tomé</string>
@@ -310,7 +310,7 @@
     <string name="trip_warning_channel_sound_vibrate">Aviso de parada, sonido y vibración</string>
     <string name="trip_warning_channel_description">Antes de la parada donde te bajas</string>
     <string name="trip_off_route">Fuera de la ruta</string>
-    <string name="trip_chip_minutes">%1$s min</string>
+    <string name="trip_chip_minutes">%1$s\u00A0min</string>
     <string name="trip_chip_next">Próx.</string>
     <string name="trip_chip_here">Aquí</string>
     <string name="trip_finish">Terminar</string>
@@ -348,8 +348,8 @@
     <string name="trip_home_title">En el %1$s</string>
     <string name="trip_open">Abrir el viaje</string>
     <string name="trip_walk_to">Camina a %1$s, %2$s min</string>
-    <string name="trip_line_in">%1$s en %2$d min</string>
-    <string name="trip_line_minutes">%1$s %2$d min</string>
+    <string name="trip_line_in">%1$s en %2$d\u00A0min</string>
+    <string name="trip_line_minutes">%1$s %2$d\u00A0min</string>
     <string name="trip_line_at_stop">%1$s en la parada</string>
     <string name="trip_took_line">Tomé el %1$s</string>
     <string name="trip_took_it_hint">Al subir, toca la línea que tomaste</string>
@@ -368,8 +368,8 @@
     </plurals>
     <string name="trip_follow_me">Seguir mi posición</string>
     <string name="trip_start">Empezar viaje</string>
-    <string name="trip_ride_to">%1$s a %2$s, %3$s min</string>
-    <string name="trip_get_off_at">Bájate en %1$s, %2$s min</string>
+    <string name="trip_ride_to">%1$s a %2$s, %3$s\u00A0min</string>
+    <string name="trip_get_off_at">Bájate en %1$s, %2$s\u00A0min</string>
     <plurals name="trip_stops_next">
         <item quantity="one">%1$d parada · próxima: %2$s</item>
         <item quantity="many">%1$d paradas · próxima: %2$s</item>
@@ -378,8 +378,8 @@
     <string name="trip_get_off_next">%1$s, bájate en la próxima</string>
     <string name="trip_get_off_here">%1$s, bájate aquí</string>
     <string name="trip_end_of_line">%1$s, fin del recorrido</string>
-    <string name="trip_stop_in">%1$s · en %2$s min</string>
-    <string name="trip_walk_to_stop">Camina a la parada, %1$s min</string>
-    <string name="trip_walk_to_destination">Camina a tu destino, %1$s min</string>
+    <string name="trip_stop_in">%1$s · en %2$s\u00A0min</string>
+    <string name="trip_walk_to_stop">Camina a la parada, %1$s\u00A0min</string>
+    <string name="trip_walk_to_destination">Camina a tu destino, %1$s\u00A0min</string>
     <string name="trip_then">luego el %1$s</string>
 </resources>

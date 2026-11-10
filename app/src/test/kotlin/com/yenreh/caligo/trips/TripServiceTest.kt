@@ -8,6 +8,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.MainActivity
+import com.yenreh.caligo.NBSP
 import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.trips.TripFixtures.MINUTE
@@ -276,8 +277,8 @@ class TripServiceTest {
         assertTrue(NotificationCompat.isRequestPromotedOngoing(shown))
         assertTrue(shown.hasPromotableCharacteristics())
         assertEquals(null, shown.group)
-        assertEquals("~10 min", NotificationCompat.getShortCriticalText(shown))
-        assertEquals("Get off at Pampalinda, ~10 min", with(h) { shown.title() })
+        assertEquals("~10${NBSP}min", NotificationCompat.getShortCriticalText(shown))
+        assertEquals("Get off at Pampalinda, ~10${NBSP}min", with(h) { shown.title() })
         assertEquals("E21 · 7 stops · next: Centro", with(h) { shown.text() })
         // No clock: the minutes are in the title and the chip
         assertFalse(NotificationCompat.getUsesChronometer(shown))

@@ -3,6 +3,7 @@ package com.yenreh.caligo.waits
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.NBSP
 import com.yenreh.caligo.domain.Wait
 import com.yenreh.caligo.waits.WaitFixtures.MINUTE
 import com.yenreh.caligo.waits.WaitFixtures.NOW
@@ -30,10 +31,10 @@ class WaitNoticeTest {
     @Test
     fun countsDownToTheBus() {
         val notice = notice(start, NOW + 6 * MINUTE)
-        assertEquals("T31 to Universidades, 4 min", notice.title)
+        assertEquals("T31 to Universidades, 4${NBSP}min", notice.title)
         assertEquals("Plaza de Cayzedo A1", notice.text)
-        assertEquals("T31 to Universidades, 4 min, Plaza de Cayzedo A1", notice.summary)
-        assertEquals("4 min", notice.chip)
+        assertEquals("T31 to Universidades, 4${NBSP}min, Plaza de Cayzedo A1", notice.summary)
+        assertEquals("4${NBSP}min", notice.chip)
         assertEquals(t31.arrivalTime, notice.countdownTo)
         assertEquals(listOf(WaitAction.TOOK, WaitAction.STOP), notice.actions)
         assertEquals(WaitChannel.WAITS, notice.channel)
@@ -49,7 +50,7 @@ class WaitNoticeTest {
     fun inSpanish() {
         val spanish = WaitWords(ApplicationProvider.getApplicationContext<Context>().resources)
         val notice = WaitNotice.of(start, NOW + 6 * MINUTE, Alerts(), spanish, 15_000)
-        assertEquals("T31 a Universidades, 4 min, Plaza de Cayzedo A1", notice.summary)
+        assertEquals("T31 a Universidades, 4${NBSP}min, Plaza de Cayzedo A1", notice.summary)
         assertEquals("Lo tomé", spanish.action(WaitAction.TOOK))
         assertEquals("Dejar de esperar", spanish.action(WaitAction.STOP))
         assertEquals("No", spanish.action(WaitAction.NOT_TAKEN))
@@ -66,7 +67,7 @@ class WaitNoticeTest {
     fun aBusNotSeenJustNowKeepsItsLastTime() {
         val out = start.fed(answer(NOW + 30_000, e21))
         val notice = notice(out, NOW + MINUTE)
-        assertEquals("T31 to Universidades, 9 min", notice.title)
+        assertEquals("T31 to Universidades, 9${NBSP}min", notice.title)
         assertEquals("Plaza de Cayzedo A1 · not seen just now", notice.text)
     }
 

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.core.app.NotificationCompat
+import com.yenreh.caligo.NBSP
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.JourneyPhase
@@ -40,9 +41,9 @@ class TripNoticeTest {
     @Test
     fun onTheEstimateTheTimeReadsAbout() {
         val n = notice(trip, NOW)
-        assertEquals("Get off at Pampalinda, ~10 min", n.title)
+        assertEquals("Get off at Pampalinda, ~10${NBSP}min", n.title)
         assertEquals("E21 · 7 stops · next: Centro", n.text)
-        assertEquals("~10 min", n.chip)
+        assertEquals("~10${NBSP}min", n.chip)
         assertEquals(TripChannel.TRIPS, n.channel)
         assertFalse(n.alerting)
     }
@@ -51,9 +52,9 @@ class TripNoticeTest {
     fun aFixBacksTheTime() {
         val fixed = trip.fixed(fix(1210.0, NOW + 3 * MINUTE))
         val n = notice(fixed, NOW + 3 * MINUTE)
-        assertEquals("Get off at Pampalinda, 6 min", n.title)
+        assertEquals("Get off at Pampalinda, 6${NBSP}min", n.title)
         assertEquals("E21 · 4 stops · next: Calle 5 con Kr 22", n.text)
-        assertEquals("6 min", n.chip)
+        assertEquals("6${NBSP}min", n.chip)
     }
 
     // The ride's bar: one segment in metres, with the last four stops before getting off
@@ -128,7 +129,7 @@ class TripNoticeTest {
         val n = notice(near, NOW + 6 * MINUTE, Alerts(sound = true))
         assertTrue(n.alerting)
         assertEquals(TripChannel.WARNING_SOUND, n.channel)
-        assertEquals("Get off at Pampalinda, 3 min", n.title)
+        assertEquals("Get off at Pampalinda, 3${NBSP}min", n.title)
         assertEquals("E21 · 2 stops · next: Calle 5 con Kr 39", n.text)
         // Once out, it stays on that channel, silent
         val after = notice(near.warnedAt(NOW + 6 * MINUTE), NOW + 6 * MINUTE + 15_000, Alerts(sound = true))
@@ -148,7 +149,7 @@ class TripNoticeTest {
     fun theStopNextAndTheStopReached() {
         val next = trip.fixed(fix(2410.0, NOW + 7 * MINUTE))
         assertEquals("E21, get off at the next stop", notice(next, NOW + 7 * MINUTE).title)
-        assertEquals("Pampalinda · in 1 min", notice(next, NOW + 7 * MINUTE).text)
+        assertEquals("Pampalinda · in 1${NBSP}min", notice(next, NOW + 7 * MINUTE).text)
         assertEquals("Next", notice(next, NOW + 7 * MINUTE).chip)
         val here = next.fixed(fix(2790.0, NOW + 8 * MINUTE))
         val n = notice(here, NOW + 8 * MINUTE)
@@ -162,7 +163,7 @@ class TripNoticeTest {
         val follow = Trip.start(plan.copy(alight = null), NOW)
         val n = notice(follow, NOW)
         // There the bus's own destination, as the waits say it
-        assertEquals("E21 to Universidades, ~13 min", n.title)
+        assertEquals("E21 to Universidades, ~13${NBSP}min", n.title)
         assertEquals("9 stops · next: Centro", n.text)
         val end = follow.fixed(fix(3200.0, NOW + 9 * MINUTE)).fixed(fix(3590.0, NOW + 10 * MINUTE))
         assertEquals("E21, end of the line", notice(end, NOW + 10 * MINUTE).title)
@@ -174,11 +175,11 @@ class TripNoticeTest {
     @Test
     fun offTheRouteTheTextNamesTheLineWhereTheTitleDoesNot() {
         val off = notice(offAt(trip, 400.0, NOW + 2 * MINUTE), NOW + 2 * MINUTE)
-        assertEquals("Get off at Pampalinda, ~8 min", off.title)
+        assertEquals("Get off at Pampalinda, ~8${NBSP}min", off.title)
         assertEquals("E21 · Away from the route", off.text)
         // The titles that name it already
         val follow = notice(offAt(Trip.start(plan.copy(alight = null), NOW), 400.0, NOW + 2 * MINUTE), NOW + 2 * MINUTE)
-        assertEquals("E21 to Universidades, ~10 min", follow.title)
+        assertEquals("E21 to Universidades, ~10${NBSP}min", follow.title)
         assertEquals("Away from the route", follow.text)
         val next = notice(offAt(trip, 2410.0, NOW + 8 * MINUTE), NOW + 8 * MINUTE)
         assertEquals("E21, get off at the next stop", next.title)
@@ -231,18 +232,18 @@ class TripNoticeTest {
     @Config(qualifiers = "es")
     fun inSpanish() {
         val es = TripWords(ApplicationProvider.getApplicationContext<Context>().resources)
-        assertEquals("Bájate en Pampalinda, ~10 min", TripNotice.of(trip, NOW, Alerts(), es, 15_000).title)
+        assertEquals("Bájate en Pampalinda, ~10${NBSP}min", TripNotice.of(trip, NOW, Alerts(), es, 15_000).title)
         assertEquals("E21 · 7 paradas · próxima: Centro", TripNotice.of(trip, NOW, Alerts(), es, 15_000).text)
         val last = trip.fixed(fix(2010.0, NOW + 6 * MINUTE))
         assertEquals("E21 · 2 paradas · próxima: Calle 5 con Kr 39", TripNotice.of(last, NOW + 6 * MINUTE, Alerts(), es, 15_000).text)
         val next = trip.fixed(fix(2410.0, NOW + 7 * MINUTE))
         assertEquals("E21, bájate en la próxima", TripNotice.of(next, NOW + 7 * MINUTE, Alerts(), es, 15_000).title)
-        assertEquals("Pampalinda · en 1 min", TripNotice.of(next, NOW + 7 * MINUTE, Alerts(), es, 15_000).text)
+        assertEquals("Pampalinda · en 1${NBSP}min", TripNotice.of(next, NOW + 7 * MINUTE, Alerts(), es, 15_000).text)
         val here = next.fixed(fix(2790.0, NOW + 8 * MINUTE))
         assertEquals("E21, bájate aquí", TripNotice.of(here, NOW + 8 * MINUTE, Alerts(), es, 15_000).title)
         // Following the line to its end, and off the route
         val follow = Trip.start(plan.copy(alight = null), NOW)
-        assertEquals("E21 a Universidades, ~13 min", TripNotice.of(follow, NOW, Alerts(), es, 15_000).title)
+        assertEquals("E21 a Universidades, ~13${NBSP}min", TripNotice.of(follow, NOW, Alerts(), es, 15_000).title)
         assertEquals("9 paradas · próxima: Centro", TripNotice.of(follow, NOW, Alerts(), es, 15_000).text)
         val off = offAt(trip, 400.0, NOW + 2 * MINUTE)
         assertEquals("E21 · Fuera de la ruta", TripNotice.of(off, NOW + 2 * MINUTE, Alerts(), es, 15_000).text)
