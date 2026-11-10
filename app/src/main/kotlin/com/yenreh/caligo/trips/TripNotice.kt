@@ -14,11 +14,17 @@ import com.yenreh.caligo.waits.Alerts
 /**
  * The app's notification channels for trips, apart from the waits' so
  * each can be set on its own in the system. Each is made once and never
- * altered, so what the user sets for it wins.
+ * altered, so what the user sets for it wins. A channel's importance
+ * cannot change, so one that needs another takes a new id and [replaces]
+ * the old.
  */
-enum class TripChannel(val id: String, val sound: Boolean, val vibrate: Boolean) {
-    /** Every update: silent, never peeks */
-    TRIPS("trips", sound = false, vibrate = false),
+enum class TripChannel(val id: String, val sound: Boolean, val vibrate: Boolean, val replaces: String? = null) {
+    /**
+     * Every update: of default importance, so it shows on a lock screen
+     * that hides silent notifications, yet never sounds, vibrates nor
+     * peeks. It replaces the first, low "trips".
+     */
+    TRIPS("trip_updates", sound = false, vibrate = false, replaces = "trips"),
 
     /** The warning before the stop to get off at, as the settings ask */
     WARNING_SILENT("trip_warning_silent", sound = false, vibrate = false),
@@ -49,6 +55,15 @@ data class AwaitedLine(val line: String, val arrivalTime: Long, val atStop: Bool
 /** A point of the notification's bar: a stop ahead, at [position] of the bar's length */
 data class TripPoint(val position: Int)
 
+/** What moves along the notification's bar */
+enum class TripTracker {
+    /** On the bus, and waiting for it */
+    BUS,
+
+    /** On foot */
+    WALKER,
+}
+
 /**
  * A trip's notification as it reads at a moment: a pure function of the
  * trip, the time and the alert settings, built into a notification by
@@ -61,13 +76,12 @@ data class TripNotice(
     val summary: String,
     /** The status bar chip of a Live Update; null leaves none */
     val chip: String?,
-    /** A chronometer counts down to this, epoch milliseconds; null shows none */
-    val countdownTo: Long?,
-    /** Metres ridden from the boarding stop, of [progressMax] to where the ride ends */
+    /** How far along the bar, of [progressMax]: on the bus, metres ridden from the boarding stop to where the ride ends */
     val progress: Int,
     val progressMax: Int,
-    /** The next stops ahead, at most [MAX_POINTS], before where the ride ends */
+    /** On the bus, the last stops before where the ride ends, at most [MAX_POINTS], fixed for the ride */
     val points: List<TripPoint>,
+    val tracker: TripTracker,
     val channel: TripChannel,
     /** This post is the warning: it may sound, vibrate and peek */
     val alerting: Boolean,
@@ -105,9 +119,9 @@ data class TripNotice(
             val title: String
             val text: String
             var chip: String?
-            var countdownTo: Long? = null
             var progress = 0
             var progressMax = 1
+            var tracker = TripTracker.BUS
             val soonest = awaited.sortedBy { it.dueAt(now) }
             var lines = emptyList<String>()
             when (val phase = journey.phase(now)) {
@@ -129,7 +143,7 @@ data class TripNotice(
                         text = phase.leg.toName
                     }
                     chip = words.chipMinutes(minutes, phase.estimated)
-                    if (phase.millis > 0) countdownTo = now + phase.millis
+                    tracker = TripTracker.WALKER
                     val total = phase.leg.walk.meters.coerceAtLeast(1.0)
                     progressMax = total.toInt().coerceAtLeast(1)
                     progress = (total - phase.meters).coerceIn(0.0, total).toInt()
@@ -143,7 +157,6 @@ data class TripNotice(
                     text = if (soonest.isEmpty()) "$stop · ${words.tookItHint}" else "$stop · " + soonest.joinToString(" · ") { words.lineMinutes(it, now) }
                     val first = soonest.firstOrNull()
                     chip = first?.let { if (it.atStop) words.chipHere else words.chipMinutes(Trip.minutesOf(it.dueAt(now) - now), estimated = false) }
-                    countdownTo = first?.takeIf { !it.atStop && it.dueAt(now) > now }?.dueAt(now)
                     // From when the waiting began to the soonest bus, filling as it nears; empty with none awaited
                     if (first != null) {
                         val since = journey.waitingSince()
@@ -162,10 +175,10 @@ data class TripNotice(
                 text = text,
                 summary = "$title, $text",
                 chip = chip,
-                countdownTo = countdownTo,
                 progress = progress,
                 progressMax = progressMax,
                 points = emptyList(),
+                tracker = tracker,
                 channel = TripChannel.TRIPS,
                 alerting = alerting,
                 timeoutAfter = nextPostIn + TIMEOUT_MARGIN_MS,
@@ -224,28 +237,32 @@ data class TripNotice(
                     text = words.stopIn(target.name, minutes, estimated)
                     chip = words.chipNext
                 }
+                // Where the rider gets off, the line below; following the line to its end, the bus's own destination
+                plan.alight != null -> {
+                    title = words.getOffAt(target.name, minutes, estimated)
+                    text = words.withLine(plan.line, words.stopsNext(left, plan.stops[next].name))
+                    chip = words.chipMinutes(minutes, estimated)
+                }
                 else -> {
                     title = words.rideTo(plan.line, target.name, minutes, estimated)
                     text = words.stopsNext(left, plan.stops[next].name)
                     chip = words.chipMinutes(minutes, estimated)
                 }
             }
-            val shownText = if (trip.offRouteSince != null) words.offRoute else text
+            val shownText = if (trip.offRouteSince != null) words.withLine(plan.line, words.offRoute) else text
             val start = trip.route.at[plan.board]
             val length = (trip.route.at[plan.target] - start).coerceAtLeast(1.0)
-            val points = (progress.stop + 1 until plan.target)
-                .take(MAX_POINTS)
-                .map { TripPoint((trip.route.at[it] - start).toInt()) }
+            val progressMax = length.toInt().coerceAtLeast(1)
             val alerting = warningOn && trip.warningDue(now) != null
             return TripNotice(
                 title = title,
                 text = shownText,
                 summary = "$title, $shownText",
                 chip = chip,
-                countdownTo = if (toTarget > 0 && left > 0) now + toTarget else null,
                 progress = (progress.along - start).coerceIn(0.0, length).toInt(),
-                progressMax = length.toInt().coerceAtLeast(1),
-                points = points,
+                progressMax = progressMax,
+                points = lastStops(trip.route.at, plan.board, plan.target, progressMax),
+                tracker = TripTracker.BUS,
                 channel = if (warningOn && (alerting || trip.alerted)) TripChannel.warning(alerts) else TripChannel.TRIPS,
                 alerting = alerting,
                 timeoutAfter = nextPostIn + TIMEOUT_MARGIN_MS,
@@ -254,10 +271,31 @@ data class TripNotice(
 
         /**
          * Points the system draws on a progress bar: Android's ProgressStyle
-         * keeps 4 (MAX_PROGRESS_POINT_LIMIT in its Notification.java), so
-         * the next four stops show, the rest as the ride goes on
+         * keeps the first 4 (MAX_PROGRESS_POINT_LIMIT in its
+         * Notification.java, API 36), so the last four stops before the
+         * one to get off at show
          */
         const val MAX_POINTS = 4
+
+        /**
+         * The stops just before [target], at most [MAX_POINTS], at their
+         * metres from [board] on a bar [progressMax] long, with stops at
+         * [at]. The same for the whole ride, the passed ones styled by the
+         * progress. Android drops a point at either end, so none goes
+         * there, nor one where the point before it is, as two berths of a
+         * stop.
+         */
+        internal fun lastStops(at: DoubleArray, board: Int, target: Int, progressMax: Int): List<TripPoint> {
+            val start = at[board]
+            val points = ArrayList<TripPoint>(MAX_POINTS)
+            for (i in maxOf(board + 1, target - MAX_POINTS) until target) {
+                val position = (at[i] - start).toInt()
+                if (position >= progressMax) continue
+                if (position <= (points.lastOrNull()?.position ?: 0)) continue
+                points.add(TripPoint(position))
+            }
+            return points
+        }
 
         /** Beyond the gap to the next post: a process killed leaves its notification this long at most */
         const val TIMEOUT_MARGIN_MS = 30_000L
@@ -268,8 +306,15 @@ data class TripNotice(
 class TripWords(private val resources: Resources) {
     private fun about(estimated: Boolean) = if (estimated) "~" else ""
 
+    /** "E21 to Universidades, 13 min": the bus's own destination */
     fun rideTo(line: String, stop: String, minutes: Int, estimated: Boolean) =
         resources.getString(R.string.trip_ride_to, line, stop, about(estimated) + minutes)
+
+    fun getOffAt(stop: String, minutes: Int, estimated: Boolean) =
+        resources.getString(R.string.trip_get_off_at, stop, about(estimated) + minutes)
+
+    /** "E21 · [text]" */
+    fun withLine(line: String, text: String) = resources.getString(R.string.trip_with_line, line, text)
 
     fun stopsNext(stops: Int, next: String) = resources.getQuantityString(R.plurals.trip_stops_next, stops, stops, next)
 

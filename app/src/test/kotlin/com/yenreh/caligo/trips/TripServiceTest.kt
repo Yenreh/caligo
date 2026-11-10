@@ -2,6 +2,7 @@ package com.yenreh.caligo.trips
 
 import android.Manifest
 import android.app.Notification
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
 import androidx.core.app.NotificationCompat
@@ -13,6 +14,7 @@ import com.yenreh.caligo.trips.TripFixtures.MINUTE
 import com.yenreh.caligo.trips.TripFixtures.bus
 import com.yenreh.caligo.trips.TripFixtures.plan
 import com.yenreh.caligo.waits.FakeWaitSource
+import com.yenreh.caligo.waits.WaitChannel
 import com.yenreh.caligo.waits.WaitFixtures
 import com.yenreh.caligo.waits.WaitNotifications
 import com.yenreh.caligo.waits.WaitService
@@ -129,7 +131,7 @@ class TripServiceTest {
         // Off the bus and walking away, a few blocks north
         h.ride(Trip.OFF_ROUTE_FOR.inWholeMilliseconds - 20_000, north = 500.0) { 900.0 }
         h.assertRunning()
-        assertEquals("Away from the route", with(h) { checkNotNull(shown).text() })
+        assertEquals("E21 · Away from the route", with(h) { checkNotNull(shown).text() })
         h.ride(MINUTE, north = 500.0) { 900.0 }
         h.assertEnded(TripEnding.OFF_ROUTE)
     }
@@ -248,7 +250,7 @@ class TripServiceTest {
         h.desk.finish()
         h.advance(1)
         // The wait's notification and service stay as they were
-        assertEquals(listOf("waits"), h.posted.map { it.channelId })
+        assertEquals(listOf(WaitChannel.WAITS.id), h.posted.map { it.channelId })
         assertFalse(shadowOf(wait).isStoppedBySelf)
         assertFalse(shadowOf(wait).isForegroundStopped)
         h.assertEnded(TripEnding.FINISHED)
@@ -261,7 +263,7 @@ class TripServiceTest {
         h.app.container.waits.stop(WaitFixtures.awaited(WaitFixtures.t31).key)
         h.advance(1)
         assertTrue(shadowOf(wait).isStoppedBySelf)
-        assertTrue(h.posted.none { it.channelId == "waits" })
+        assertTrue(h.posted.none { it.channelId == WaitChannel.WAITS.id })
         h.assertRunning()
     }
 
@@ -275,20 +277,21 @@ class TripServiceTest {
         assertTrue(shown.hasPromotableCharacteristics())
         assertEquals(null, shown.group)
         assertEquals("~10 min", NotificationCompat.getShortCriticalText(shown))
-        assertEquals("E21 to Pampalinda, ~10 min", with(h) { shown.title() })
-        assertEquals("7 stops · next: Centro", with(h) { shown.text() })
-        // Older versions count down with a chronometer to the stop
-        assertTrue(NotificationCompat.getUsesChronometer(shown))
+        assertEquals("Get off at Pampalinda, ~10 min", with(h) { shown.title() })
+        assertEquals("E21 · 7 stops · next: Centro", with(h) { shown.text() })
+        // No clock: the minutes are in the title and the chip
+        assertFalse(NotificationCompat.getUsesChronometer(shown))
+        assertFalse(NotificationCompat.getShowWhen(shown))
         val style = Notification.ProgressStyle::class.java
         assertEquals(style.name, shown.extras.getString(Notification.EXTRA_TEMPLATE))
     }
 
     @Test
-    fun itsPointsAreTheNextStopsAhead() {
+    fun itsPointsAreTheLastStopsBeforeGettingOff() {
         h.start(plan)
         val style = Notification.Builder.recoverBuilder(h.app, checkNotNull(h.shown)).style as Notification.ProgressStyle
         assertEquals(TripNotice.MAX_POINTS, style.progressPoints.size)
-        assertEquals(listOf(400, 800, 1200, 1600), style.progressPoints.map { (it.position + 5) / 10 * 10 })
+        assertEquals(listOf(1200, 1600, 2000, 2400), style.progressPoints.map { (it.position + 5) / 10 * 10 })
     }
 
     @Test
@@ -332,6 +335,45 @@ class TripServiceTest {
             listOf(com.yenreh.caligo.data.location.FixQuality.BALANCED, com.yenreh.caligo.data.location.FixQuality.HIGH),
             h.location.qualities.distinct(),
         )
+    }
+
+    @Test
+    fun theTripsChannelShowsOnTheLockScreenYetNeverMakesANoise() {
+        TripNotifications.createChannels(h.app)
+        // Default, as a lock screen that hides silent notifications still shows it
+        val channel = h.manager.getNotificationChannel(TripChannel.TRIPS.id)
+        assertEquals(NotificationManager.IMPORTANCE_DEFAULT, channel.importance)
+        assertNull(channel.sound)
+        assertFalse(channel.shouldVibrate())
+        // The warnings keep theirs
+        assertEquals(NotificationManager.IMPORTANCE_HIGH, h.manager.getNotificationChannel(TripChannel.WARNING_SILENT.id).importance)
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        val shown = checkNotNull(h.shown)
+        assertEquals(TripChannel.TRIPS.id, shown.channelId)
+        assertTrue(shown.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+    }
+
+    @Test
+    fun theLowTripsChannelOfBeforeGoes() {
+        h.manager.createNotificationChannel(NotificationChannel("trips", "Trips", NotificationManager.IMPORTANCE_LOW))
+        TripNotifications.createChannels(h.app)
+        assertNull(h.manager.getNotificationChannel("trips"))
+        assertEquals(NotificationManager.IMPORTANCE_DEFAULT, h.manager.getNotificationChannel(TripChannel.TRIPS.id).importance)
+    }
+
+    @Test
+    fun aTripsChannelTurnedOffBeforeStaysOff() {
+        h.manager.createNotificationChannel(NotificationChannel("trips", "Trips", NotificationManager.IMPORTANCE_NONE))
+        // Read from the old one before the new is made
+        assertFalse(TripNotifications.channelOn(h.app, TripChannel.TRIPS))
+        TripNotifications.createChannels(h.app)
+        assertNull(h.manager.getNotificationChannel("trips"))
+        assertEquals(NotificationManager.IMPORTANCE_NONE, h.manager.getNotificationChannel(TripChannel.TRIPS.id).importance)
+        assertFalse(TripNotifications.channelOn(h.app, TripChannel.TRIPS))
+        h.start(plan)
+        h.advance(TripEngine.BEAT.inWholeMilliseconds)
+        h.assertEnded(TripEnding.BLOCKED)
     }
 
     @Test

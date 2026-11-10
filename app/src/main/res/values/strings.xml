@@ -371,6 +371,8 @@
     <string name="trip_follow_me">Follow my position</string>
     <string name="trip_start">Start trip</string>
     <string name="trip_ride_to">%1$s to %2$s, %3$s min</string>
+    <string name="trip_get_off_at">Get off at %1$s, %2$s min</string>
+    <string name="trip_with_line" translatable="false">%1$s · %2$s</string>
     <plurals name="trip_stops_next">
         <item quantity="one">%1$d stop · next: %2$s</item>
         <item quantity="other">%1$d stops · next: %2$s</item>

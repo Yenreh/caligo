@@ -30,9 +30,10 @@ import org.robolectric.annotation.Config
 /**
  * A planner trip's one notification in each phase, as the framework lays
  * it out, collapsed and expanded, light and dark, in English and Spanish,
- * under build/outputs/roborazzi/trip_notice_*.png: on foot to the stop,
- * waiting there with its two lines' buses, and on the bus. The shade
- * itself and the Live Update chip only show on a device.
+ * and with large text, under build/outputs/roborazzi/trip_notice_*.png:
+ * on foot to the stop, waiting there with its two lines' buses, and on
+ * the bus. The shade itself and the Live Update chip only show on a
+ * device.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")
@@ -94,4 +95,11 @@ class TripNoticeScreenshotTest {
     @Test
     @Config(qualifiers = "es-night")
     fun spanishDark() = all("es", dark = true)
+
+    @Test
+    @Config(fontScale = 2f)
+    fun englishLargeText() {
+        capture("walk_en_font2", walking, near = true, dark = false)
+        capture("ride_en_font2", riding, near = false, dark = false)
+    }
 }

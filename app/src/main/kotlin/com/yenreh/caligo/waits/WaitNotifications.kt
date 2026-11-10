@@ -55,14 +55,20 @@ object WaitNotifications {
 
     /**
      * The channels still missing. One made is never made again nor
-     * altered: whatever the user set for it in the system stays.
+     * altered: whatever the user set for it in the system stays. One that
+     * replaces another is made off if the user had turned that one off,
+     * and the other goes.
      */
     fun createChannels(context: Context) {
         val manager = NotificationManagerCompat.from(context)
         for (channel in WaitChannel.entries) {
+            // Read before it goes: a replaced channel the user turned off stays off
+            val replaced = channel.replaces?.let { manager.getNotificationChannelCompat(it) }
+            if (replaced != null) manager.deleteNotificationChannel(replaced.id)
             if (manager.getNotificationChannelCompat(channel.id) != null) continue
+            val off = replaced?.importance == NotificationManagerCompat.IMPORTANCE_NONE
             val builder = when (channel) {
-                WaitChannel.WAITS -> NotificationChannelCompat.Builder(channel.id, NotificationManagerCompat.IMPORTANCE_LOW)
+                WaitChannel.WAITS -> NotificationChannelCompat.Builder(channel.id, if (off) NotificationManagerCompat.IMPORTANCE_NONE else NotificationManagerCompat.IMPORTANCE_DEFAULT)
                     .setName(context.getString(R.string.wait_channel))
                     .setDescription(context.getString(R.string.wait_channel_description))
                 else -> NotificationChannelCompat.Builder(channel.id, NotificationManagerCompat.IMPORTANCE_HIGH)
@@ -94,10 +100,14 @@ object WaitNotifications {
         else -> R.string.alert_channel_silent
     }
 
-    /** Whether [channel] is on: not turned off by the user, or not made yet */
+    /** Whether [channel] is on: not turned off by the user, nor the one it replaces, or not made yet */
     fun channelOn(context: Context, channel: WaitChannel): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
-        val made = NotificationManagerCompat.from(context).getNotificationChannelCompat(channel.id) ?: return true
+        val manager = NotificationManagerCompat.from(context)
+        // Before the channels are set up, the one it replaces says
+        val made = manager.getNotificationChannelCompat(channel.id)
+            ?: channel.replaces?.let { manager.getNotificationChannelCompat(it) }
+            ?: return true
         return made.importance != NotificationManagerCompat.IMPORTANCE_NONE
     }
 
@@ -167,7 +177,8 @@ object WaitNotifications {
                 if (alerts.sound) builder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
                 if (alerts.vibrate) builder.setVibrate(VIBRATION)
             } else {
-                builder.priority = NotificationCompat.PRIORITY_LOW
+                // As the channel of updates: shown on the lock screen, silent all the same
+                builder.priority = NotificationCompat.PRIORITY_DEFAULT
             }
         }
         return builder.build()

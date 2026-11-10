@@ -369,6 +369,7 @@
     <string name="trip_follow_me">Seguir mi posición</string>
     <string name="trip_start">Empezar viaje</string>
     <string name="trip_ride_to">%1$s a %2$s, %3$s min</string>
+    <string name="trip_get_off_at">Bájate en %1$s, %2$s min</string>
     <plurals name="trip_stops_next">
         <item quantity="one">%1$d parada · próxima: %2$s</item>
         <item quantity="many">%1$d paradas · próxima: %2$s</item>

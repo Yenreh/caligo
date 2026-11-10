@@ -139,7 +139,7 @@ class TripHarness {
     }
 
     /** The waits' notifications on show, by title */
-    val waitTitles: List<String> get() = posted.filter { it.channelId == "waits" || it.channelId?.startsWith("alert") == true }.map { it.title() }
+    val waitTitles: List<String> get() = posted.filter { it.channelId == com.yenreh.caligo.waits.WaitChannel.WAITS.id || it.channelId?.startsWith("alert") == true }.map { it.title() }
 
     /** The trip's own notification, if on show */
     val shown: Notification?

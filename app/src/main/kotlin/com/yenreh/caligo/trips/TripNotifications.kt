@@ -44,13 +44,21 @@ object TripNotifications {
 
     private val VIBRATION = longArrayOf(0, 250, 150, 250, 150, 250)
 
-    /** The channels still missing; one made is never made again nor altered */
+    /**
+     * The channels still missing; one made is never made again nor
+     * altered. One that replaces another is made off if the user had
+     * turned that one off, and the other goes.
+     */
     fun createChannels(context: Context) {
         val manager = NotificationManagerCompat.from(context)
         for (channel in TripChannel.entries) {
+            // Read before it goes: a replaced channel the user turned off stays off
+            val replaced = channel.replaces?.let { manager.getNotificationChannelCompat(it) }
+            if (replaced != null) manager.deleteNotificationChannel(replaced.id)
             if (manager.getNotificationChannelCompat(channel.id) != null) continue
+            val off = replaced?.importance == NotificationManagerCompat.IMPORTANCE_NONE
             val builder = when (channel) {
-                TripChannel.TRIPS -> NotificationChannelCompat.Builder(channel.id, NotificationManagerCompat.IMPORTANCE_LOW)
+                TripChannel.TRIPS -> NotificationChannelCompat.Builder(channel.id, if (off) NotificationManagerCompat.IMPORTANCE_NONE else NotificationManagerCompat.IMPORTANCE_DEFAULT)
                     .setName(context.getString(R.string.trip_channel))
                     .setDescription(context.getString(R.string.trip_channel_description))
                 else -> NotificationChannelCompat.Builder(channel.id, NotificationManagerCompat.IMPORTANCE_HIGH)
@@ -82,10 +90,14 @@ object TripNotifications {
         else -> R.string.trip_warning_channel_silent
     }
 
-    /** Whether [channel] is on: not turned off by the user, or not made yet */
+    /** Whether [channel] is on: not turned off by the user, nor the one it replaces, or not made yet */
     fun channelOn(context: Context, channel: TripChannel): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
-        val made = NotificationManagerCompat.from(context).getNotificationChannelCompat(channel.id) ?: return true
+        val manager = NotificationManagerCompat.from(context)
+        // Before the channels are set up, the one it replaces says
+        val made = manager.getNotificationChannelCompat(channel.id)
+            ?: channel.replaces?.let { manager.getNotificationChannelCompat(it) }
+            ?: return true
         return made.importance != NotificationManagerCompat.IMPORTANCE_NONE
     }
 
@@ -111,7 +123,8 @@ object TripNotifications {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(openTrip(context))
             .setDeleteIntent(action(context, startedAt, ACTION_DISMISSED))
-
+            // The minutes are in the title and the chip: no clock to repeat them
+            .setShowWhen(false)
             // Older versions draw this bar; Android 16 and later the style's
             .setProgress(notice.progressMax, notice.progress, false)
             // A Live Update on Android 16 and later: promoted while ongoing,
@@ -124,17 +137,11 @@ object TripNotifications {
                     .setProgressSegments(listOf(NotificationCompat.ProgressStyle.Segment(notice.progressMax)))
                     .setProgressPoints(notice.points.map { NotificationCompat.ProgressStyle.Point(it.position) })
                     .setProgress(notice.progress)
-                    .setProgressTrackerIcon(IconCompat.createWithResource(context, R.drawable.ic_progress_tracker)),
+                    .setProgressTrackerIcon(IconCompat.createWithResource(context, trackerIcon(notice.tracker))),
             )
         // The lines to take first, soonest first, then Finish: three at most, as Android shows
         for ((i, line) in notice.takeLines.withIndex()) builder.addAction(0, words.tookLine(line), takeLine(context, startedAt, i, line))
         builder.addAction(0, words.finish, action(context, startedAt, ACTION_FINISH))
-        val countdownTo = notice.countdownTo
-        if (countdownTo != null) {
-            builder.setWhen(countdownTo).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
-        } else {
-            builder.setShowWhen(false)
-        }
         // No channels before Android 8: the notification carries what its channel would
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             if (notice.alerting) {
@@ -142,10 +149,16 @@ object TripNotifications {
                 if (alerts.sound) builder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
                 if (alerts.vibrate) builder.setVibrate(VIBRATION)
             } else {
-                builder.priority = NotificationCompat.PRIORITY_LOW
+                // As the channel of updates: shown on the lock screen, silent all the same
+                builder.priority = NotificationCompat.PRIORITY_DEFAULT
             }
         }
         return builder.build()
+    }
+
+    private fun trackerIcon(tracker: TripTracker) = when (tracker) {
+        TripTracker.BUS -> R.drawable.ic_progress_tracker
+        TripTracker.WALKER -> R.drawable.ic_progress_walker
     }
 
     private fun action(context: Context, startedAt: Long, name: String): PendingIntent {

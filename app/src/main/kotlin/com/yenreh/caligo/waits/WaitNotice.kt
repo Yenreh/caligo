@@ -10,11 +10,17 @@ data class Alerts(val sound: Boolean = false, val vibrate: Boolean = false)
 
 /**
  * The app's notification channels for waits. Each is made once and never
- * altered, so what the user sets for it in the system wins.
+ * altered, so what the user sets for it in the system wins. A channel's
+ * importance cannot change, so one that needs another takes a new id and
+ * [replaces] the old.
  */
-enum class WaitChannel(val id: String, val sound: Boolean, val vibrate: Boolean) {
-    /** Every update: silent, never peeks */
-    WAITS("waits", sound = false, vibrate = false),
+enum class WaitChannel(val id: String, val sound: Boolean, val vibrate: Boolean, val replaces: String? = null) {
+    /**
+     * Every update: of default importance, so it shows on a lock screen
+     * that hides silent notifications, yet never sounds, vibrates nor
+     * peeks. It replaces 5.1's low "waits".
+     */
+    WAITS("wait_updates", sound = false, vibrate = false, replaces = "waits"),
 
     /** The alert near the stop, as the settings ask */
     ALERT_SILENT("alert_silent", sound = false, vibrate = false),

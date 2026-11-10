@@ -1,6 +1,7 @@
 package com.yenreh.caligo.waits
 
 import android.app.Notification
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
 import android.os.Looper
@@ -591,6 +592,42 @@ class WaitServiceTest {
         assertEquals(WaitStart.CAP_REACHED, desk.start(awaited(bus("T9", "v9", NOW + 30 * MINUTE)), null))
         assertEquals(WaitStart.ALREADY_WAITING, desk.start(buses.first(), null))
         assertEquals(Wait.CAP, posted.size)
+    }
+
+    @Test
+    fun theWaitsChannelShowsOnTheLockScreenYetNeverMakesANoise() {
+        WaitNotifications.createChannels(app)
+        // Default, as a lock screen that hides silent notifications still shows it
+        val channel = manager.getNotificationChannel(WaitChannel.WAITS.id)
+        assertEquals(NotificationManager.IMPORTANCE_DEFAULT, channel.importance)
+        assertEquals(null, channel.sound)
+        assertFalse(channel.shouldVibrate())
+        // The alerts keep theirs
+        assertEquals(NotificationManager.IMPORTANCE_HIGH, manager.getNotificationChannel(WaitChannel.ALERT_SILENT.id).importance)
+        start(awaited(t31))
+        val shown = posted.single()
+        assertEquals(WaitChannel.WAITS.id, shown.channelId)
+        assertTrue(shown.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+    }
+
+    @Test
+    fun theLowWaitsChannelOf51Goes() {
+        manager.createNotificationChannel(NotificationChannel("waits", "Awaited buses", NotificationManager.IMPORTANCE_LOW))
+        WaitNotifications.createChannels(app)
+        assertEquals(null, manager.getNotificationChannel("waits"))
+        assertEquals(NotificationManager.IMPORTANCE_DEFAULT, manager.getNotificationChannel(WaitChannel.WAITS.id).importance)
+        assertEquals(WaitChannel.entries.size, manager.notificationChannels.size)
+    }
+
+    @Test
+    fun aWaitsChannelTurnedOffIn51StaysOff() {
+        manager.createNotificationChannel(NotificationChannel("waits", "Awaited buses", NotificationManager.IMPORTANCE_NONE))
+        // The bell asks before any channel of 5.2 is made: the old one answers
+        assertFalse(AndroidNotificationAccess(app).enabled())
+        WaitNotifications.createChannels(app)
+        assertEquals(null, manager.getNotificationChannel("waits"))
+        assertEquals(NotificationManager.IMPORTANCE_NONE, manager.getNotificationChannel(WaitChannel.WAITS.id).importance)
+        assertFalse(AndroidNotificationAccess(app).enabled())
     }
 
     @Test
