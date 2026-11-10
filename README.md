@@ -19,7 +19,8 @@ look for a newer release from Settings > About, on request only.
 ## Features
 
 - **Cards**: add, edit, reorder and delete transit cards, with the fares
-  their balance covers
+  their balance covers, and a (+1) when something is left for one more
+  owing
 - **Balance**: from Metrocali's public service, refreshed on opening the
   app (optional)
 - **Favorite stops**: the next buses at each saved stop, with the lines to

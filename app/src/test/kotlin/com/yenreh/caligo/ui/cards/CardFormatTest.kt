@@ -2,6 +2,8 @@ package com.yenreh.caligo.ui.cards
 
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The card panel's figures, as the Flutter app's intl formats print them */
@@ -34,6 +36,21 @@ class CardFormatTest {
         assertEquals(0, availableFares(-100.0, 3500))
         assertEquals(0, availableFares(null, 3500))
         assertEquals(0, availableFares(15300.0, 0))
+    }
+
+    @Test
+    fun oneMoreFareOwingOnlyWithSomethingLeft() {
+        // Four fares and 1.300 left, short of a fifth
+        assertTrue(fareOnCredit(15300.0, 3500))
+        // Short of a single fare
+        assertTrue(fareOnCredit(2400.0, 3500))
+        // Nothing left after two
+        assertFalse(fareOnCredit(7000.0, 3500))
+        assertFalse(fareOnCredit(0.0, 3500))
+        // Already owing
+        assertFalse(fareOnCredit(-100.0, 3500))
+        assertFalse(fareOnCredit(null, 3500))
+        assertFalse(fareOnCredit(15300.0, 0))
     }
 
     @Test

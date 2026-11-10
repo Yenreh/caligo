@@ -75,6 +75,13 @@
         <item quantity="many">%d pasajes</item>
         <item quantity="other">%d pasajes</item>
     </plurals>
+    <string name="one_more_owing">(+1)</string>
+    <plurals name="fares_and_one_owing_description">
+        <item quantity="one">%d pasaje, y 1 más quedando debiendo</item>
+        <item quantity="many">%d pasajes, y 1 más quedando debiendo</item>
+        <item quantity="other">%d pasajes, y 1 más quedando debiendo</item>
+    </plurals>
+    <string name="one_fare_owing">1 pasaje quedando debiendo</string>
     <string name="stale_balance_notice">Último saldo conocido</string>
     <string name="updated_at">Actualizado: %1$s</string>
     <string name="balance_updated">Saldo actualizado</string>

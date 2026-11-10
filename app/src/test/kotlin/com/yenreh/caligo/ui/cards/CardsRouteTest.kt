@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
@@ -81,6 +82,8 @@ class CardsRouteTest {
         }
 
     private fun performCustomAction(name: String, label: String) {
+        // Scrolled to first, as a screen reader gets there: the list composes only what shows
+        compose.onNodeWithTag("cards_list").performScrollToNode(hasText(name))
         val node = item(name).fetchSemanticsNode()
         val action = node.config[SemanticsActions.CustomActions].single { it.label == label }
         compose.runOnIdle { action.action() }

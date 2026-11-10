@@ -75,6 +75,13 @@
         <item quantity="one">%d fare</item>
         <item quantity="other">%d fares</item>
     </plurals>
+    <!-- After the fares a balance covers, when one more goes through owing -->
+    <string name="one_more_owing">(+1)</string>
+    <plurals name="fares_and_one_owing_description">
+        <item quantity="one">%d fare, and 1 more on credit</item>
+        <item quantity="other">%d fares, and 1 more on credit</item>
+    </plurals>
+    <string name="one_fare_owing">1 fare on credit</string>
     <string name="stale_balance_notice">Last known balance</string>
     <string name="updated_at">Updated: %1$s</string>
     <string name="balance_updated">Balance updated</string>

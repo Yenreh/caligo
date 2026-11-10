@@ -72,15 +72,48 @@ class HomeContentTest {
         compose.onNodeWithText("My cards", ignoreCase = true).assertIsDisplayed()
         compose.onNodeWithText("1906 0518 6898 1").assertIsDisplayed()
         compose.onNodeWithText("15.300 $").assertIsDisplayed()
-        compose.onNodeWithText("4 FARES").assertIsDisplayed()
+        compose.onNodeWithText("4 FARES (+1)").assertIsDisplayed()
         compose.onAllNodesWithTag("favorite_stop").assertCountEquals(0)
+    }
+
+    @Test
+    fun oneMoreFareOwingIsMarkedAndReadOut() {
+        show(HomeContent.CARDS, HomeSamples.cardsState, stops = null)
+        // 15.300 at 3.500: four fares and 1.300 left, enough to board once more owing
+        compose.onNodeWithContentDescription("4 fares, and 1 more on credit").assertIsDisplayed()
+        // 2.400, short of one fare: that one alone
+        compose.onNodeWithText("0 FARES (+1)").assertExists()
+        compose.onNodeWithContentDescription("1 fare on credit").assertExists()
+    }
+
+    @Test
+    fun nothingLeftAfterTheWholeFaresMarksNoMore() {
+        val card = HomeSamples.cards.first().copy(balance = 7000.0)
+        show(HomeContent.CARDS, CardsState(cards = listOf(card)), stops = null)
+        compose.onNodeWithText("2 FARES").assertIsDisplayed()
+        compose.onAllNodesWithText("(+1)", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    @Config(fontScale = 2f)
+    fun largeTextPutsTheOneOwingBelowInTheCondensedCards() {
+        show(HomeContent.BOTH, HomeSamples.cardsState, HomeSamples.stopsState)
+        // The balance's column grows no wider, so the card number keeps its two lines
+        compose.onNodeWithText("4 fares\n(+1)").assertIsDisplayed()
+    }
+
+    @Test
+    fun noFaresAtAllWhenOwingAlready() {
+        val card = HomeSamples.cards.first().copy(balance = -1200.0)
+        show(HomeContent.CARDS, CardsState(cards = listOf(card)), stops = null)
+        compose.onAllNodesWithText("FARE", substring = true).assertCountEquals(0)
     }
 
     @Test
     fun bothCondenseTheCardsAndListTheStopsWithTheirBuses() {
         show(HomeContent.BOTH, HomeSamples.cardsState, HomeSamples.stopsState)
         // Condensed: the fares without the chip's capitals
-        compose.onNodeWithText("4 fares").assertIsDisplayed()
+        compose.onNodeWithText("4 fares (+1)").assertIsDisplayed()
         compose.onNodeWithText("Trabajo").assertIsDisplayed()
         compose.onNodeWithText("Plaza de Cayzedo A1").assertIsDisplayed()
         compose.onNodeWithText("E21 · T31").assertIsDisplayed()

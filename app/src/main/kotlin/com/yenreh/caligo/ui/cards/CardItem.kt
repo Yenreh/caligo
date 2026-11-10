@@ -3,6 +3,7 @@ package com.yenreh.caligo.ui.cards
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +24,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,6 +37,7 @@ import com.yenreh.caligo.ui.lab.LabDivider
 import com.yenreh.caligo.ui.lab.LabIconButton
 import com.yenreh.caligo.ui.lab.LabPanel
 import com.yenreh.caligo.ui.lab.LabSectionLabel
+import com.yenreh.caligo.ui.lab.labLargeText
 import com.yenreh.caligo.ui.theme.LabText
 import com.yenreh.caligo.ui.theme.LabTheme
 import java.text.SimpleDateFormat
@@ -59,14 +65,15 @@ fun CardItem(
     onDeleteClick: (() -> Unit)? = null,
 ) {
     val fares = availableFares(card.balance, farePrice)
+    val owing = fareOnCredit(card.balance, farePrice)
     val stale = refreshFailed && card.balance != null
     if (compact) {
-        CompactCard(card, isRefreshing, fares, stale, onRefreshClick, modifier.testTag("card"))
+        CompactCard(card, isRefreshing, fares, owing, stale, onRefreshClick, modifier.testTag("card"))
         return
     }
 
     val p = LabTheme.palette
-    val showFares = card.balance != null && fares > 0
+    val showFares = card.balance != null && (fares > 0 || owing)
     LabPanel(modifier = modifier.testTag("card"), accentTop = true, padding = PaddingValues(0.dp)) {
         // Card number and refresh
         Row(
@@ -127,12 +134,19 @@ fun CardItem(
         val lastUpdate = card.lastUpdate
         if (showFares || stale || lastUpdate != null) {
             LabDivider()
-            Row(
+            // The fares below the date once large text or a narrow screen leaves no room beside it
+            FlowRow(
                 modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
             ) {
                 val style = LabText.statusLine(p).copy(fontSize = 13.sp)
-                Row(Modifier.weight(1f)) {
+                Row(
+                    Modifier
+                        .weight(1f)
+                        .widthIn(min = STATUS_MIN_WIDTH),
+                ) {
                     when {
                         stale -> Text(
                             stringResource(R.string.stale_balance_notice),
@@ -145,8 +159,8 @@ fun CardItem(
                     }
                 }
                 if (showFares) {
-                    Spacer(Modifier.width(12.dp))
-                    LabChip(pluralStringResource(R.plurals.fares, fares, fares).uppercase())
+                    val label = faresLabel(fares, owing)
+                    LabChip(label.text().uppercase(), Modifier.readAs(label.description))
                 }
             }
         }
@@ -159,6 +173,7 @@ private fun CompactCard(
     card: CardEntity,
     isRefreshing: Boolean,
     fares: Int,
+    owing: Boolean,
     stale: Boolean,
     onRefreshClick: () -> Unit,
     modifier: Modifier,
@@ -200,10 +215,14 @@ private fun CompactCard(
         Spacer(Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.Center) {
             Balance(card.balance, compact = true)
-            if (card.balance != null && fares > 0) {
+            if (card.balance != null && (fares > 0 || owing)) {
+                val label = faresLabel(fares, owing)
                 Text(
-                    pluralStringResource(R.plurals.fares, fares, fares),
+                    // At large text the "(+1)" goes below, so the column grows no wider than the balance
+                    label.text(twoLines = labLargeText()),
+                    modifier = Modifier.readAs(label.description),
                     style = LabText.mono(p, size = 11f, color = p.muted),
+                    textAlign = TextAlign.End,
                 )
             }
         }
@@ -234,10 +253,56 @@ private fun Balance(balance: Double?, compact: Boolean) {
     }
 }
 
+/** The least the status line keeps beside the fares, a word of the date at large text */
+private val STATUS_MIN_WIDTH = 160.dp
+
+/**
+ * The fares a card shows, the "(+1)" when one more goes through owing,
+ * and what a screen reader says for it
+ */
+private class FaresLabel(val whole: String, val owing: String?, val description: String?) {
+    /** On one line, or with the "(+1)" on a line of its own */
+    fun text(twoLines: Boolean = false): String = when {
+        owing == null -> whole
+        twoLines -> "$whole\n$owing"
+        else -> "$whole $owing"
+    }
+}
+
+/** [fares] whole, "(+1)" after them when one more goes through [owing] */
+@Composable
+private fun faresLabel(fares: Int, owing: Boolean): FaresLabel {
+    val whole = pluralStringResource(R.plurals.fares, fares, fares)
+    if (!owing) return FaresLabel(whole, null, null)
+    return FaresLabel(
+        whole = whole,
+        owing = stringResource(R.string.one_more_owing),
+        description = if (fares == 0) {
+            stringResource(R.string.one_fare_owing)
+        } else {
+            pluralStringResource(R.plurals.fares_and_one_owing_description, fares, fares)
+        },
+    )
+}
+
+/** Read out as [description], when there is one, instead of the text shown */
+private fun Modifier.readAs(description: String?): Modifier =
+    if (description == null) this else semantics(mergeDescendants = true) { contentDescription = description }
+
 /** How many fares [balance] covers, none without a balance or a price */
 internal fun availableFares(balance: Double?, farePrice: Int): Int {
     if (balance == null || balance <= 0 || farePrice <= 0) return 0
     return floor(balance / farePrice).toInt()
+}
+
+/**
+ * Whether one more fare goes through owing: a card with something left
+ * after its whole fares still lets the rider board, and goes below zero.
+ * With nothing left, or already owing, it does not.
+ */
+internal fun fareOnCredit(balance: Double?, farePrice: Int): Boolean {
+    if (balance == null || balance <= 0 || farePrice <= 0) return false
+    return balance - availableFares(balance, farePrice).toDouble() * farePrice > 0
 }
 
 /** The number in groups of four, for reading */
