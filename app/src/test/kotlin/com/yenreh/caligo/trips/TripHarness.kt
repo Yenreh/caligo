@@ -42,6 +42,10 @@ class TripHarness {
         private set
     private var waitStartId = 0
 
+    /** How many times the waits' own service was asked to start */
+    var waitServiceStarts = 0
+        private set
+
     init {
         desk.source = source
         desk.location = location
@@ -67,6 +71,7 @@ class TripHarness {
         while (true) {
             val intent = shadowOf(app).nextStartedService ?: return
             if (intent.component?.className != com.yenreh.caligo.waits.WaitService::class.java.name) continue
+            waitServiceStarts++
             val running = waitController
             waitController = if (running == null || shadowOf(running.get()).isStoppedBySelf) {
                 (running ?: Robolectric.buildService(com.yenreh.caligo.waits.WaitService::class.java).create()).startCommand(0, ++waitStartId)
@@ -120,6 +125,10 @@ class TripHarness {
         }
     }
 
+    /** The notifications of the waits the trip runs */
+    val tripWaitNotifications: List<Notification>
+        get() = shadowOf(manager).activeNotifications.filter { it.id in TripNotifications.waitIds }.map { it.notification }
+
     /** The waits' notifications on show, by title */
     val waitTitles: List<String> get() = posted.filter { it.channelId == "waits" || it.channelId?.startsWith("alert") == true }.map { it.title() }
 
@@ -150,6 +159,8 @@ class TripHarness {
         assertNull("its notification gone", shown)
         assertTrue(posted.none { it.channelId?.startsWith("trip") == true })
         assertTrue("no wait of the trip's left: $waitTitles", desk.ended.value?.journey?.awaited.orEmpty().none { key -> app.container.waits.running.value.any { it.key == key } })
+        assertTrue("no wait notification of the trip's", shadowOf(manager).activeNotifications.none { it.id in TripNotifications.waitIds })
+        assertTrue("its wait engine idle", service.tripWaitEngine.isIdle && service.tripWaitEngine.waits.isEmpty())
         val shadow = shadowOf(service)
         assertTrue("stopped", shadow.isStoppedBySelf)
         assertTrue("out of the foreground", shadow.isForegroundStopped)

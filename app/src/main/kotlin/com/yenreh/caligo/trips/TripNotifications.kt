@@ -28,6 +28,11 @@ object TripNotifications {
     /** Shown only when a start finds no trip to carry the service */
     const val PLACEHOLDER_ID = 4200
 
+    /** The waits a trip starts, one id each, apart from the waits' own service's */
+    const val FIRST_WAIT_ID = 4211
+
+    val waitIds: IntRange get() = FIRST_WAIT_ID until FIRST_WAIT_ID + com.yenreh.caligo.domain.Wait.CAP
+
     const val ACTION_FINISH = "com.yenreh.caligo.trip.FINISH"
     const val ACTION_DISMISSED = "com.yenreh.caligo.trip.DISMISSED"
 
@@ -84,11 +89,12 @@ object TripNotifications {
         return made.importance != NotificationManagerCompat.IMPORTANCE_NONE
     }
 
-    /** At every process start no trip runs: a notification a killed process left goes */
+    /** At every process start no trip runs: a notification a killed process left goes, its waits' too */
     fun cancelLeftovers(context: Context) {
         val manager = NotificationManagerCompat.from(context)
         manager.cancel(PLACEHOLDER_ID)
         manager.cancel(TRIP_ID)
+        for (id in waitIds) manager.cancel(id)
     }
 
     /** [notice] of the trip started at [startedAt] as its notification */

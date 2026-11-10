@@ -113,6 +113,83 @@ class TripJourneyTest {
         h.move(5 * MINUTE) { JourneyFixtures.destination }
         h.assertEnded(TripEnding.REACHED)
         assertTrue(h.waitTitles.isEmpty())
+        // Every wait ran in the trip's own service: the waits' was never asked to start
+        assertEquals(0, h.waitServiceStarts)
+    }
+
+    @Test
+    fun theNextRidesWaitsStartInTheTripServiceWithNoScreenOnShow() {
+        startJourney()
+        h.move(5 * MINUTE) { at -> if (at < NOW + 4 * MINUTE) walking(at) else stop }
+        tookIt("T31")
+        val t31At = h.now()
+        // The screen off and the app away: no activity anywhere, only the trip's foreground service
+        h.move(7 * MINUTE) { at -> if (h.desk.running.value?.ride != null) calle5Route.pointAt((at - t31At) * 7.0 / 1000) else null }
+        assertEquals(2, h.desk.running.value?.index)
+        val a47Waits = h.tripWaitNotifications
+        assertEquals(1, a47Waits.size)
+        with(h) { assertTrue(a47Waits.single().title(), a47Waits.single().title().startsWith("A47 to Valle Grande")) }
+        assertEquals(0, h.waitServiceStarts)
+        // Shown as waited for, on the rows' bells too
+        assertTrue(waits.running.value.any { it.key.vehicleId == "261001" })
+        // As any wait's: "I took it" opens the trip screen, and the notification goes by itself if the process dies
+        val shown = a47Waits.single()
+        assertEquals(com.yenreh.caligo.waits.WaitNotifications.ACTION_TOOK, shadowOf(shown.actions[0].actionIntent).savedIntent.action)
+        assertTrue(shown.timeoutAfter in 1..(TripEngine.BEAT.inWholeMilliseconds + com.yenreh.caligo.waits.WaitNotice.TIMEOUT_MARGIN_MS))
+        h.desk.finish()
+        h.advance(1)
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun stopWaitingOnATripsWaitEndsItAndItIsNotAskedForAgain() {
+        startJourney()
+        h.move(MINUTE) { walking(it) }
+        assertEquals(2, h.tripWaitNotifications.size)
+        val asked = h.source.arrivalsAsked.size
+        for (n in h.tripWaitNotifications) {
+            n.actions[1].actionIntent.send()
+            shadowOf(android.os.Looper.getMainLooper()).idle()
+        }
+        h.advance(1)
+        assertTrue(h.tripWaitNotifications.isEmpty())
+        h.move(3 * MINUTE) { walking(it) }
+        assertEquals(asked, h.source.arrivalsAsked.size)
+        assertTrue(h.tripWaitNotifications.isEmpty())
+        h.assertRunning()
+    }
+
+    @Test
+    fun aTripsWaitSwipedOrItsBellTappedEndsIt() {
+        startJourney()
+        h.move(MINUTE) { walking(it) }
+        val first = h.tripWaitNotifications.first()
+        first.deleteIntent.send()
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        h.advance(1)
+        assertEquals(1, h.tripWaitNotifications.size)
+        // The filled bell on its row
+        waits.stop(waits.running.value.single().key)
+        h.advance(1)
+        assertTrue(h.tripWaitNotifications.isEmpty())
+        assertTrue(waits.running.value.isEmpty())
+    }
+
+    @Test
+    fun theRidersOwnWaitsKeepTheirCapApartFromATripsWaits() {
+        startJourney()
+        h.move(MINUTE) { walking(it) }
+        assertEquals(2, waits.running.value.size)
+        // Five of the rider's own still start, beside the trip's two
+        for (i in 1..com.yenreh.caligo.domain.Wait.CAP) {
+            val bus = com.yenreh.caligo.waits.WaitFixtures.bus("X$i", "x$i", NOW + 30 * MINUTE)
+            assertEquals(com.yenreh.caligo.waits.WaitStart.STARTED, waits.start(com.yenreh.caligo.waits.WaitFixtures.awaited(bus), null))
+        }
+        assertEquals(com.yenreh.caligo.waits.WaitStart.CAP_REACHED, waits.start(com.yenreh.caligo.waits.WaitFixtures.awaited(com.yenreh.caligo.waits.WaitFixtures.bus("X9", "x9", NOW + 30 * MINUTE)), null))
+        // A bus the trip waits for already has its wait
+        val tripKey = waits.running.value.first { it.key.vehicleId == "637001" }.key
+        val e21 = firstArrivals(NOW).stops.single().arrivals.first { it.vehicleId == tripKey.vehicleId }
+        assertEquals(com.yenreh.caligo.waits.WaitStart.ALREADY_WAITING, waits.start(com.yenreh.caligo.domain.AwaitedBus(out[0].stopId, out[0].name, e21, stop), null))
     }
 
     @Test
@@ -199,14 +276,17 @@ class TripJourneyTest {
 
     @Test
     fun waitsAllGoneWithNoneTakenAreAskedForAgain() {
+        // The buses drop out of the waits' answers: no longer seen, the waits end by themselves
+        var listed = true
+        h.waitsAnswering { _, at -> WaitAnswer(if (listed) firstArrivals(NOW).stops else emptyList(), at) }
         startJourney()
         h.move(MINUTE) { walking(it) }
+        assertEquals(2, h.tripWaitNotifications.size)
         val asked = h.source.arrivalsAsked.size
-        for (key in waits.running.value.map { it.key }) waits.stop(key)
-        h.advance(1)
-        h.move(2 * MINUTE) { walking(it) }
+        listed = false
+        h.move(9 * MINUTE) { stop }
         assertTrue(h.source.arrivalsAsked.size > asked)
-        assertEquals(2, h.waitTitles.size)
+        assertEquals(2, h.tripWaitNotifications.size)
     }
 
     @Test

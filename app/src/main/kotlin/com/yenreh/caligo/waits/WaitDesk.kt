@@ -51,19 +51,24 @@ class WaitDesk(
     private var service: WaitService? = null
     private var serviceWaits = emptyList<RunningWait>()
 
+    /** The waits a trip started, which the trip service runs, and how they end from here */
+    private var tripWaits = emptyList<RunningWait>()
+    private var tripWaitEnder: ((WaitKey, WaitEnding) -> Unit)? = null
+
     private val state = MutableStateFlow<List<RunningWait>>(emptyList())
     override val running: StateFlow<List<RunningWait>> = state.asStateFlow()
 
     override fun start(bus: AwaitedBus, seed: FadingArrivals?): WaitStart {
         val waits = state.value
         if (waits.waitFor(bus.stopId, bus.bus) != null) return WaitStart.ALREADY_WAITING
-        if (waits.size >= Wait.CAP) return WaitStart.CAP_REACHED
+        // The cap counts the rider's own waits; a trip's have a cap of their own
+        if (serviceWaits.size + pending.size >= Wait.CAP) return WaitStart.CAP_REACHED
         WaitNotifications.createChannels(context)
         service?.let { return it.add(bus, seed) }
         pending.add(bus to seed)
         publish()
-        // From the screen on show, the bell just tapped; or, for a trip's
-        // next ride, from the trip's own service, which the system may refuse
+        // From the screen on show, the bell just tapped. A trip's waits run
+        // in the trip service instead; the guard is for whatever else asks
         try {
             ContextCompat.startForegroundService(context, Intent(context, WaitService::class.java))
         } catch (_: IllegalStateException) {
@@ -75,13 +80,43 @@ class WaitDesk(
     }
 
     override fun stop(key: WaitKey) {
+        if (tripWaits.any { it.key == key }) {
+            tripWaitEnder?.invoke(key, WaitEnding.BELL)
+            return
+        }
         if (pending.removeAll { it.first.key == key }) publish()
         service?.end(key, WaitEnding.BELL)
     }
 
     override fun took(key: WaitKey) {
+        if (tripWaits.any { it.key == key }) {
+            tripWaitEnder?.invoke(key, WaitEnding.TOOK)
+            return
+        }
         if (pending.removeAll { it.first.key == key }) publish()
         service?.end(key, WaitEnding.TOOK)
+    }
+
+    /**
+     * The trip service runs waits of its own from now, which the bells show
+     * and end through [ender]
+     */
+    fun attachTripWaits(ender: (WaitKey, WaitEnding) -> Unit) {
+        tripWaitEnder = ender
+    }
+
+    /** The trip service has gone, and its waits with it */
+    fun detachTripWaits(ender: (WaitKey, WaitEnding) -> Unit) {
+        if (tripWaitEnder !== ender) return
+        tripWaitEnder = null
+        tripWaits = emptyList()
+        publish()
+    }
+
+    /** The waits the trip service runs now */
+    fun tripWaitsChanged(waits: List<RunningWait>) {
+        tripWaits = waits
+        publish()
     }
 
     /** A button of [key]'s notification, or its swipe */
@@ -113,6 +148,6 @@ class WaitDesk(
     }
 
     private fun publish() {
-        state.value = serviceWaits + pending.map { RunningWait(it.first.key, it.first.bus.arrivalTime, now()) }
+        state.value = serviceWaits + pending.map { RunningWait(it.first.key, it.first.bus.arrivalTime, now()) } + tripWaits
     }
 }

@@ -58,7 +58,7 @@ enum class WaitStart {
     ALREADY_WAITING,
     CAP_REACHED,
 
-    /** The system would not start the service: from the background, as a trip's next ride may ask */
+    /** The system would not start the service, as from the background; no path should ask it from there */
     NOT_ALLOWED,
 }
 

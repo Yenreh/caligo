@@ -8,6 +8,8 @@ import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.TookRide
 import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.TripPlan
+import com.yenreh.caligo.domain.WaitEnding
+import com.yenreh.caligo.domain.WaitKey
 import com.yenreh.caligo.domain.entities.TripOption
 import com.yenreh.caligo.waits.Alerts
 import kotlin.coroutines.CoroutineContext
@@ -105,6 +107,11 @@ class TripDesk(
             publish()
         }
         service?.end(TripEnding.FINISHED)
+    }
+
+    /** A button or the swipe of a wait's notification the trip started */
+    fun endWait(key: WaitKey, ending: WaitEnding) {
+        service?.endWait(key, ending)
     }
 
     /** The notification's Finish or its swipe, for the trip started at [startedAt] */

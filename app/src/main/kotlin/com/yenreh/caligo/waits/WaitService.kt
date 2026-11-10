@@ -21,7 +21,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 
 /**
- * The one owner of every wait and of every wait's notification: it posts
+ * The one owner of every wait the rider starts from a bell, and of each
+ * one's notification (a trip's waits run in the trip service): it posts
  * them, moves its own foreground notification to another wait when the
  * wait carrying it ends, and cancels them.
  *

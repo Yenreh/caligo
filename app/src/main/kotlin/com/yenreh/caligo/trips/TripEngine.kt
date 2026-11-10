@@ -71,7 +71,7 @@ interface TripHost {
     /** The trip changed: the one running now, if any */
     fun changed(journey: Journey?) {}
 
-    /** Wait for each of [buses], as far as the waits' cap allows: the keys of those started */
+    /** Wait for each of [buses], as far as the cap of a trip's waits allows: the keys of those started */
     fun startWaits(buses: List<AwaitedBus>): List<WaitKey> = emptyList()
 
     /** Stop the waits [keys], without asking */
@@ -147,6 +147,12 @@ class TripEngine(
         settleWaits(keep = setOf(took.waitKey))
         poke.trySend(Unit)
         return true
+    }
+
+    /** The rider stopped a wait of the ride waited for themselves: its waits are not asked for again */
+    fun waitDeclined() {
+        val running = journey ?: return
+        journey = running.copy(declinedFor = running.pendingRide)
     }
 
     /** End the trip, if one runs */
@@ -257,6 +263,7 @@ class TripEngine(
     private fun awaitRide(running: Journey, now: Long) {
         if (!running.planned || asking != null) return
         val pending = running.pendingRide ?: return
+        if (running.declinedFor == pending) return
         if (running.awaitedFor == pending) {
             if (running.awaited.any { it in host.runningWaits() }) return
             if (now - (running.awaitedAt ?: now) < AWAIT_AGAIN_MS) return

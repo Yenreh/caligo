@@ -199,7 +199,7 @@ class TripServiceTest {
     @Test
     fun aNewProcessLeavesNoTripNorNotification() {
         TripNotifications.createChannels(h.app)
-        for (id in listOf(TripNotifications.TRIP_ID, TripNotifications.PLACEHOLDER_ID)) {
+        for (id in listOf(TripNotifications.TRIP_ID, TripNotifications.PLACEHOLDER_ID) + TripNotifications.waitIds) {
             h.manager.notify(id, Notification.Builder(h.app, TripChannel.TRIPS.id).setSmallIcon(android.R.drawable.ic_dialog_info).build())
         }
         TripNotifications.cancelLeftovers(h.app)

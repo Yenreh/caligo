@@ -15,9 +15,18 @@ import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.TookRide
 import com.yenreh.caligo.domain.WaitKey
-import com.yenreh.caligo.waits.WaitDesk
-import com.yenreh.caligo.waits.WaitStart
+import com.yenreh.caligo.domain.RunningWait
 import com.yenreh.caligo.domain.TripEnding
+import com.yenreh.caligo.domain.Wait
+import com.yenreh.caligo.domain.WaitEnding
+import com.yenreh.caligo.waits.WaitChannel
+import com.yenreh.caligo.waits.WaitDesk
+import com.yenreh.caligo.waits.WaitEngine
+import com.yenreh.caligo.waits.WaitHost
+import com.yenreh.caligo.waits.WaitNotice
+import com.yenreh.caligo.waits.WaitNotifications
+import com.yenreh.caligo.waits.WaitStart
+import com.yenreh.caligo.waits.WaitWords
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -34,8 +43,13 @@ import kotlinx.coroutines.cancel
  * process start.
  *
  * Apart from the wait service, with ids and channels of its own: the
- * waits keep their own notifications and foreground state, and a trip
- * that ends leaves them running, as they leave it.
+ * rider's own waits keep their notifications and foreground state there,
+ * and a trip that ends leaves them running, as they leave it. The waits a
+ * planner trip starts for its rides run here instead, with a wait engine
+ * of their own and ids apart: already in the foreground, the trip posts
+ * them from the background too, as after a change with the screen off,
+ * where a second foreground service would not be let start. They end with
+ * the trip.
  *
  * A partial wake lock keeps the bus rounds and the beat on time with the
  * screen off, as the wait service's does: re-armed at every post, it lets
@@ -47,7 +61,17 @@ class TripService : Service(), TripHost {
     private lateinit var engine: TripEngine
     private lateinit var words: TripWords
     private lateinit var waits: WaitDesk
+    private lateinit var waitEngine: WaitEngine
+    private lateinit var waitWords: WaitWords
     private var wakeLock: PowerManager.WakeLock? = null
+
+    /** Each trip wait's notification id, in the order they started */
+    private val waitSlots = LinkedHashMap<WaitKey, Int>()
+
+    /** Trip waits whose alert has gone out */
+    private val waitsAlerted = HashSet<WaitKey>()
+
+    private val endWaitFromDesk: (WaitKey, WaitEnding) -> Unit = { key, ending -> endWait(key, ending) }
 
     private var lastStartId = 0
 
@@ -58,8 +82,11 @@ class TripService : Service(), TripHost {
         waits = container.waits
         scope = CoroutineScope(SupervisorJob() + desk.coroutineContext)
         engine = TripEngine(desk.source, desk.location, desk.now, scope, this)
+        waitEngine = WaitEngine(waits.source, desk.now, scope, tripWaits)
         words = TripWords(resources)
+        waitWords = WaitWords(resources)
         TripNotifications.createChannels(this)
+        waits.attachTripWaits(endWaitFromDesk)
         desk.attach(this)
     }
 
@@ -86,11 +113,14 @@ class TripService : Service(), TripHost {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        // Killed with a trip on: the waits it started go with it
-        engine.journey?.awaited?.let { if (it.isNotEmpty()) stopWaits(it) }
         scope.cancel()
         desk.location.stop()
-        NotificationManagerCompat.from(this).cancel(TripNotifications.TRIP_ID)
+        val manager = NotificationManagerCompat.from(this)
+        manager.cancel(TripNotifications.TRIP_ID)
+        // Killed with a trip on: the waits it started go with it
+        for (id in TripNotifications.waitIds) manager.cancel(id)
+        waitSlots.clear()
+        waits.detachTripWaits(endWaitFromDesk)
         releaseWakeLock()
         desk.detach(this)
         super.onDestroy()
@@ -104,6 +134,15 @@ class TripService : Service(), TripHost {
 
     internal fun end(ending: TripEnding) = engine.end(ending)
 
+    /** A trip wait ended by a button, its swipe or its bell: by the rider, so not asked for again */
+    internal fun endWait(key: WaitKey, ending: WaitEnding) {
+        if (ending != WaitEnding.TOOK) engine.waitDeclined()
+        waitEngine.end(key, ending)
+    }
+
+    /** The trip's wait engine, for tests to see that nothing runs */
+    internal val tripWaitEngine: WaitEngine get() = waitEngine
+
     /** The engine, for tests to see that nothing runs */
     internal val tripEngine: TripEngine get() = engine
 
@@ -114,7 +153,7 @@ class TripService : Service(), TripHost {
     private fun notification(journey: Journey, now: Long, nextPostIn: Long): Notification {
         val alerts = desk.alerts()
         val warningOn = TripNotifications.channelOn(this, TripChannel.warning(alerts))
-        val next = waits.running.value.filter { it.key in journey.awaited }.minOfOrNull { it.arrivalTime }
+        val next = waitEngine.waits.filter { it.key in journey.awaited }.minOfOrNull { it.last.arrivalTime }
         val notice = TripNotice.of(journey, now, alerts, words, nextPostIn, warningOn, nextBusAt = next)
         return TripNotifications.build(this, journey.startedAt, notice, alerts, words)
     }
@@ -132,6 +171,8 @@ class TripService : Service(), TripHost {
     }
 
     override fun idle() {
+        // Nothing of a trip outlives it: its waits, had any been left, go too
+        if (waitEngine.waits.isNotEmpty()) waitEngine.endAll(WaitEnding.STOPPED)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         val manager = NotificationManagerCompat.from(this)
         manager.cancel(TripNotifications.TRIP_ID)
@@ -147,15 +188,60 @@ class TripService : Service(), TripHost {
         desk.changed(journey)
     }
 
-    // Ordinary waits, each with its notification and "I took it", in the waits' own service
-    override fun startWaits(buses: List<AwaitedBus>): List<WaitKey> =
-        buses.filter { waits.start(it, null) == WaitStart.STARTED }.map { it.key }
-
-    override fun stopWaits(keys: List<WaitKey>) {
-        for (key in keys) waits.stop(key)
+    // Waits as the rider's own, each with its notification and "I took it", run here
+    override fun startWaits(buses: List<AwaitedBus>): List<WaitKey> {
+        WaitNotifications.createChannels(this)
+        // A bus the rider already waits for keeps its own wait
+        val theirs = waits.running.value
+        return buses.filter { bus -> theirs.none { it.key == bus.key } && waitEngine.start(bus, null) == WaitStart.STARTED }.map { it.key }
     }
 
-    override fun runningWaits(): Set<WaitKey> = waits.running.value.mapTo(HashSet()) { it.key }
+    override fun stopWaits(keys: List<WaitKey>) {
+        // The trip's own doing, not the rider's: nothing declined
+        for (key in keys) waitEngine.end(key, WaitEnding.STOPPED)
+    }
+
+    override fun runningWaits(): Set<WaitKey> = waitEngine.waits.mapTo(HashSet()) { it.key }
+
+    /** What the trip's wait engine asks of the one that shows its waits: here, with ids apart */
+    private val tripWaits = object : WaitHost {
+        override fun allowed(): Boolean = NotificationManagerCompat.from(this@TripService).areNotificationsEnabled() &&
+            WaitNotifications.channelOn(this@TripService, WaitChannel.WAITS)
+
+        // allowed() holds before every post
+        @SuppressLint("MissingPermission")
+        override fun show(waits: List<Wait>, now: Long, nextPostIn: Long) {
+            val context = this@TripService
+            val alerts = desk.alerts()
+            val alertOn = WaitNotifications.channelOn(context, WaitChannel.alert(alerts))
+            val manager = NotificationManagerCompat.from(context)
+            for (wait in waits) {
+                val id = waitSlots.getOrPut(wait.key) { TripNotifications.waitIds.first { it !in waitSlots.values } }
+                val notice = WaitNotice.of(wait, now, alerts, waitWords, nextPostIn, alertOn).let {
+                    if (it.alerting && !waitsAlerted.add(wait.key)) it.copy(alerting = false) else it
+                }
+                manager.notify(id, WaitNotifications.build(context, id, wait, notice, alerts, waitWords, tripWait = true))
+            }
+            holdWakeLock(nextPostIn + WAKE_MARGIN_MS)
+        }
+
+        override fun ended(wait: Wait, ending: WaitEnding) {
+            waitsAlerted.remove(wait.key)
+            val id = waitSlots.remove(wait.key) ?: return
+            NotificationManagerCompat.from(this@TripService).cancel(id)
+        }
+
+        override fun idle() {
+            val manager = NotificationManagerCompat.from(this@TripService)
+            for (id in TripNotifications.waitIds) manager.cancel(id)
+            waitSlots.clear()
+            waitsAlerted.clear()
+        }
+
+        override fun changed(waits: List<Wait>) {
+            this@TripService.waits.tripWaitsChanged(waits.map { RunningWait(it.key, it.last.arrivalTime, it.listedAt) })
+        }
+    }
 
     /** In the foreground with [notification], as a location service; false when the system refuses */
     private fun foreground(id: Int, notification: Notification): Boolean {
