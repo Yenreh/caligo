@@ -44,6 +44,9 @@ class WaitService : Service(), WaitHost {
     /** Each wait's notification id, in the order they started */
     private val slots = LinkedHashMap<WaitKey, Int>()
 
+    /** Waits whose alert has gone out: posts the engine has not counted yet stay silent */
+    private val alerted = HashSet<WaitKey>()
+
     /** The wait whose notification is the service's own */
     private var carrier: WaitKey? = null
 
@@ -108,7 +111,10 @@ class WaitService : Service(), WaitHost {
         val manager = NotificationManagerCompat.from(this)
         for (wait in waits) {
             val id = slots.getOrPut(wait.key) { WaitNotifications.ids.first { it !in slots.values } }
-            val notice = WaitNotice.of(wait, now, alerts, words, nextPostIn)
+            val notice = WaitNotice.of(wait, now, alerts, words, nextPostIn).let {
+                // One alert per wait, whoever posts first
+                if (it.alerting && !alerted.add(wait.key)) it.copy(alerting = false) else it
+            }
             val notification = WaitNotifications.build(this, id, wait, notice, alerts, words)
             if (carrier == null) {
                 foreground(id, notification)
@@ -121,6 +127,7 @@ class WaitService : Service(), WaitHost {
     }
 
     override fun ended(wait: Wait, ending: WaitEnding) {
+        alerted.remove(wait.key)
         val id = slots.remove(wait.key) ?: return
         if (carrier == wait.key) {
             carrier = null
@@ -145,6 +152,7 @@ class WaitService : Service(), WaitHost {
         for (id in slots.values) manager.cancel(id)
         manager.cancel(WaitNotifications.PLACEHOLDER_ID)
         slots.clear()
+        alerted.clear()
         carrier = null
         releaseWakeLock()
         desk.detach(this)

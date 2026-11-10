@@ -424,7 +424,22 @@ class WaitServiceTest {
         start(awaited(t31))
         assertEquals(WaitChannel.WAITS.id, posted.single().channelId)
         advance(t31.arrivalTime - 2 * MINUTE - now() + 1_000)
+        val alert = posted.single()
+        assertEquals(WaitChannel.ALERT_SOUND.id, alert.channelId)
+        assertTrue(alert.flags and Notification.FLAG_ONLY_ALERT_ONCE == 0)
+        // Every later post stays on that channel, silent
+        advance(WaitEngine.BEAT.inWholeMilliseconds)
         assertEquals(WaitChannel.ALERT_SOUND.id, posted.single().channelId)
+        assertTrue(posted.single().flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+    }
+
+    @Test
+    fun aWaitStartedNearItsBusAlertsOnce() {
+        // Posted as the service starts, then again at the engine's first beat
+        start(awaited(e21.copy(arrivalTime = NOW + MINUTE)))
+        assertEquals(WaitChannel.ALERT_SILENT.id, posted.single().channelId)
+        assertTrue(posted.single().flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+        assertTrue(service.waitEngine.waits.single().alerted)
     }
 
     @Test
