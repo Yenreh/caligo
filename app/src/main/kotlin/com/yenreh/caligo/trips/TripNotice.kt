@@ -10,6 +10,7 @@ import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.domain.Wait
 import com.yenreh.caligo.waits.WaitChannel
 import com.yenreh.caligo.domain.TripEnding
+import com.yenreh.caligo.domain.TripPlan
 import com.yenreh.caligo.domain.TripSource
 import com.yenreh.caligo.waits.Alerts
 
@@ -341,7 +342,7 @@ data class TripNotice(
     }
 }
 
-/** The words of a trip's notification, in the app's language */
+/** The words of a trip, on its notification and its screens, in the app's language */
 class TripWords(private val resources: Resources) {
     private fun about(estimated: Boolean) = if (estimated) "~" else ""
 
@@ -391,6 +392,26 @@ class TripWords(private val resources: Resources) {
         TripEnding.REPLACED -> resources.getString(R.string.trip_ended_replaced)
         TripEnding.REACHED, TripEnding.FINISHED -> resources.getString(R.string.trip_ended_finished)
     }
+
+    /** "Get off at Universidades", "You are at your stop", or "Following the ride to Universidades": a ride with [stopsLeft] to where it ends */
+    fun rideHeading(plan: TripPlan, stopsLeft: Int): String = when {
+        plan.alight != null && stopsLeft == 0 -> resources.getString(R.string.trip_heading_here)
+        plan.alight != null -> resources.getString(R.string.trip_heading_get_off, plan.stops[plan.target].name)
+        else -> resources.getString(R.string.trip_heading_follow, plan.stops[plan.target].name)
+    }
+
+    /** "13 min · 5 stops" */
+    fun headingDetail(minutes: Int, estimated: Boolean, stops: Int) =
+        resources.getQuantityString(R.plurals.trip_heading_detail, stops, about(estimated) + minutes, stops)
+
+    /** "13 min", "~13 min" */
+    fun minutes(minutes: Int, estimated: Boolean) = resources.getString(R.string.trip_minutes, about(estimated) + minutes)
+
+    /** "4 min · 300 m" */
+    fun walkDetail(minutes: Int, estimated: Boolean, meters: Int) = resources.getString(R.string.trip_walk_detail, about(estimated) + minutes, meters)
+
+    /** "Walk to Plaza de Cayzedo A1, 4 min" */
+    fun walkTo(place: String, minutes: Int, estimated: Boolean) = resources.getString(R.string.trip_walk_to, place, about(estimated) + minutes)
 
     fun walkToStop(minutes: Int, estimated: Boolean) = resources.getString(R.string.trip_walk_to_stop, about(estimated) + minutes)
 

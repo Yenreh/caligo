@@ -53,6 +53,7 @@ import com.yenreh.caligo.domain.TripSource
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.ui.common.LocalNow
 import com.yenreh.caligo.ui.common.watchLiveClock
+import com.yenreh.caligo.ui.trips.rememberTripWords
 import com.yenreh.caligo.ui.lab.LabListTile
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.ui.cards.CardItem
@@ -330,6 +331,7 @@ private fun TripBar(journey: Journey, onTrip: () -> Unit) {
     val p = LabTheme.palette
     watchLiveClock()
     val now = LocalNow.current()
+    val words = rememberTripWords()
     val title: String
     val subtitle: String
     when (val phase = journey.phase(now)) {
@@ -337,23 +339,18 @@ private fun TripBar(journey: Journey, onTrip: () -> Unit) {
             val trip = phase.trip
             val plan = trip.plan
             val progress = trip.progress(now)
-            val target = plan.stops[plan.target].name
-            val minutes = trip.minutesTo(plan.target, now).let { if (progress.source == TripSource.ESTIMATE) "~$it" else "$it" }
-            val heading = when {
-                plan.alight != null && progress.stopsLeft == 0 -> stringResource(R.string.trip_heading_here)
-                plan.alight != null -> stringResource(R.string.trip_heading_get_off, target)
-                else -> stringResource(R.string.trip_heading_follow, target)
-            }
+            val heading = words.rideHeading(plan, progress.stopsLeft)
+            val minutes = words.minutes(trip.minutesTo(plan.target, now), progress.source == TripSource.ESTIMATE)
             title = stringResource(R.string.trip_home_title, plan.line)
-            subtitle = if (progress.stopsLeft > 0) "$heading · ${stringResource(R.string.trip_minutes, minutes)}" else heading
+            subtitle = if (progress.stopsLeft > 0) "$heading · $minutes" else heading
         }
         is JourneyPhase.Walking -> {
             title = stringResource(R.string.trip_channel)
-            subtitle = stringResource(R.string.trip_walk_to, phase.leg.toName, (if (phase.estimated) "~" else "") + Trip.minutesOf(phase.millis))
+            subtitle = words.walkTo(phase.leg.toName, Trip.minutesOf(phase.millis), phase.estimated)
         }
         is JourneyPhase.Waiting -> {
             title = stringResource(R.string.trip_channel)
-            subtitle = stringResource(R.string.trip_heading_take, phase.leg.ride.lines.joinToString(" · "))
+            subtitle = words.take(words.lines(phase.leg.ride.lines))
         }
     }
     LabListTile(

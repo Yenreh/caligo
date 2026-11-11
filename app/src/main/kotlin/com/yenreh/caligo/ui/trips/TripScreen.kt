@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -70,6 +71,7 @@ import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.TripPlan
 import com.yenreh.caligo.domain.TripSource
 import com.yenreh.caligo.trips.AwaitedLine
+import com.yenreh.caligo.trips.TripWords
 import com.yenreh.caligo.trips.EndedTrip
 import com.yenreh.caligo.ui.common.LiveClock
 import com.yenreh.caligo.ui.common.Loaded
@@ -333,6 +335,7 @@ private fun Choosing(plan: TripPlan, from: String?, onChoose: (Int?) -> Unit, mo
     watchLiveClock()
     val at = now()
     val estimate = Trip.start(plan, at)
+    val words = rememberTripWords()
     LazyColumn(modifier.testTag("trip_choose")) {
         item {
             Text(
@@ -354,10 +357,9 @@ private fun Choosing(plan: TripPlan, from: String?, onChoose: (Int?) -> Unit, mo
         }
         items(plan.ahead.toList(), key = { "stop:$it" }) { index ->
             val stop = plan.stops[index]
-            val minutes = estimate.minutesTo(index, at)
             LabListTile(
                 title = stop.name,
-                subtitle = stringResource(R.string.trip_minutes, "~$minutes"),
+                subtitle = words.minutes(estimate.minutesTo(index, at), estimated = true),
                 modifier = Modifier
                     .clickable(enabled = enabled, role = Role.Button, onClickLabel = stringResource(R.string.trip_get_off_at_action, stop.name)) {
                         onChoose(index)
@@ -383,20 +385,20 @@ private fun Running(
     watchLiveClock()
     val at = now()
     val phase = journey.phase(at)
+    val words = rememberTripWords()
     LazyColumn(modifier.testTag("trip_running")) {
         item {
             LabPanel(modifier = Modifier.padding(16.dp), accentTop = true) {
                 when (phase) {
-                    is JourneyPhase.Riding -> RideHeading(phase.trip, at)
+                    is JourneyPhase.Riding -> RideHeading(phase.trip, at, words)
                     is JourneyPhase.Walking -> {
-                        val minutes = Trip.minutesOf(phase.millis)
                         Heading(stringResource(R.string.trip_heading_walk, phase.leg.toName))
-                        Detail(stringResource(R.string.trip_walk_detail, (if (phase.estimated) "~" else "") + minutes, roundTo10(phase.meters)))
+                        Detail(words.walkDetail(Trip.minutesOf(phase.millis), phase.estimated, roundTo10(phase.meters)))
                         Source(if (phase.estimated) R.string.trip_by_estimate else R.string.trip_by_fix)
                         if (awaited.isNotEmpty()) {
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                stringResource(R.string.trip_then, TripLines.of(awaited.map { lineIn(it, at) }, orPattern())),
+                                words.then(words.lines(awaited.map { words.lineIn(it, at) })),
                                 style = MaterialTheme.typography.bodyMedium.copy(color = p.ink),
                             )
                         }
@@ -404,12 +406,12 @@ private fun Running(
                     is JourneyPhase.Waiting -> {
                         // The soonest first, then the lines with no bus awaited
                         val ordered = (awaited.map { it.line } + phase.leg.ride.lines).distinct()
-                        Heading(stringResource(R.string.trip_heading_take, TripLines.of(ordered, orPattern())))
-                        Detail(stringResource(R.string.trip_at_stop, phase.leg.ride.board.name))
+                        Heading(words.take(words.lines(ordered)))
+                        Detail(words.atStop(phase.leg.ride.board.name))
                         if (awaited.isNotEmpty()) {
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                awaited.map { lineMinutes(it, at) }.joinToString(" · "),
+                                awaited.map { words.lineMinutes(it, at) }.joinToString(" · "),
                                 style = MaterialTheme.typography.bodyLarge.copy(color = p.ink),
                                 modifier = Modifier.testTag("trip_awaited"),
                             )
@@ -433,7 +435,7 @@ private fun Running(
                 }
             }
         }
-        if (phase is JourneyPhase.Riding) rideStops(phase.trip, at, onAlight)
+        if (phase is JourneyPhase.Riding) rideStops(phase.trip, at, words, onAlight)
         val ahead = journey.ahead
         if (ahead.isNotEmpty()) {
             item {
@@ -442,7 +444,7 @@ private fun Running(
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
                 )
             }
-            items(ahead.size, key = { "ahead:$it" }) { i -> AheadRow(ahead[i]) }
+            items(ahead.size, key = { "ahead:$it" }) { i -> AheadRow(ahead[i], words) }
         }
     }
 }
@@ -475,28 +477,12 @@ private fun Source(text: Int) {
 }
 
 @Composable
-private fun RideHeading(trip: Trip, at: Long) {
+private fun RideHeading(trip: Trip, at: Long, words: TripWords) {
     val progress = trip.progress(at)
     val plan = trip.plan
-    val estimated = progress.source == TripSource.ESTIMATE
-    val target = plan.stops[plan.target]
-    Heading(
-        when {
-            plan.alight != null && progress.stopsLeft == 0 -> stringResource(R.string.trip_heading_here)
-            plan.alight != null -> stringResource(R.string.trip_heading_get_off, target.name)
-            else -> stringResource(R.string.trip_heading_follow, target.name)
-        },
-    )
+    Heading(words.rideHeading(plan, progress.stopsLeft))
     if (progress.stopsLeft > 0) {
-        val minutes = trip.minutesTo(plan.target, at)
-        Detail(
-            pluralStringResource(
-                R.plurals.trip_heading_detail,
-                progress.stopsLeft,
-                (if (estimated) "~" else "") + minutes,
-                progress.stopsLeft,
-            ),
-        )
+        Detail(words.headingDetail(trip.minutesTo(plan.target, at), progress.source == TripSource.ESTIMATE, progress.stopsLeft))
     }
     Source(
         when (progress.source) {
@@ -508,7 +494,7 @@ private fun RideHeading(trip: Trip, at: Long) {
 }
 
 /** The ride's stops ahead, each with its time, the one to get off at marked and the others a tap to choose */
-private fun androidx.compose.foundation.lazy.LazyListScope.rideStops(trip: Trip, at: Long, onAlight: (Int?) -> Unit) {
+private fun androidx.compose.foundation.lazy.LazyListScope.rideStops(trip: Trip, at: Long, words: TripWords, onAlight: (Int?) -> Unit) {
     val plan = trip.plan
     val progress = trip.progress(at)
     val estimated = progress.source == TripSource.ESTIMATE
@@ -523,8 +509,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.rideStops(trip: Trip,
         val p = LabTheme.palette
         val stop = plan.stops[index]
         val alighting = index == plan.alight
-        val minutes = trip.minutesTo(index, at)
-        val time = stringResource(R.string.trip_minutes, (if (estimated) "~" else "") + minutes)
+        val time = words.minutes(trip.minutesTo(index, at), estimated)
         LabListTile(
             title = stop.name,
             subtitle = if (alighting) "$time · ${stringResource(R.string.trip_you_get_off)}" else time,
@@ -542,33 +527,23 @@ private fun androidx.compose.foundation.lazy.LazyListScope.rideStops(trip: Trip,
     }
 }
 
+/** A trip's words, in the language the screen shows */
 @Composable
-private fun orPattern(): String = stringResource(R.string.trip_lines_or, "%1\$s", "%2\$s")
-
-@Composable
-private fun lineIn(bus: AwaitedLine, now: Long): String = if (bus.atStop) {
-    stringResource(R.string.trip_line_at_stop, bus.line)
-} else {
-    stringResource(R.string.trip_line_in, bus.line, Trip.minutesOf(bus.dueAt(now) - now))
-}
-
-@Composable
-private fun lineMinutes(bus: AwaitedLine, now: Long): String = if (bus.atStop) {
-    stringResource(R.string.trip_line_at_stop, bus.line)
-} else {
-    stringResource(R.string.trip_line_minutes, bus.line, Trip.minutesOf(bus.dueAt(now) - now))
+internal fun rememberTripWords(): TripWords {
+    val resources = LocalResources.current
+    return remember(resources) { TripWords(resources) }
 }
 
 /** A leg still to come, in muted words */
 @Composable
-private fun AheadRow(leg: JourneyLeg) {
+private fun AheadRow(leg: JourneyLeg, words: TripWords) {
     val p = LabTheme.palette
     val text = when (leg) {
         is JourneyLeg.Walk -> stringResource(R.string.trip_ahead_walk, leg.toName, minutes(leg.walk.duration))
         is JourneyLeg.Ride -> pluralStringResource(
             R.plurals.trip_ahead_ride,
             leg.ride.stopCount,
-            TripLines.of(leg.ride.lines, stringResource(R.string.trip_lines_or, "%1\$s", "%2\$s")),
+            words.lines(leg.ride.lines),
             leg.ride.alight.name,
             leg.ride.stopCount,
         )
@@ -579,15 +554,6 @@ private fun AheadRow(leg: JourneyLeg) {
         titleWeight = FontWeight.Normal,
         contentColor = p.muted,
     )
-}
-
-/** The lines of a ride in words: "E21", "E21 or T31", "E21, T31 or A47", by the language's [pattern] for the last two */
-internal object TripLines {
-    fun of(lines: List<String>, pattern: String): String = when (lines.size) {
-        0 -> ""
-        1 -> lines.single()
-        else -> pattern.replace("%1\$s", lines.dropLast(1).joinToString(", ")).replace("%2\$s", lines.last())
-    }
 }
 
 /**
