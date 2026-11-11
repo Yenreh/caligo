@@ -119,18 +119,13 @@ class TripRoute(val stops: List<LineStop>) {
     /** The stops still ahead of [along] up to [target], [target] included; 0 once at it */
     fun stopsLeft(along: Double, target: Int): Int = (target - stopAt(along)).coerceAtLeast(0)
 
+    private val latitudes = DoubleArray(stops.size) { stops[it].latitude }
+    private val longitudes = DoubleArray(stops.size) { stops[it].longitude }
+
     /** The point [along] metres along the route, for a map to draw the rider at */
     fun pointAt(along: Double): GeoPoint {
-        if (stops.size == 1 || along <= 0) return GeoPoint(stops.first().latitude, stops.first().longitude)
-        if (along >= length) return GeoPoint(stops.last().latitude, stops.last().longitude)
-        var i = 0
-        while (i < at.size - 2 && at[i + 1] < along) i++
-        val span = at[i + 1] - at[i]
-        val t = if (span == 0.0) 0.0 else (along - at[i]) / span
-        return GeoPoint(
-            stops[i].latitude + t * (stops[i + 1].latitude - stops[i].latitude),
-            stops[i].longitude + t * (stops[i + 1].longitude - stops[i].longitude),
-        )
+        if (stops.size == 1) return GeoPoint(latitudes[0], longitudes[0])
+        return GeoPoint(interpolate(at, latitudes, along), interpolate(at, longitudes, along))
     }
 
     /**
@@ -193,6 +188,21 @@ class TripRoute(val stops: List<LineStop>) {
 
         private fun hypot(x: Double, y: Double) = sqrt(x * x + y * y)
     }
+}
+
+/**
+ * The value at [x] on the line through the points ([xs], [ys]), [xs]
+ * rising: straight between two points, [ys]' first up to [xs]' first,
+ * its last from [xs]' last on
+ */
+internal fun interpolate(xs: DoubleArray, ys: DoubleArray, x: Double): Double {
+    if (x <= xs.first()) return ys.first()
+    if (x >= xs.last()) return ys.last()
+    var i = 0
+    while (i < xs.size - 2 && xs[i + 1] < x) i++
+    val span = xs[i + 1] - xs[i]
+    val t = if (span == 0.0) 0.0 else (x - xs[i]) / span
+    return ys[i] + t * (ys[i + 1] - ys[i])
 }
 
 /** A bus matched to a ride: followed by its number from then on */

@@ -255,27 +255,10 @@ data class Trip(
     /** Whole minutes to show for [millis], at least 1 while not there */
     fun minutes(millis: Long): Int = minutesOf(millis)
 
-    private fun secondsAt(along: Double): Double {
-        val at = route.at
-        if (along <= 0) return 0.0
-        if (along >= at.last()) return seconds.last()
-        var i = 0
-        while (i < at.size - 2 && at[i + 1] < along) i++
-        val span = at[i + 1] - at[i]
-        val t = if (span == 0.0) 0.0 else (along - at[i]) / span
-        return seconds[i] + t * (seconds[i + 1] - seconds[i])
-    }
+    // Both start at 0 at the first stop
+    private fun secondsAt(along: Double): Double = interpolate(route.at, seconds, along)
 
-    private fun alongAtSeconds(target: Double): Double {
-        val at = route.at
-        if (target <= 0) return 0.0
-        if (target >= seconds.last()) return at.last()
-        var i = 0
-        while (i < seconds.size - 2 && seconds[i + 1] < target) i++
-        val span = seconds[i + 1] - seconds[i]
-        val t = if (span == 0.0) 0.0 else (target - seconds[i]) / span
-        return at[i] + t * (at[i + 1] - at[i])
-    }
+    private fun alongAtSeconds(target: Double): Double = interpolate(seconds, route.at, target)
 
     private fun estimateFrom(along: Double, elapsedSeconds: Double): Double =
         alongAtSeconds(secondsAt(along) + elapsedSeconds.coerceAtLeast(0.0))

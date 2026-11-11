@@ -90,6 +90,16 @@ data class Journey(
             else -> null
         }
 
+    /** The lines that make the ride waited for, each with its own stops; none when no ride waits */
+    val pendingCandidates: List<RideLeg> get() = pendingRide?.let { (legs[it] as JourneyLeg.Ride).candidates }.orEmpty()
+
+    /** Where the journey ends: the destination, or the stop the last ride gets off at */
+    val destinationName: String
+        get() = when (val last = legs.last()) {
+            is JourneyLeg.Walk -> last.toName
+            is JourneyLeg.Ride -> last.ride.alight.name
+        }
+
     /** A stop to get off at is set and not reached: on a ride to a chosen stop, or a planner trip with a ride ahead */
     val stopPending: Boolean get() = ride?.plan?.alight != null || (planned && pendingRide != null)
 
@@ -145,19 +155,15 @@ data class Journey(
      * one of its lines boards, or along one of their routes, as on a bus
      * of it not told apart yet
      */
-    fun nearRide(point: GeoPoint, meters: Double): Boolean {
-        val r = pendingRide ?: return false
-        return (legs[r] as JourneyLeg.Ride).candidates.any { c ->
+    fun nearRide(point: GeoPoint, meters: Double): Boolean =
+        pendingCandidates.any { c ->
             metersBetween(point.latitude, point.longitude, c.board.latitude, c.board.longitude) <= meters ||
                 TripRoute(c.stops).snaps(point).isNotEmpty()
         }
-    }
 
     /** Whether a bus of [line] among [buses] is within [meters] of where the ride waited for boards on that line */
     fun busNear(line: String, buses: List<LineBus>, meters: Double): Boolean {
-        if (ride != null) return false
-        val r = pendingRide ?: return false
-        val board = (legs[r] as JourneyLeg.Ride).candidates.firstOrNull { it.line == line }?.board ?: return false
+        val board = pendingCandidates.firstOrNull { it.line == line }?.board ?: return false
         return buses.any { bus ->
             (bus.direction == null || bus.direction == board.direction) &&
                 metersBetween(bus.latitude, bus.longitude, board.latitude, board.longitude) <= meters
@@ -177,7 +183,7 @@ data class Journey(
     fun withBuses(line: String, buses: List<LineBus>, at: Long): Journey {
         ride?.let { return if (it.plan.line == line) copy(ride = it.withBuses(buses, at)) else this }
         val pending = pendingRide ?: return this
-        val candidate = (legs[pending] as JourneyLeg.Ride).candidates.firstOrNull { it.line == line } ?: return this
+        val candidate = pendingCandidates.firstOrNull { it.line == line } ?: return this
         val fix = fix?.takeIf { at - it.at <= FIX_FRESH_MS } ?: return this
         val before = previousFix ?: return this
         val gap = fix.at - before.at
@@ -213,9 +219,19 @@ data class Journey(
      */
     fun awaits(line: String, stopId: String): Boolean {
         val r = pendingRide ?: return false
-        if (awaitedFor == r && awaited.any { it.stopId == stopId }) return (legs[r] as JourneyLeg.Ride).candidates.any { it.line == line }
-        return (legs[r] as JourneyLeg.Ride).candidates.any { it.line == line && it.board.stopId == stopId }
+        if (awaitedFor == r && awaited.any { it.stopId == stopId }) return pendingCandidates.any { it.line == line }
+        return pendingCandidates.any { it.line == line && it.board.stopId == stopId }
     }
+
+    /**
+     * "I took it" on a wait for [took]'s line, at [at]: the journey with
+     * that bus as the ride waited for, or null when a single ride, or no
+     * ride, waits for it
+     */
+    fun tookIt(took: TookRide, at: Long): Journey? = if (planned && awaits(took.line, took.stopId)) took(took.line, at) else null
+
+    /** "I took the [line]", at [at]: the journey with the ride waited for taken on it, or null when none of its lines is [line] */
+    fun tookLine(line: String, at: Long): Journey? = if (planned && pendingCandidates.any { it.line == line }) took(line, at) else null
 
     /** The waits started for ride [rideIndex], at [at] */
     fun awaiting(rideIndex: Int, keys: List<WaitKey>, at: Long): Journey = copy(awaited = keys, awaitedFor = rideIndex, awaitedAt = at)

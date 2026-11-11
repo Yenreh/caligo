@@ -5,7 +5,6 @@ import com.yenreh.caligo.data.location.LocationUpdates
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.Journey
-import com.yenreh.caligo.domain.JourneyLeg
 import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.domain.JourneyStep
 import com.yenreh.caligo.domain.LiveArrivals
@@ -151,24 +150,19 @@ class TripEngine(
     }
 
     /** "I took it" on a wait for [took]'s line at the ride waited for; whether the trip took it */
-    fun took(took: TookRide): Boolean {
-        val running = journey ?: return false
-        if (!running.planned || !running.awaits(took.line, took.stopId)) return false
-        journey = running.took(took.line, now())
-        // Every wait of the ride goes, the one taken too
-        settleWaits()
-        poke.trySend(Unit)
-        return true
-    }
+    fun took(took: TookRide): Boolean = take(journey?.tookIt(took, now()))
 
     /** "I took the [line]" on the notification: the ride awaited taken on that line, every wait of it ending */
     fun takeLine(line: String) {
-        val running = journey ?: return
-        val pending = running.pendingRide ?: return
-        if (!running.planned || (running.legs[pending] as JourneyLeg.Ride).candidates.none { it.line == line }) return
-        journey = running.took(line, now())
+        take(journey?.tookLine(line, now()))
+    }
+
+    /** The trip goes on as [taken], a bus taken, if any: every wait of the ride goes, the one taken too */
+    private fun take(taken: Journey?): Boolean {
+        journey = taken ?: return false
         settleWaits()
         poke.trySend(Unit)
+        return true
     }
 
     /** The alert of the awaited bus near has gone out, for the ride awaited */
@@ -305,7 +299,7 @@ class TripEngine(
             if (running.awaited.any { it in host.runningWaits() }) return
             if (now - (running.awaitedAt ?: now) < AWAIT_AGAIN_MS) return
         }
-        val candidates = (running.legs[pending] as JourneyLeg.Ride).candidates
+        val candidates = running.pendingCandidates
         // From when the rider gets to the stop
         val walk = (running.phase(now) as? JourneyPhase.Walking)?.millis ?: 0
         val job = scope.launch(start = CoroutineStart.LAZY) {
@@ -378,8 +372,7 @@ class TripEngine(
      */
     private fun linesToAsk(running: Journey, now: Long): List<String> {
         running.ride?.let { return listOf(it.plan.line) }
-        val pending = running.pendingRide ?: return emptyList()
-        val candidates = (running.legs[pending] as JourneyLeg.Ride).candidates
+        val candidates = running.pendingCandidates
         val fix = running.fix
         if (running.phase(now) is JourneyPhase.Waiting) {
             val fresh = fix?.takeIf { now - it.at <= FIX_FRESH_MS }

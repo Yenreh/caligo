@@ -79,22 +79,18 @@ class WaitDesk(
         return WaitStart.STARTED
     }
 
-    override fun stop(key: WaitKey) {
-        if (tripWaits.any { it.key == key }) {
-            tripWaitEnder?.invoke(key, WaitEnding.BELL)
-            return
-        }
-        if (pending.removeAll { it.first.key == key }) publish()
-        service?.end(key, WaitEnding.BELL)
-    }
+    override fun stop(key: WaitKey) = end(key, WaitEnding.BELL)
 
-    override fun took(key: WaitKey) {
+    override fun took(key: WaitKey) = end(key, WaitEnding.TOOK)
+
+    /** End [key] as [ending], wherever it runs: a trip's in the trip service */
+    private fun end(key: WaitKey, ending: WaitEnding) {
         if (tripWaits.any { it.key == key }) {
-            tripWaitEnder?.invoke(key, WaitEnding.TOOK)
+            tripWaitEnder?.invoke(key, ending)
             return
         }
         if (pending.removeAll { it.first.key == key }) publish()
-        service?.end(key, WaitEnding.TOOK)
+        service?.end(key, ending)
     }
 
     /**

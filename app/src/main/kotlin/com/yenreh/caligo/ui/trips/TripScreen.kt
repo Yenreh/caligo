@@ -169,11 +169,7 @@ fun TripRoute(viewModel: TripViewModel, onBack: () -> Unit, tiles: TripMapTiles?
 /** A planner trip by where it goes, a single ride by its line */
 @Composable
 private fun journeyTitle(journey: Journey): String {
-    if (journey.planned) {
-        val last = journey.legs.last()
-        val name = if (last is JourneyLeg.Walk) last.toName else (last as JourneyLeg.Ride).ride.alight.name
-        return stringResource(R.string.trip_to_destination, name)
-    }
+    if (journey.planned) return stringResource(R.string.trip_to_destination, journey.destinationName)
     val took = journey.ride?.plan?.took ?: return stringResource(R.string.trip_channel)
     return stringResource(R.string.trip_title, took.line, took.destination)
 }
@@ -732,13 +728,7 @@ private fun endedText(ended: EndedTrip?): String {
 }
 
 /** Where a trip that reached its end ended: its destination, or the stop got off at */
-private fun reachedName(journey: Journey): String {
-    journey.ride?.plan?.let { return it.stops[it.target].name }
-    return when (val last = journey.legs.last()) {
-        is JourneyLeg.Walk -> last.toName
-        is JourneyLeg.Ride -> last.ride.alight.name
-    }
-}
+private fun reachedName(journey: Journey): String = journey.ride?.plan?.let { it.stops[it.target].name } ?: journey.destinationName
 
 /** Why the trip did not start, with the way to the settings that fix it */
 @Composable
