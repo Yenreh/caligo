@@ -179,6 +179,7 @@ fun TripRoute(viewModel: TripViewModel, onBack: () -> Unit, tiles: TripMapTiles?
         onAlight = viewModel::alightAt,
         awaited = awaited,
         onTookLine = viewModel::takeLine,
+        onNotTaken = viewModel::notTaken,
         rideBuses = rideBuses,
         onChooseLine = viewModel::chooseLine,
         // The screen stays, the trip shown as finished, with Undo
@@ -237,8 +238,10 @@ fun TripScreen(
     onAlight: (Int?) -> Unit = {},
     /** The buses a planner trip awaits for the ride ahead, soonest first */
     awaited: List<AwaitedLine> = emptyList(),
-    /** "I took the A47", while waiting at the stop or near it on foot */
+    /** "I took the A47", while waiting at the stop or near it on foot, or Yes as its bus left */
     onTookLine: (String) -> Unit = {},
+    /** "No" as a bus of that line left */
+    onNotTaken: (String) -> Unit = {},
     /** The buses at the stops of a planner trip's ride ahead, for its lines' rows */
     rideBuses: RideBuses? = null,
     /** Take the ride ahead on that line alone, or on any of its lines when null */
@@ -323,7 +326,7 @@ fun TripScreen(
                                 .background(p.ink),
                         )
                     }
-                    Running(content.journey, subtitle, onAlight, snackbars, awaited, onTookLine, rideBuses, onChooseLine, Modifier.weight(1f))
+                    Running(content.journey, subtitle, onAlight, snackbars, awaited, onTookLine, onNotTaken, rideBuses, onChooseLine, Modifier.weight(1f))
                 }
                 is TripContent.Ended -> LabEmptyState(
                     icon = painterResource(R.drawable.ic_directions_bus),
@@ -443,6 +446,7 @@ private fun Running(
     snackbars: LabSnackbars,
     awaited: List<AwaitedLine>,
     onTookLine: (String) -> Unit,
+    onNotTaken: (String) -> Unit,
     rideBuses: RideBuses?,
     onChooseLine: (String?) -> Unit,
     modifier: Modifier,
@@ -475,6 +479,7 @@ private fun Running(
                                 modifier = Modifier.testTag("trip_then"),
                             )
                             AwaitedTimes(awaited, at, words)
+                            DidYouTake(awaited, lines, words, onTookLine, onNotTaken)
                             // Near the stop, as the notification's buttons show: the bus may come before the rider is there
                             if (journey.nearBoarding(at)) TookButtons(ordered, onTookLine)
                         }
@@ -486,6 +491,7 @@ private fun Running(
                         Heading(words.take(words.lines(ordered)))
                         Detail(words.atStop(phase.leg.ride.board.name))
                         AwaitedTimes(awaited, at, words)
+                        DidYouTake(awaited, lines, words, onTookLine, onNotTaken)
                         TookButtons(ordered, onTookLine)
                     }
                 }
@@ -657,13 +663,31 @@ private fun LineRow(row: LineTimes, words: TripWords, onClick: (() -> Unit)?) {
     }
 }
 
+/** "Did you take the T31?" with Yes and No, while a bus of [lines] awaited has just left the stop */
+@Composable
+private fun DidYouTake(awaited: List<AwaitedLine>, lines: List<String>, words: TripWords, onYes: (String) -> Unit, onNo: (String) -> Unit) {
+    val line = awaited.firstOrNull { it.asking && it.line in lines }?.line ?: return
+    Spacer(Modifier.height(8.dp))
+    Text(
+        words.didYouTake(line),
+        style = MaterialTheme.typography.titleMedium.copy(color = LabTheme.palette.ink),
+        modifier = Modifier.testTag("trip_asking"),
+    )
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LabFilledButton(onClick = { onYes(line) }, modifier = Modifier.weight(1f).testTag("trip_asking_yes")) { Text(words.yes) }
+        LabOutlinedButton(onClick = { onNo(line) }, modifier = Modifier.weight(1f).testTag("trip_asking_no")) { Text(words.no) }
+    }
+}
+
 /** The buses awaited, soonest first: "E21 2 min · T31 5 min"; nothing with none */
 @Composable
 private fun AwaitedTimes(awaited: List<AwaitedLine>, at: Long, words: TripWords) {
-    if (awaited.isEmpty()) return
+    val coming = awaited.filter { !it.asking }
+    if (coming.isEmpty()) return
     Spacer(Modifier.height(4.dp))
     Text(
-        awaited.joinToString(" · ") { words.lineMinutes(it, at) },
+        coming.joinToString(" · ") { words.lineMinutes(it, at) },
         style = MaterialTheme.typography.bodyLarge.copy(color = LabTheme.palette.ink),
         modifier = Modifier.testTag("trip_awaited"),
     )

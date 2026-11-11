@@ -70,8 +70,18 @@ class TripNoticeScreenshotTest {
         captureNotification(context, TripNotifications.finishing(context, journey.startedAt, notice, words), "trip_notice_$name", 411 * 3, dark)
     }
 
+    /** At the stop as the E21 left: did the rider take it? */
+    private fun captureAsking(name: String, dark: Boolean) {
+        TripNotifications.createChannels(context)
+        val words = TripWords(context.resources)
+        val awaited = listOf(AwaitedLine("E21", NOW - MINUTE, asking = true), AwaitedLine("T31", NOW + 4 * MINUTE))
+        val notice = TripNotice.of(waiting, NOW, Alerts(), words, 15_000, awaited = awaited, near = true, busAlertOn = false)
+        captureNotification(context, TripNotifications.build(context, waiting.startedAt, notice, Alerts(), words), "trip_notice_$name", 411 * 3, dark)
+    }
+
     private fun all(language: String, dark: Boolean) {
         val tone = if (dark) "dark" else "light"
+        captureAsking("asking_${language}_$tone", dark)
         captureFinishing("finishing_${language}_$tone", planned, dark)
         capture("walk_${language}_$tone", walking, near = true, dark = dark)
         capture("wait_${language}_$tone", waiting, near = true, dark = dark)
@@ -102,5 +112,6 @@ class TripNoticeScreenshotTest {
         capture("ride_en_font2", riding, near = false, dark = false)
         captureEnded("ended_watch_en_font2", waiting, TripEnding.NO_BUS, dark = false)
         captureFinishing("finishing_en_font2", planned, dark = false)
+        captureAsking("asking_en_font2", dark = false)
     }
 }

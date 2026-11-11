@@ -7,7 +7,7 @@ import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.domain.TripEnding
 
 /**
- * The trip notification's Finish, its "A47: I took it", its Undo and its swipe, handed to the service
+ * The trip notification's Finish, its "A47: I took it", its Yes and No as a bus leaves, its Undo and its swipe, handed to the service
  * through the desk. With no service running, as in a process started
  * anew, there is no trip to end, and the process start has cancelled what
  * was left.
@@ -22,6 +22,10 @@ class TripActionReceiver : BroadcastReceiver() {
             return
         }
         if (intent.action == TripNotifications.ACTION_UNDO) return trips.undo(startedAt)
+        if (intent.action == TripNotifications.ACTION_NOT_TAKEN) {
+            intent.getStringExtra(TripNotifications.EXTRA_LINE)?.let { trips.notTaken(startedAt, it) }
+            return
+        }
         val ending = when (intent.action) {
             TripNotifications.ACTION_FINISH -> TripEnding.FINISHED
             TripNotifications.ACTION_DISMISSED -> TripEnding.DISMISSED

@@ -309,6 +309,108 @@ class TripJourneyTest {
         assertEquals(1, h.tripOwn.size)
     }
 
+    // A forgotten or late "I took it"
+
+    /** The waits' answers: the E21 due at 8 and the T31 at 10 listed until about their time, then gone, as they leave */
+    private fun leaving() = h.waitsAnswering { _, at ->
+        val buses = listOfNotNull(
+            com.yenreh.caligo.domain.entities.BusArrival("E21", "Universidades", NOW + 8 * MINUTE, "637001", out[0].name).takeIf { at < NOW + 8 * MINUTE - 30_000 },
+            com.yenreh.caligo.domain.entities.BusArrival("T31", "Universidades", NOW + 10 * MINUTE, "815001", out[0].name).takeIf { at < NOW + 10 * MINUTE - 30_000 },
+        )
+        WaitAnswer(
+            listOf(com.yenreh.caligo.domain.entities.NearbyStop(out[0].stopId, out[0].name, 20.0, buses, out[0].latitude, out[0].longitude)) +
+                secondArrivals(NOW + 12 * MINUTE).stops,
+            at,
+        )
+    }
+
+    /** At the stop from 4 minutes, the E21 gone at 8 and asked about from 9 */
+    private fun atTheStopAsTheE21Leaves() {
+        leaving()
+        startJourney()
+        h.move(9 * MINUTE + 20_000) { toTheStop(it) }
+    }
+
+    @Test
+    fun asTheBusAwaitedLeavesTheTripAsksSilentlyWhetherTheRiderTookIt() {
+        atTheStopAsTheE21Leaves()
+        assertOne()
+        assertEquals("Did you take the E21?", shown.title())
+        assertEquals(listOf("Yes", "No", "Finish"), shown.actions.map { it.title.toString() })
+        assertTrue("silent", shown.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+        assertTrue(h.desk.awaited.value.any { it.line == "E21" && it.asking })
+    }
+
+    @Test
+    fun yesTakesTheLineFromWhenItsBusLeft() {
+        atTheStopAsTheE21Leaves()
+        h.pressTitled("Yes")
+        h.advance(1)
+        val ride = checkNotNull(h.desk.running.value?.ride)
+        assertEquals("E21", ride.plan.line)
+        assertEquals(NOW + 8 * MINUTE, ride.startedAt)
+        assertTrue(h.awaitedLines.isEmpty())
+    }
+
+    @Test
+    fun noGoesBackToWaitingForTheNextBus() {
+        atTheStopAsTheE21Leaves()
+        h.pressTitled("No")
+        h.advance(1)
+        assertNull(h.desk.running.value?.ride)
+        assertEquals(listOf("T31"), h.awaitedLines)
+        assertEquals("Take the T31 or E21", shown.title())
+        assertEquals(listOf("T31: I took it", "E21: I took it", "Finish"), shown.actions.map { it.title.toString() })
+    }
+
+    @Test
+    fun unansweredTheAskGoesAfterItsMinute() {
+        atTheStopAsTheE21Leaves()
+        h.move(MINUTE) { stop }
+        assertNull(h.desk.running.value?.ride)
+        assertTrue(shown.title(), shown.title().startsWith("Take the"))
+        assertEquals(listOf("T31"), h.awaitedLines)
+    }
+
+    @Test
+    fun aTapSixMinutesAfterTheBusLeftStartsTheRideFromItsLeaving() {
+        atTheStopAsTheE21Leaves()
+        h.move(5 * MINUTE - 20_000) { null }
+        // 14:00, the E21 gone at 8
+        assertEquals(NOW + 14 * MINUTE, h.now())
+        h.desk.takeLine("E21")
+        h.advance(1)
+        val ride = checkNotNull(h.desk.running.value?.ride)
+        assertEquals(NOW + 8 * MINUTE, ride.startedAt)
+        // About six minutes along by the estimate: the ride of six to Calle 5 con Kr 39 nearly done
+        assertTrue(ride.progress(h.now()).along > 0.7 * ride.route.at[ride.plan.target])
+    }
+
+    @Test
+    fun leavingAtABusPaceSoonAfterItsBusLeftTakesTheLineWithNoBusPlaced() {
+        atTheStopAsTheE21Leaves()
+        // No bus positions at all
+        h.source.byLine = { _, _ -> emptyList() }
+        val leftAt = h.now()
+        h.move(MINUTE) { at -> calle5Route.pointAt(40 + (at - leftAt) * 8.0 / 1000) }
+        val ride = checkNotNull(h.desk.running.value?.ride)
+        assertEquals("E21", ride.plan.line)
+        assertEquals(NOW + 8 * MINUTE, ride.startedAt)
+    }
+
+    @Test
+    fun withALineChosenOnlyItsBusAsks() {
+        leaving()
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.desk.chooseLine("T31")
+        h.move(4 * MINUTE + 20_000) { stop }
+        // The E21 left at 8: nothing asked of it
+        assertEquals("Take the T31", shown.title())
+        h.move(2 * MINUTE) { stop }
+        assertEquals("Did you take the T31?", shown.title())
+    }
+
     // Choosing one of the ride's lines
 
     private val waitAsks get() = (h.app.container.waits.source as com.yenreh.caligo.waits.FakeWaitSource).asked.size

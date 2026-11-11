@@ -212,18 +212,31 @@ data class Journey(
         ride?.let { return if (it.plan.line == line) copy(ride = it.withBuses(buses, at)) else this }
         val pending = pendingRide ?: return this
         val candidate = pendingCandidates.firstOrNull { it.line == line } ?: return this
-        val fix = fix?.takeIf { at - it.at <= FIX_FRESH_MS } ?: return this
-        val before = previousFix ?: return this
-        val gap = fix.at - before.at
-        if (gap <= 0 || gap > SPEED_GAP_MS) return this
-        val speed = metersBetween(before.point.latitude, before.point.longitude, fix.point.latitude, fix.point.longitude) / (gap / 1000.0)
-        if (speed < BUS_PACE) return this
-        val route = TripRoute(candidate.stops)
-        val along = (route.follow(0.0, fix.point, fix.at - legStartedAt) as? Follow.On)?.along ?: return this
-        if (along < LEFT_STOP_METERS) return this
-        route.match(buses, candidate.board.direction, along, fix.point) ?: return this
+        val along = leavingOn(line, at) ?: return this
+        val fix = checkNotNull(fix)
+        val before = checkNotNull(previousFix)
+        TripRoute(candidate.stops).match(buses, candidate.board.direction, along, fix.point) ?: return this
         // Boarded about as the fix before was taken
         return took(line, before.at, pending).let { taken -> taken.copy(ride = taken.ride?.fixed(fix)?.withBuses(buses, at)) }
+    }
+
+    /**
+     * Where along [line]'s route the rider is, at [at], when their last two
+     * good fixes, the last one fresh, move at a bus's pace along it past
+     * [LEFT_STOP_METERS] from its stop: leaving on it, as far as fixes
+     * alone tell; null otherwise
+     */
+    fun leavingOn(line: String, at: Long): Double? {
+        if (ride != null) return null
+        val candidate = pendingCandidates.firstOrNull { it.line == line } ?: return null
+        val fix = fix?.takeIf { at - it.at <= FIX_FRESH_MS } ?: return null
+        val before = previousFix ?: return null
+        val gap = fix.at - before.at
+        if (gap <= 0 || gap > SPEED_GAP_MS) return null
+        val speed = metersBetween(before.point.latitude, before.point.longitude, fix.point.latitude, fix.point.longitude) / (gap / 1000.0)
+        if (speed < BUS_PACE) return null
+        val along = (TripRoute(candidate.stops).follow(0.0, fix.point, fix.at - legStartedAt) as? Follow.On)?.along ?: return null
+        return along.takeIf { it >= LEFT_STOP_METERS }
     }
 
     /**

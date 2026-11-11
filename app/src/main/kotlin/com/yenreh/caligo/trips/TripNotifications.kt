@@ -43,6 +43,9 @@ object TripNotifications {
     /** Undo on a trip just finished: it goes on as before */
     const val ACTION_UNDO = "com.yenreh.caligo.trip.UNDO"
 
+    /** "No" to "Did you take the T31?": its bus that left is no longer awaited */
+    const val ACTION_NOT_TAKEN = "com.yenreh.caligo.trip.NOT_TAKEN"
+
     /** "A47: I took it": the trip takes that line for the ride it awaits */
     const val ACTION_TAKE_LINE = "com.yenreh.caligo.trip.TAKE_LINE"
     const val EXTRA_LINE = "line"
@@ -172,7 +175,12 @@ object TripNotifications {
                     .setProgress(notice.progress)
                     .setProgressTrackerIcon(IconCompat.createWithResource(context, trackerIcon(notice.tracker))),
             )
-        // The lines to take first, soonest first, then Finish: three at most, as Android shows
+        // Asking whether the bus that left was taken: Yes and No; else the lines to take first, soonest
+        // first; then Finish: three at most, as Android shows
+        notice.asking?.let { line ->
+            builder.addAction(0, words.yes, actions.takeLine(0, line))
+            builder.addAction(0, words.no, actions.notTaken(line))
+        }
         for ((i, line) in notice.takeLines.withIndex()) builder.addAction(0, words.tookLineAction(line), actions.takeLine(i, line))
         builder.addAction(0, words.finish, actions.finish)
         return builder.asChannelBeforeO(notice.alerting, alerts, VIBRATION).build()
@@ -198,6 +206,17 @@ object TripNotifications {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
+
+    /** "No" to the ask for [line] */
+    internal fun notTaken(context: Context, startedAt: Long, line: String): PendingIntent {
+        val intent = Intent(context, TripActionReceiver::class.java)
+            .setAction(ACTION_NOT_TAKEN)
+            .putExtra(EXTRA_STARTED_AT, startedAt)
+            .putExtra(EXTRA_LINE, line)
+        return PendingIntent.getBroadcast(context, NOT_TAKEN_CODE, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    private const val NOT_TAKEN_CODE = 4
 
     /** "[line]: I took it", the [slot]-th button: straight to the trip service, which runs already */
     internal fun takeLine(context: Context, startedAt: Long, slot: Int, line: String): PendingIntent {
@@ -246,6 +265,14 @@ class TripActions(private val context: Context, val startedAt: Long) {
 
     /** The line each button was last made for, by slot: one slot is one PendingIntent, its line in its extras */
     private val lines = HashMap<Int, Pair<String, PendingIntent>>()
+
+    /** "No" to the ask for [line], made again only for another line */
+    private var notTakenFor: Pair<String, PendingIntent>? = null
+
+    fun notTaken(line: String): PendingIntent {
+        notTakenFor?.let { (made, intent) -> if (made == line) return intent }
+        return TripNotifications.notTaken(context, startedAt, line).also { notTakenFor = line to it }
+    }
 
     /** "[line]: I took it", the [slot]-th button */
     fun takeLine(slot: Int, line: String): PendingIntent {

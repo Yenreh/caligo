@@ -377,6 +377,7 @@
     <string name="trip_line_minutes">%1$s %2$d\u00A0min</string>
     <string name="trip_line_at_stop">%1$s en la parada</string>
     <string name="trip_took_line">Tomé el %1$s</string>
+    <string name="trip_yes">Sí</string>
     <string name="trip_took_line_action">%1$s: lo tomé</string>
     <string name="trip_took_it_hint">Al subir, toca la línea que tomaste</string>
     <string name="trip_lines_or">%1$s o %2$s</string>

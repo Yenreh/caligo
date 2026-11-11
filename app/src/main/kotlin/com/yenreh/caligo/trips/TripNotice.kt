@@ -159,6 +159,8 @@ data class TripNotice(
     val takeLines: List<String> = emptyList(),
     /** The waits' alert channel, in place of [channel], from the alert of an awaited bus on for the rest of its ride */
     val busChannel: WaitChannel? = null,
+    /** The line whose bus just left the stop, while the trip asks with Yes and No whether the rider took it */
+    val asking: String? = null,
 ) {
     /** The channel it posts on */
     val channelId: String get() = busChannel?.id ?: channel.id
@@ -193,7 +195,9 @@ data class TripNotice(
             var tracker = TripTracker.BUS
             // The line chosen for the ride ahead alone, if one is; else each of its lines
             val rideLines = journey.pendingLines
-            val soonest = awaited.filter { it.line in rideLines }.sortedBy { it.dueAt(now) }
+            val soonest = awaited.filter { it.line in rideLines && !it.asking }.sortedBy { it.dueAt(now) }
+            // A bus awaited that left the stop: did the rider take it?
+            val asking = awaited.firstOrNull { it.asking && it.line in rideLines }?.line
             var lines = emptyList<String>()
             when (val phase = journey.phase(now)) {
                 is JourneyPhase.Riding -> return of(phase.trip, now, alerts, words, nextPostIn, warningOn)
@@ -240,13 +244,15 @@ data class TripNotice(
                     lines = ordered
                 }
             }
-            val alerting = busAlertOn && journey.pendingRide != null && journey.busAlertedFor != journey.pendingRide &&
+            // Asking, silent: an update of the trip's one notification, as a wait asks
+            val alerting = asking == null && busAlertOn && journey.pendingRide != null && journey.busAlertedFor != journey.pendingRide &&
                 soonest.firstOrNull()?.let { it.atStop || it.dueAt(now) - now <= BUS_ALERT_WITHIN_MS } == true
             val alerted = journey.pendingRide != null && journey.busAlertedFor == journey.pendingRide
+            val shownTitle = asking?.let { words.didYouTake(it) } ?: title
             return TripNotice(
-                title = title,
+                title = shownTitle,
                 text = text,
-                summary = "$title, $text",
+                summary = "$shownTitle, $text",
                 chip = chip,
                 progress = progress,
                 progressMax = progressMax,
@@ -255,8 +261,9 @@ data class TripNotice(
                 channel = TripChannel.TRIPS,
                 alerting = alerting,
                 timeoutAfter = timeoutAfter(nextPostIn),
-                takeLines = lines.distinct().take(MAX_LINE_ACTIONS),
+                takeLines = if (asking != null) emptyList() else lines.distinct().take(MAX_LINE_ACTIONS),
                 busChannel = if (busAlertOn && (alerting || alerted)) WaitChannel.alert(alerts) else null,
+                asking = asking,
             )
         }
 
@@ -502,6 +509,13 @@ class TripWords(private val resources: Resources) {
     }
 
     fun tookLine(line: String) = resources.getString(R.string.trip_took_line, line)
+
+    /** "Did you take the T31?", as its bus leaves the stop */
+    fun didYouTake(line: String) = resources.getString(R.string.wait_title_asking, line)
+
+    val yes: String get() = resources.getString(R.string.trip_yes)
+
+    val no: String get() = resources.getString(R.string.wait_not_taken)
 
     /** "A47: I took it", a notification button: the line first, so a narrow button keeps it */
     fun tookLineAction(line: String) = resources.getString(R.string.trip_took_line_action, line)

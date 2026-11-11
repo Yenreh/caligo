@@ -103,6 +103,9 @@ interface TripHost {
 
     /** When the soonest bus the trip awaits is due, as its wait reads it at [now]; null with none */
     fun soonestAwaited(now: Long): Long?
+
+    /** The buses the trip awaits that reached their stop and passed, while their waits ask: when each line's left */
+    fun leftBuses(now: Long): Map<String, Long>
 }
 
 /**
@@ -207,9 +210,40 @@ class TripEngine(
     /** "I took it" on a wait for [took]'s line at the ride waited for; whether the trip took it: never one finishing */
     fun took(took: TookRide): Boolean = finishingUntil == null && take(journey?.tookIt(took, now()))
 
-    /** "I took the [line]" on the screen, or "[line]: I took it" on the notification: the ride awaited taken on that line, every wait of it ending */
+    /**
+     * "I took the [line]" on the screen, "[line]: I took it" or Yes on the
+     * notification: the ride awaited taken on that line, every wait of it
+     * ending. Late, within [LATE_TAKE] of that line's awaited bus leaving
+     * the stop, the ride starts from its leaving, where the estimate then
+     * has the bus by now.
+     */
     fun takeLine(line: String) {
-        if (finishingUntil == null) take(journey?.tookLine(line, now()))
+        if (finishingUntil == null) take(journey?.tookLine(line, boardedAt(line)))
+    }
+
+    /** When a ride taken on [line] now began: as its awaited bus left the stop lately, else now */
+    private fun boardedAt(line: String): Long {
+        val now = now()
+        val left = departures.takeIf { departuresFor == journey?.pendingRide }?.get(line) ?: return now
+        return if (now - left in 0..LATE_TAKE_MS) left else now
+    }
+
+    /**
+     * When the bus of each line the trip awaits for ride [departuresFor]
+     * last left its stop, as its wait saw it: a ride taken late counts from
+     * then, and fixes leaving at a bus's pace soon after take that line
+     */
+    private val departures = HashMap<String, Long>()
+    private var departuresFor: Int? = null
+
+    /** A bus of [line] the trip awaits left its stop at [at], as its wait saw it reach the stop and pass */
+    fun busLeft(line: String, at: Long) {
+        val pending = journey?.pendingRide ?: return
+        if (departuresFor != pending) {
+            departures.clear()
+            departuresFor = pending
+        }
+        departures[line] = maxOf(at, departures[line] ?: Long.MIN_VALUE)
     }
 
     /** The trip goes on as [taken], a bus taken, if any: every wait of the ride goes, the one taken too */
@@ -350,6 +384,7 @@ class TripEngine(
                 }
             }
             settleWaits()
+            for ((line, left) in host.leftBuses(now)) busLeft(line, left)
             // Another ride waited for, or none: what was heard of the last goes
             if (rideBuses?.ride != journey?.pendingRide) rideBuses = null
             awaitRide(checkNotNull(journey), now)
@@ -381,11 +416,24 @@ class TripEngine(
     }
 
     /** A fix: read the trip again only when it moved it, not for one too rough to count */
+    /**
+     * A fix: read the trip again only when it moved it, not for one too
+     * rough to count. Leaving the stop at a bus's pace along a line soon
+     * after its awaited bus left, the rider took that bus, whether or not
+     * a round placed it.
+     */
     private fun fixed(fix: TripFix) {
         val running = journey ?: return
         val moved = running.fixed(fix)
         if (moved == running) return
         journey = moved
+        if (finishingUntil == null && departuresFor == moved.pendingRide) {
+            val left = departures.entries.firstOrNull { (line, at) -> fix.at - at in 0..LEFT_ON_WITHIN_MS && moved.leavingOn(line, fix.at) != null }
+            if (left != null) {
+                take(moved.tookLine(left.key, left.value))
+                return
+            }
+        }
         poke.trySend(Unit)
     }
 
@@ -588,6 +636,12 @@ class TripEngine(
         /** How often the trip is read and shown between fixes */
         val BEAT = 15.seconds
 
+        /** A ride taken this long at most after its awaited bus left counts from its leaving */
+        val LATE_TAKE = 15.minutes
+
+        /** Fixes leaving at a bus's pace this long at most after a line's awaited bus left take that line */
+        val LEFT_ON_WITHIN = 5.minutes
+
         /** How long a Finish can be undone, from the screen, the shade or the lock screen */
         val UNDO_WINDOW = 8.seconds
 
@@ -615,6 +669,8 @@ class TripEngine(
         private val AWAIT_AGAIN_MS = AWAIT_AGAIN.inWholeMilliseconds
         private val AWAITED_NEAR_MS = AWAITED_NEAR.inWholeMilliseconds
         private val UNDO_WINDOW_MS = UNDO_WINDOW.inWholeMilliseconds
+        private val LATE_TAKE_MS = LATE_TAKE.inWholeMilliseconds
+        private val LEFT_ON_WITHIN_MS = LEFT_ON_WITHIN.inWholeMilliseconds
         private val FIX_FRESH_MS = Trip.FIX_FRESH.inWholeMilliseconds
         private const val MIN_GAP_MS = 1_000L
 

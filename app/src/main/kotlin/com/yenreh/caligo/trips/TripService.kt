@@ -208,19 +208,41 @@ class TripService : Service(), TripHost {
         return false
     }
 
-    /** The buses the trip awaits for the ride ahead, as their waits read now, soonest first */
-    private fun awaitedLines(journey: Journey, now: Long): List<AwaitedLine> = waitEngine.waits
-        .filter { it.key in journey.awaited }
-        .mapNotNull { wait ->
-            when (val status = wait.status(now)) {
-                is WaitStatus.Coming -> AwaitedLine(wait.last.line, status.arrivalTime)
-                WaitStatus.AtStop -> AwaitedLine(wait.last.line, wait.last.arrivalTime, atStop = true)
-                else -> null
+    /**
+     * The buses the trip awaits for the ride ahead, as their waits read
+     * now, soonest first; then, asking, each line's bus that left the stop
+     * while its wait asks whether the rider took it
+     */
+    private fun awaitedLines(journey: Journey, now: Long): List<AwaitedLine> {
+        val waits = waitEngine.waits.filter { it.key in journey.awaited }
+        val coming = waits
+            .mapNotNull { wait ->
+                when (val status = wait.status(now)) {
+                    is WaitStatus.Coming -> AwaitedLine(wait.last.line, status.arrivalTime)
+                    WaitStatus.AtStop -> AwaitedLine(wait.last.line, wait.last.arrivalTime, atStop = true)
+                    else -> null
+                }
             }
+            .groupBy { it.line }
+            .map { (_, buses) -> buses.minBy { it.dueAt(now) } }
+            .sortedBy { it.dueAt(now) }
+        val asking = waits
+            .filter { it.status(now) == WaitStatus.Asking }
+            .map { AwaitedLine(it.last.line, departureOf(it), asking = true) }
+            .distinctBy { it.line }
+        return coming + asking
+    }
+
+    /** When [wait]'s bus left its stop, as far as it saw */
+    private fun departureOf(wait: Wait): Long = wait.reachedAt ?: wait.last.arrivalTime
+
+    /** "No" to "Did you take the [line]?": its bus that left is no longer awaited, and the next is asked for */
+    internal fun notTaken(line: String) {
+        val now = desk.now()
+        for (wait in waitEngine.waits.toList()) {
+            if (wait.last.line == line && wait.status(now) == WaitStatus.Asking) waitEngine.end(wait.key, WaitEnding.PASSED)
         }
-        .groupBy { it.line }
-        .map { (_, buses) -> buses.minBy { it.dueAt(now) } }
-        .sortedBy { it.dueAt(now) }
+    }
 
     // allowed() holds before every post: the app's notifications are on
     @SuppressLint("MissingPermission")
@@ -290,7 +312,10 @@ class TripService : Service(), TripHost {
         desk.rideBusesChanged(buses)
     }
 
-    override fun soonestAwaited(now: Long): Long? = engine.journey?.let { awaitedLines(it, now).firstOrNull()?.dueAt(now) }
+    override fun leftBuses(now: Long): Map<String, Long> =
+        engine.journey?.let { journey -> awaitedLines(journey, now).filter { it.asking }.associate { it.line to it.arrivalTime } }.orEmpty()
+
+    override fun soonestAwaited(now: Long): Long? = engine.journey?.let { awaitedLines(it, now).firstOrNull { line -> !line.asking }?.dueAt(now) }
 
     /**
      * What the trip's wait engine asks of the one that shows its waits:
@@ -303,7 +328,10 @@ class TripService : Service(), TripHost {
         // The trip's own notification carries them: nothing of their own
         override fun show(waits: List<Wait>, now: Long, nextPostIn: Long) {}
 
-        override fun ended(wait: Wait, ending: WaitEnding) {}
+        // A bus that left: a ride taken on it late counts from then
+        override fun ended(wait: Wait, ending: WaitEnding) {
+            if (ending == WaitEnding.PASSED && engine.journey?.awaited?.contains(wait.key) == true) engine.busLeft(wait.last.line, departureOf(wait))
+        }
 
         // What its stop's answers list of every line: the trip screen's rows
         override fun answered(point: AskPoint, answer: WaitAnswer) {

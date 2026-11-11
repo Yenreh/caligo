@@ -58,8 +58,11 @@ interface TripControl {
     /** The buses the trip awaits for the ride ahead, soonest first */
     val awaited: StateFlow<List<AwaitedLine>>
 
-    /** "I took the [line]" on the screen: the ride awaited taken on that line */
+    /** "I took the [line]" on the screen, or Yes as its bus left: the ride awaited taken on that line */
     fun takeLine(line: String)
+
+    /** "No" on the screen as a bus of [line] left: back to waiting for the next */
+    fun notTaken(line: String)
 
     /** Get off at [alight] instead, or just follow the ride when null */
     fun alightAt(alight: Int?)
@@ -211,6 +214,16 @@ class TripDesk(
         val running = serviceJourney ?: return
         if (running.startedAt != startedAt) return
         if (ending == TripEnding.FINISHED) service?.finish() else service?.end(ending)
+    }
+
+    override fun notTaken(line: String) {
+        service?.notTaken(line)
+    }
+
+    /** The notification's "No" for [line], for the trip started at [startedAt] */
+    fun notTaken(startedAt: Long, line: String) {
+        val running = serviceJourney ?: return
+        if (running.startedAt == startedAt) service?.notTaken(line)
     }
 
     /** The notification's Undo, for the trip started at [startedAt] */

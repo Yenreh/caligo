@@ -171,6 +171,9 @@ class TripViewModel(
     /** "I took the [line]" on the screen, while a planner trip waits at the stop */
     fun takeLine(line: String) = trips.takeLine(line)
 
+    /** "No" as a bus of [line] left: back to waiting for the next */
+    fun notTaken(line: String) = trips.notTaken(line)
+
     /** Take the ride ahead on [line] alone, or on any of its lines when null */
     fun chooseLine(line: String?) = trips.chooseLine(line)
 

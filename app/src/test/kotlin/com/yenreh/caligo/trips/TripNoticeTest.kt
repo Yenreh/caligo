@@ -298,6 +298,34 @@ class TripNoticeTest {
     }
 
     @Test
+    fun asABusLeftItAsksWithYesAndNoAndNoAlert() {
+        val asking = listOf(AwaitedLine("E21", NOW - MINUTE, asking = true), AwaitedLine("T31", NOW + MINUTE))
+        val notice = TripNotice.of(waiting, NOW, Alerts(), words, 15_000, awaited = asking, near = true)
+        assertEquals("Did you take the E21?", notice.title)
+        assertEquals("E21", notice.asking)
+        assertEquals(emptyList<String>(), notice.takeLines)
+        // The T31 a minute away alerts no more while it asks
+        assertFalse(notice.alerting)
+        assertEquals("At Plaza de Cayzedo A1 · T31 1${NBSP}min", notice.text)
+        val built = TripNotifications.build(context, NOW, notice, Alerts(), words)
+        assertEquals(listOf("Yes", "No", "Finish"), built.actions.map { it.title.toString() })
+        assertEquals(TripNotifications.ACTION_TAKE_LINE, org.robolectric.Shadows.shadowOf(built.actions[0].actionIntent).savedIntent.action)
+        assertEquals(TripNotifications.ACTION_NOT_TAKEN, org.robolectric.Shadows.shadowOf(built.actions[1].actionIntent).savedIntent.action)
+        assertEquals("E21", org.robolectric.Shadows.shadowOf(built.actions[1].actionIntent).savedIntent.getStringExtra(TripNotifications.EXTRA_LINE))
+        // With the T31 chosen, the E21 that left asks nothing
+        assertEquals(null, TripNotice.of(waiting.choosing("T31"), NOW, Alerts(), words, 15_000, awaited = asking, near = true).asking)
+    }
+
+    @Test
+    @Config(qualifiers = "es")
+    fun asABusLeftItAsksInSpanish() {
+        val es = TripWords(ApplicationProvider.getApplicationContext<Context>().resources)
+        val notice = TripNotice.of(waiting, NOW, Alerts(), es, 15_000, awaited = listOf(AwaitedLine("T31", NOW - MINUTE, asking = true)), near = true)
+        assertEquals("¿Tomaste el T31?", notice.title)
+        assertEquals(listOf("Sí", "No", "Terminar"), TripNotifications.build(context, NOW, notice, Alerts(), es).actions.map { it.title.toString() })
+    }
+
+    @Test
     fun withALineChosenTheNoticeTakesItAlone() {
         val chosen = waiting.choosing("T31")
         val notice = phaseNotice(chosen)

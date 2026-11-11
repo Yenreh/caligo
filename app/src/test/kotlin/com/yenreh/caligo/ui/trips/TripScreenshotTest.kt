@@ -295,6 +295,42 @@ class TripScreenshotTest {
             .took("T31", NOW - 8 * MINUTE).copy(index = 2, ride = null, legStartedAt = NOW - MINUTE),
     )
 
+    /** At the stop as the E21 left: did the rider take it? */
+    private fun asking(name: String) {
+        val journey = toTheStop.fixed(
+            com.yenreh.caligo.trips.JourneyFixtures.fixAt(com.yenreh.caligo.domain.GeoPoint(TripFixtures.out[0].latitude, TripFixtures.out[0].longitude), NOW),
+        )
+        compose.setContentAt(NOW) {
+            CaliGoTheme {
+                TripScreen(
+                    content = TripContent.Running(journey),
+                    title = "Viaje a Unicentro",
+                    awaited = listOf(
+                        com.yenreh.caligo.trips.AwaitedLine("E21", NOW - MINUTE, asking = true),
+                        com.yenreh.caligo.trips.AwaitedLine("T31", NOW + 4 * MINUTE),
+                    ),
+                )
+            }
+        }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasTestTag("trip_asking")).fetchSemanticsNodes().isNotEmpty() }
+        compose.captureWindow(name)
+    }
+
+    @Test
+    fun askingLight() = asking("trip_asking_light")
+
+    @Test
+    @Config(qualifiers = "+night")
+    fun askingDark() = asking("trip_asking_dark")
+
+    @Test
+    @Config(qualifiers = "+en")
+    fun askingEnglish() = asking("trip_asking_en")
+
+    @Test
+    @Config(fontScale = 2f)
+    fun askingFontScale2() = asking("trip_asking_font2")
+
     @Test
     fun mapChosenLight() = map("trip_map_chosen_light", toTheStop.choosing("T31"), dark = false, heard = heardAtTheStop(toTheStop))
 

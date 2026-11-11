@@ -141,6 +141,13 @@ class FakeTripControl(private val now: Long = TripFixtures.NOW) : TripControl {
         return true
     }
 
+    val notTaken = mutableListOf<String>()
+
+    override fun notTaken(line: String) {
+        notTaken.add(line)
+        awaited.value = awaited.value.filter { !(it.asking && it.line == line) }
+    }
+
     override fun takeLine(line: String) {
         takenLines.add(line)
         running.value?.tookLine(line, now)?.let { running.value = it }

@@ -550,6 +550,40 @@ class TripScreenTest {
     }
 
     @Test
+    fun asABusLeftThePanelAsksWithYesAndNo() {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        trips.running.value = checkNotNull(trips.running.value).fixed(
+            com.yenreh.caligo.trips.JourneyFixtures.fixAt(com.yenreh.caligo.domain.GeoPoint(TripFixtures.out[0].latitude, TripFixtures.out[0].longitude), NOW),
+        )
+        trips.awaited.value = listOf(
+            com.yenreh.caligo.trips.AwaitedLine("E21", NOW - 60_000, asking = true),
+            com.yenreh.caligo.trips.AwaitedLine("T31", NOW + 4 * 60_000),
+        )
+        show(took = null)
+        waitFor("trip_asking")
+        compose.onNode(hasText("Did you take the E21?")).assertExists()
+        // Only the bus still coming has its time
+        compose.onNode(hasText("T31 4${NBSP}min")).assertExists()
+        compose.assertControlsAccessible()
+        compose.onNodeWithTag("trip_asking_no").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.notTaken.isNotEmpty() }
+        assertEquals(listOf("E21"), trips.notTaken)
+        compose.waitUntil(WAIT_TIMEOUT_MS) { !exists("trip_asking") }
+    }
+
+    @Test
+    fun yesOnThePanelTakesThatLine() {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        trips.awaited.value = listOf(com.yenreh.caligo.trips.AwaitedLine("T31", NOW - 60_000, asking = true))
+        show(took = null)
+        waitFor("trip_asking")
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_asking_yes"))
+        compose.onNodeWithTag("trip_asking_yes").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.takenLines.isNotEmpty() }
+        assertEquals(listOf("T31"), trips.takenLines)
+    }
+
+    @Test
     fun aRideFollowedWithNoStopHasNoArrival() {
         show()
         waitFor("trip_skip")
