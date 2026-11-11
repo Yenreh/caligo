@@ -102,7 +102,7 @@ enum class TripEnding {
     /** The notification swiped away */
     DISMISSED,
 
-    /** Two hours */
+    /** The longest a trip lasts: two hours on a ride, three on a planner trip */
     TIME_LIMIT,
 
     /** The rider off the route for good */

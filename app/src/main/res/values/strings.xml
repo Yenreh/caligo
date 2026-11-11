@@ -354,7 +354,7 @@
     <string name="trip_ended_reached">You reached %1$s.</string>
     <string name="trip_ended_finished">The trip is finished.</string>
     <string name="trip_ended_dismissed">The trip ended as its notification was dismissed.</string>
-    <string name="trip_ended_time_limit">The trip ended after 2 hours.</string>
+    <string name="trip_ended_time_limit">The trip ended: it ran too long.</string>
     <string name="trip_ended_off_route">You left the route, so the trip ended.</string>
     <string name="trip_ended_blocked">Notifications are off, so the trip ended.</string>
     <string name="trip_ended_no_location">Without your location the ride cannot be followed.</string>

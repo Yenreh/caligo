@@ -351,7 +351,7 @@
     <string name="trip_ended_reached">Llegaste a %1$s.</string>
     <string name="trip_ended_finished">El viaje terminó.</string>
     <string name="trip_ended_dismissed">El viaje terminó al descartar su notificación.</string>
-    <string name="trip_ended_time_limit">El viaje terminó tras 2 horas.</string>
+    <string name="trip_ended_time_limit">El viaje terminó: duró demasiado.</string>
     <string name="trip_ended_off_route">Saliste de la ruta, así que el viaje terminó.</string>
     <string name="trip_ended_blocked">Las notificaciones están desactivadas, así que el viaje terminó.</string>
     <string name="trip_ended_no_location">Sin tu ubicación no se puede seguir el viaje.</string>
