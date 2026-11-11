@@ -4,6 +4,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import com.yenreh.caligo.data.datasources.ServerApiException
+import com.yenreh.caligo.data.location.KnownFix
 import com.yenreh.caligo.data.location.LocationAccuracy
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.data.location.LocationPermissionException
@@ -358,9 +359,13 @@ class FakeLocationSource(
         return answer
     }
 
-    override suspend fun lastKnownPosition(): GeoPoint? {
+    /** How old and how exact [lastKnown] is: by default too old to plan from as it is */
+    var lastKnownAge: Long = 10 * 60_000L
+    var lastKnownAccuracy: Double? = 20.0
+
+    override suspend fun lastKnownFix(): KnownFix? {
         if (permission != LocationPermission.GRANTED) throw LocationPermissionException()
-        return lastKnown
+        return lastKnown?.let { KnownFix(it, lastKnownAccuracy, lastKnownAge) }
     }
 
     override suspend fun currentPosition(accuracy: LocationAccuracy, timeLimit: Duration): GeoPoint {

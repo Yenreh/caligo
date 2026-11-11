@@ -3,6 +3,7 @@ package com.yenreh.caligo.data.location
 import com.yenreh.caligo.domain.GeoPoint
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /** Whether the app may read the location, as geolocator reported it */
@@ -17,8 +18,23 @@ enum class LocationPermission {
     GRANTED,
 }
 
-/** How exact a fix to ask for, as geolocator's accuracies the app uses */
-enum class LocationAccuracy { LOW, HIGH }
+/**
+ * How exact a fix to ask for, as geolocator's accuracies the app uses, and
+ * balanced: Wi-Fi and cell towers, which the platform answers within a
+ * second or two where the GPS takes many
+ */
+enum class LocationAccuracy { LOW, BALANCED, HIGH }
+
+/** A fix the device already had: where, within [accuracyMeters] when known, taken [ageMillis] ago */
+data class KnownFix(val point: GeoPoint, val accuracyMeters: Double?, val ageMillis: Long) {
+    /** Recent and close enough to plan from as it is, with no fresh fix asked */
+    val fresh: Boolean get() = ageMillis <= FRESH_AGE.inWholeMilliseconds && (accuracyMeters ?: Double.MAX_VALUE) <= FRESH_ACCURACY_METERS
+
+    companion object {
+        val FRESH_AGE = 2.minutes
+        const val FRESH_ACCURACY_METERS = 100.0
+    }
+}
 
 /** A position asked for without the permission, as geolocator's PermissionDeniedException */
 class LocationPermissionException : Exception("Location permission not granted")
@@ -55,10 +71,11 @@ interface LocationSource {
     suspend fun requestPermission(): LocationPermission
 
     /**
-     * Where the device was last placed, instantly and without GPS; null when
-     * unknown. Throws [LocationPermissionException] without the permission.
+     * Where the device was last placed, how exactly and how long ago,
+     * instantly and without GPS; null when unknown. Throws
+     * [LocationPermissionException] without the permission.
      */
-    suspend fun lastKnownPosition(): GeoPoint?
+    suspend fun lastKnownFix(): KnownFix?
 
     /**
      * A fresh fix at [accuracy], the first the provider gives. Throws
@@ -67,6 +84,9 @@ interface LocationSource {
      */
     suspend fun currentPosition(accuracy: LocationAccuracy, timeLimit: Duration): GeoPoint
 }
+
+/** Where the device was last placed, as [LocationSource.lastKnownFix] has it, its age and accuracy aside */
+suspend fun LocationSource.lastKnownPosition(): GeoPoint? = lastKnownFix()?.point
 
 /** Raised when the device location cannot be read */
 class LocationUnavailableException(val permanentlyDenied: Boolean = false) : Exception()
@@ -78,7 +98,10 @@ class LocationUnavailableException(val permanentlyDenied: Boolean = false) : Exc
  * screen can quietly use the location it already has without putting a
  * system prompt in front of someone who just opened it.
  */
-suspend fun LocationSource.currentDevicePosition(requestPermission: Boolean = true): GeoPoint {
+suspend fun LocationSource.currentDevicePosition(
+    requestPermission: Boolean = true,
+    accuracy: LocationAccuracy = LocationAccuracy.HIGH,
+): GeoPoint {
     if (!isServiceEnabled()) throw LocationUnavailableException()
 
     var permission = checkPermission()
@@ -86,15 +109,18 @@ suspend fun LocationSource.currentDevicePosition(requestPermission: Boolean = tr
     if (permission == LocationPermission.DENIED_FOREVER) throw LocationUnavailableException(permanentlyDenied = true)
     if (permission == LocationPermission.DENIED) throw LocationUnavailableException()
 
-    return currentPosition(LocationAccuracy.HIGH, CURRENT_POSITION_TIME_LIMIT)
+    return currentPosition(accuracy, CURRENT_POSITION_TIME_LIMIT)
 }
 
 /**
  * Where the device was last placed, instantly and without GPS; null when
  * unknown or without the permission already given
  */
-suspend fun LocationSource.lastKnownDevicePosition(): GeoPoint? = try {
-    lastKnownPosition()
+suspend fun LocationSource.lastKnownDevicePosition(): GeoPoint? = lastKnownDeviceFix()?.point
+
+/** As [lastKnownDevicePosition], with how exact and how old the fix is */
+suspend fun LocationSource.lastKnownDeviceFix(): KnownFix? = try {
+    lastKnownFix()
 } catch (e: Exception) {
     if (e is CancellationException) throw e
     null

@@ -163,6 +163,33 @@ class AndroidLocationSourceTest {
     }
 
     @Test
+    fun theLastFixSaysHowOldAndHowExactItIs() = runTest {
+        grant(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        shadow.simulateLocation(fix(LocationManager.NETWORK_PROVIDER, 3.45, -76.53, ageMillis = 90_000, accuracy = 40f))
+
+        val known = checkNotNull(AndroidLocationSource(application, now = { takenAt }).lastKnownFix())
+        assertEquals(KnownFix(GeoPoint(3.45, -76.53), 40.0, 90_000), known)
+        assertTrue(known.fresh)
+        assertFalse(known.copy(ageMillis = 3 * 60_000).fresh)
+        assertFalse(known.copy(accuracyMeters = 500.0).fresh)
+    }
+
+    @Test
+    fun aBalancedFixIsTheOneThePlatformHandsOver() = runTest {
+        grant(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+
+        val position = async { source.currentPosition(LocationAccuracy.BALANCED, 15.seconds) }
+        runCurrent()
+        shadowOf(Looper.getMainLooper()).idle()
+        shadow.simulateLocation(fix("fused", 3.4516, -76.532))
+        shadow.simulateLocation(fix(LocationManager.NETWORK_PROVIDER, 3.4516, -76.532))
+        shadowOf(Looper.getMainLooper()).idle()
+        runCurrent()
+
+        assertEquals(GeoPoint(3.4516, -76.532), position.await())
+    }
+
+    @Test
     fun noFixKnownIsNull() = runTest {
         grant(Manifest.permission.ACCESS_COARSE_LOCATION)
 

@@ -11,9 +11,10 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.R
 import com.yenreh.caligo.data.json.dartDouble
+import com.yenreh.caligo.data.location.LocationAccuracy
 import com.yenreh.caligo.data.location.LocationSource
 import com.yenreh.caligo.data.location.currentDevicePosition
-import com.yenreh.caligo.data.location.lastKnownDevicePosition
+import com.yenreh.caligo.data.location.lastKnownDeviceFix
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.FadingArrivals
 import com.yenreh.caligo.domain.LiveArrivals
@@ -393,25 +394,57 @@ class PlanTripViewModel(
 
     /** Start at once from where the device was last seen, as the map does, then refine with a fresh fix */
     private suspend fun startFromDevice() {
-        val known = location.lastKnownDevicePosition()
+        val known = location.lastKnownDeviceFix()
         if (known != null && state.value.from == null) {
-            state.update { it.copy(from = devicePlace(known)) }
+            state.update { it.copy(from = devicePlace(known.point)) }
             plan()
         }
-        locate()
+        when {
+            // Recent and close: as it is, nothing asked
+            known != null && known.fresh -> return
+            // Planned from it already: refined quietly, as fast as the platform can
+            known != null -> refine()
+            // No origin yet: the spinner until a fix comes, the fastest there is
+            else -> locate(accuracy = LocationAccuracy.BALANCED)
+        }
     }
 
+    /** Refine an origin that is the device, quietly: a balanced fix, planned again only once it has moved */
+    private fun refine() {
+        if (refining || state.value.locating) return
+        refining = true
+        viewModelScope.launch {
+            try {
+                val position = location.currentDevicePosition(requestPermission = false, accuracy = LocationAccuracy.BALANCED)
+                val from = state.value.from ?: return@launch
+                if (!from.isDevice || state.value.locating) return@launch
+                if (metersBetween(from.latitude, from.longitude, position.latitude, position.longitude) < REFINE_METERS) return@launch
+                state.update { it.copy(from = devicePlace(position)) }
+                plan()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // Quietly: the origin stays where the device was last seen
+            } finally {
+                refining = false
+            }
+        }
+    }
+
+    /** A quiet refinement on its way, with no spinner */
+    private var refining = false
+
     /**
-     * Ask for a fresh fix. Quietly, it only refines an origin that is the
-     * device and has moved; [force] is the button, which always takes it
-     * and may ask for the permission.
+     * Ask for a fresh fix at [accuracy], the spinner on meanwhile. Quietly,
+     * it only refines an origin that is the device and has moved; [force]
+     * is the button, which always takes it, at high accuracy, and may ask
+     * for the permission.
      */
-    fun locate(force: Boolean = false) {
+    fun locate(force: Boolean = false, accuracy: LocationAccuracy = LocationAccuracy.HIGH) {
         if (state.value.locating) return
         state.update { it.copy(locating = true) }
         viewModelScope.launch {
             try {
-                val position = location.currentDevicePosition(requestPermission = force)
+                val position = location.currentDevicePosition(requestPermission = force, accuracy = accuracy)
                 val from = state.value.from
                 if (!force && from != null) {
                     if (!from.isDevice) return@launch
@@ -441,7 +474,7 @@ class PlanTripViewModel(
         state.update { if (origin) it.copy(from = place) else it.copy(to = place) }
         plan()
         // The picker may hand over where the device was last seen
-        if (place.isDevice) locate()
+        if (place.isDevice) refine()
     }
 
     fun swap() {

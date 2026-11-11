@@ -12,7 +12,9 @@ import com.yenreh.caligo.data.location.LocationAccuracy
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.data.location.LocationPermissionException
 import com.yenreh.caligo.data.location.LocationSource
+import com.yenreh.caligo.data.location.KnownFix
 import com.yenreh.caligo.data.location.currentDevicePosition
+import com.yenreh.caligo.data.location.lastKnownPosition
 import com.yenreh.caligo.domain.ARRIVALS_REACH_METERS
 import com.yenreh.caligo.domain.FadingArrivals
 import com.yenreh.caligo.domain.GeoPoint
@@ -843,7 +845,7 @@ private object NoLocation : LocationSource {
 
     override suspend fun requestPermission() = LocationPermission.DENIED
 
-    override suspend fun lastKnownPosition(): GeoPoint = throw LocationPermissionException()
+    override suspend fun lastKnownFix(): KnownFix = throw LocationPermissionException()
 
     override suspend fun currentPosition(accuracy: LocationAccuracy, timeLimit: Duration): GeoPoint =
         throw LocationPermissionException()

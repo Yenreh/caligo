@@ -174,7 +174,8 @@ class PlacePickerViewModelTest {
         gate.complete(Unit)
 
         assertEquals(PlacePickerEvent.Picked(TripPlace(3.41, -76.51, "My location", isDevice = true)), model.events.first())
-        assertEquals(1, location.currentAsked.size)
+        // None known: the fastest fresh fix, the planner refining it after
+        assertEquals(listOf(com.yenreh.caligo.data.location.LocationAccuracy.BALANCED), location.currentAsked.map { it.first })
         assertFalse(model.screen.value.locating)
     }
 

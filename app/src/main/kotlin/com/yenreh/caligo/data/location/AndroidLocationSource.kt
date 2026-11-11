@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
+import android.location.LocationRequest
 import android.os.Build
+import android.os.CancellationSignal
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,7 +39,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * on screen. The question outlives the activity, so a rotation while the
  * prompt shows still delivers the answer.
  */
-class AndroidLocationSource(private val context: Context) : LocationSource {
+class AndroidLocationSource(
+    private val context: Context,
+    private val now: () -> Long = System::currentTimeMillis,
+) : LocationSource {
     private val manager: LocationManager? = context.getSystemService(LocationManager::class.java)
 
     /** The activity to ask from, and its way to ask; main thread only */
@@ -102,7 +107,7 @@ class AndroidLocationSource(private val context: Context) : LocationSource {
 
     // The permission is checked first, as geolocator does before reading
     @SuppressLint("MissingPermission")
-    override suspend fun lastKnownPosition(): GeoPoint? {
+    override suspend fun lastKnownFix(): KnownFix? {
         if (checkPermission() != LocationPermission.GRANTED) throw LocationPermissionException()
         val manager = manager ?: return null
 
@@ -116,7 +121,13 @@ class AndroidLocationSource(private val context: Context) : LocationSource {
             } ?: continue
             if (isBetterLocation(location, best)) best = location
         }
-        return best?.let { GeoPoint(it.latitude, it.longitude) }
+        return best?.let {
+            KnownFix(
+                GeoPoint(it.latitude, it.longitude),
+                accuracyMeters = if (it.hasAccuracy()) it.accuracy.toDouble() else null,
+                ageMillis = (now() - it.time).coerceAtLeast(0),
+            )
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -125,6 +136,7 @@ class AndroidLocationSource(private val context: Context) : LocationSource {
         val manager = manager ?: throw LocationServiceDisabledException()
         if (!isServiceEnabled()) throw LocationServiceDisabledException()
         val provider = provider(manager) ?: throw LocationServiceDisabledException()
+        if (accuracy == LocationAccuracy.BALANCED) return balanced(manager, provider, timeLimit)
 
         val request = LocationRequestCompat.Builder(0)
             .setMinUpdateIntervalMillis(0)
@@ -132,6 +144,7 @@ class AndroidLocationSource(private val context: Context) : LocationSource {
             .setQuality(
                 when (accuracy) {
                     LocationAccuracy.LOW -> LocationRequestCompat.QUALITY_LOW_POWER
+                    LocationAccuracy.BALANCED -> LocationRequestCompat.QUALITY_BALANCED_POWER_ACCURACY
                     LocationAccuracy.HIGH -> LocationRequestCompat.QUALITY_HIGH_ACCURACY
                 },
             )
@@ -159,6 +172,44 @@ class AndroidLocationSource(private val context: Context) : LocationSource {
                     ContextCompat.getMainExecutor(context),
                     listener,
                 )
+            }
+        } ?: throw LocationTimeoutException(timeLimit)
+        return GeoPoint(fix.latitude, fix.longitude)
+    }
+
+    /**
+     * One fix at balanced accuracy, as the platform hands it over: on
+     * Android 12 and later the fused provider asked for balanced power
+     * through LocationManager.getCurrentLocation with a LocationRequest;
+     * before, the network provider, else [provider], through
+     * LocationManagerCompat.getCurrentLocation. Both may answer at once with
+     * a fix a few seconds old: the platform's from Android 11 "may return
+     * locations from the very recent past (on the order of several
+     * seconds), but will never return older locations", and the compat one
+     * before it takes a last known fix under 10 s old.
+     */
+    @SuppressLint("MissingPermission")
+    private suspend fun balanced(manager: LocationManager, provider: String, timeLimit: Duration): GeoPoint {
+        val enabled = manager.getProviders(true)
+        val fix = withTimeoutOrNull(timeLimit) {
+            suspendCancellableCoroutine<Location?> { continuation ->
+                val cancel = CancellationSignal()
+                continuation.invokeOnCancellation { cancel.cancel() }
+                val executor = ContextCompat.getMainExecutor(context)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && LocationManager.FUSED_PROVIDER in enabled) {
+                    val request = LocationRequest.Builder(0)
+                        .setQuality(LocationRequest.QUALITY_BALANCED_POWER_ACCURACY)
+                        .setDurationMillis(timeLimit.inWholeMilliseconds)
+                        .build()
+                    manager.getCurrentLocation(LocationManager.FUSED_PROVIDER, request, cancel, executor) {
+                        if (continuation.isActive) continuation.resume(it)
+                    }
+                } else {
+                    val network = LocationManager.NETWORK_PROVIDER.takeIf { it in enabled } ?: provider
+                    LocationManagerCompat.getCurrentLocation(manager, network, cancel, executor) {
+                        if (continuation.isActive) continuation.resume(it)
+                    }
+                }
             }
         } ?: throw LocationTimeoutException(timeLimit)
         return GeoPoint(fix.latitude, fix.longitude)

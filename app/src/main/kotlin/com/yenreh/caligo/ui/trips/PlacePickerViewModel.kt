@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.R
+import com.yenreh.caligo.data.location.LocationAccuracy
 import com.yenreh.caligo.data.location.LocationSource
 import com.yenreh.caligo.data.location.currentDevicePosition
 import com.yenreh.caligo.data.location.lastKnownDevicePosition
@@ -222,16 +223,17 @@ class PlacePickerViewModel(
 
     /**
      * The device: where it was last seen answers at once, and the planner
-     * then refines it with a fresh fix; without one, a fresh fix, asking
-     * for the permission. Once at a time: the Flutter row could be tapped
-     * again before its spinner showed.
+     * then refines it quietly; without one, a fresh fix at balanced
+     * accuracy, the fastest the platform gives, asking for the permission.
+     * Once at a time: the Flutter row could be tapped again before its
+     * spinner showed.
      */
     fun useDevice() {
         if (state.value.locating) return
         state.update { it.copy(locating = true) }
         viewModelScope.launch {
             try {
-                val position = location.lastKnownDevicePosition() ?: location.currentDevicePosition()
+                val position = location.lastKnownDevicePosition() ?: location.currentDevicePosition(accuracy = LocationAccuracy.BALANCED)
                 reports.send(
                     PlacePickerEvent.Picked(
                         TripPlace(position.latitude, position.longitude, names.myLocation, isDevice = true),

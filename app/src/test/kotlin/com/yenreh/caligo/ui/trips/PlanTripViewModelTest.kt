@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.datasources.ServerApiException
+import com.yenreh.caligo.data.location.LocationAccuracy
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.LiveArrivals
@@ -480,6 +481,85 @@ class PlanTripViewModelTest {
     }
 
     // The device
+
+    // Where the device is, on opening
+
+    @Test
+    fun aRecentCloseLastFixIsPlannedFromAsItIsWithNothingAsked() = test {
+        val location = location().apply {
+            lastKnownAge = 60_000
+            lastKnownAccuracy = 30.0
+        }
+        val model = viewModel(repository(), location = location)
+        assertTrue(model.screen.value.from!!.isDevice)
+        assertEquals(1, model.screen.value.options.size)
+        assertTrue(location.currentAsked.isEmpty())
+        assertFalse(model.screen.value.locating)
+    }
+
+    @Test
+    fun anOldLastFixIsPlannedFromThenRefinedQuietlyAtBalancedAccuracy() = test {
+        val gate = CompletableDeferred<Unit>()
+        val location = location().apply {
+            waiting = { gate.await() }
+            current = GeoPoint(from.latitude + 0.002, from.longitude)
+        }
+        val model = viewModel(repository(), location = location)
+        // Planned from the old fix at once, no spinner while the fresh one comes
+        assertEquals(from.latitude, model.screen.value.from!!.latitude, 0.0)
+        assertEquals(1, model.screen.value.options.size)
+        assertEquals(listOf(LocationAccuracy.BALANCED), location.currentAsked.map { it.first })
+        assertFalse(model.screen.value.locating)
+        // 220 m on: planned again from there
+        gate.complete(Unit)
+        assertEquals(from.latitude + 0.002, model.screen.value.from!!.latitude, 0.0)
+    }
+
+    @Test
+    fun aRoughLastFixIsRefinedToo() = test {
+        val location = location().apply {
+            lastKnownAge = 30_000
+            lastKnownAccuracy = 800.0
+            current = GeoPoint(from.latitude + 0.00045, from.longitude)
+        }
+        val model = viewModel(repository(), location = location)
+        assertEquals(listOf(LocationAccuracy.BALANCED), location.currentAsked.map { it.first })
+        // 50 m on: the same origin
+        assertEquals(from.latitude, model.screen.value.from!!.latitude, 0.0)
+    }
+
+    @Test
+    fun withNoFixKnownTheSpinnerShowsUntilABalancedOneComes() = test {
+        val gate = CompletableDeferred<Unit>()
+        val location = location(lastKnown = null).apply {
+            waiting = { gate.await() }
+            current = GeoPoint(from.latitude, from.longitude)
+        }
+        val model = viewModel(repository(), location = location)
+        assertTrue(model.screen.value.locating)
+        assertNull(model.screen.value.from)
+        assertEquals(listOf(LocationAccuracy.BALANCED), location.currentAsked.map { it.first })
+        gate.complete(Unit)
+        assertFalse(model.screen.value.locating)
+        assertTrue(model.screen.value.from!!.isDevice)
+    }
+
+    @Test
+    fun theLocateButtonAsksAHighAccuracyFixWithTheSpinner() = test {
+        val location = location().apply {
+            lastKnownAge = 60_000
+            lastKnownAccuracy = 30.0
+        }
+        val model = viewModel(repository(), location = location)
+        val gate = CompletableDeferred<Unit>()
+        location.waiting = { gate.await() }
+        location.current = GeoPoint(from.latitude + 0.0001, from.longitude)
+        model.locate(force = true)
+        assertTrue(model.screen.value.locating)
+        gate.complete(Unit)
+        assertEquals(listOf(LocationAccuracy.HIGH), location.currentAsked.map { it.first })
+        assertFalse(model.screen.value.locating)
+    }
 
     @Test
     fun aQuietFixOnlyMovesAnOriginThatIsTheDeviceAndHasMoved() = test {

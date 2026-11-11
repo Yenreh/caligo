@@ -32,6 +32,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.assertControlsAccessible
+import com.yenreh.caligo.data.location.LocationAccuracy
 import com.yenreh.caligo.domain.LiveArrivals
 import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.PlaceKind
@@ -400,18 +401,21 @@ class PlanTripScreenTest {
     fun theLocateButtonSpinsThenSaysSoWhenThereIsNoFix() {
         val gate = CompletableDeferred<Unit>()
         val location = trips.location().apply { waiting = { gate.await() } }
-        // A quiet fix on opening waits too: let it go first
         val model = trips.planner(location = location)
         show(model)
-        compose.onNodeWithTag("locating", useUnmergedTree = true).assertExists()
+        // Opening refines an old last fix quietly: no spinner while it waits
+        compose.waitUntil(WAIT_TIMEOUT_MS) { location.currentAsked.isNotEmpty() }
+        assertFalse(exists(hasTestTag("locating")))
         gate.complete(Unit)
-        compose.waitUntil(WAIT_TIMEOUT_MS) { !exists(hasTestTag("locating")) }
 
-        location.waiting = null
+        val tapped = CompletableDeferred<Unit>()
+        location.waiting = { tapped.await() }
         compose.onNodeWithContentDescription("Update my location").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { exists(hasTestTag("locating")) }
+        tapped.complete(Unit)
 
         compose.waitUntil(WAIT_TIMEOUT_MS) { exists(hasText("Could not get your location")) }
-        assertEquals(2, location.currentAsked.size)
+        assertEquals(listOf(LocationAccuracy.BALANCED, LocationAccuracy.HIGH), location.currentAsked.map { it.first })
     }
 
     @Test
