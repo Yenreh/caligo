@@ -804,9 +804,20 @@ private fun TripMap(journey: Journey, tiles: TripMapTiles, modifier: Modifier) {
     watchLiveClock()
     val model = TripMapModel.of(journey, now())
     val palette = tilesPalette(dark = tiles.dark)
-    // Framed again as a line is chosen for the ride ahead, to show its route
-    var map by remember(journey.chosenLine) { mutableStateOf<LabMapState?>(null) }
-    var follow by remember { mutableStateOf(MapFollow()) }
+    // A line chosen for the ride ahead frames its whole route, with the
+    // rider and the stop, and the map rests there, as moved by hand, with
+    // the button to follow again; any line, or the next leg, follows again
+    val chosen = journey.chosenLine
+    val opened = remember { journey.index }
+    var framedFor by remember { mutableStateOf(journey.index to chosen) }
+    var map by remember { mutableStateOf<LabMapState?>(null) }
+    var follow by remember { mutableStateOf(MapFollow(following = chosen == null)) }
+    if (framedFor != journey.index to chosen) {
+        val sameLeg = framedFor.first == journey.index
+        framedFor = journey.index to chosen
+        map = null
+        follow = MapFollow(following = chosen == null || (!sameLeg && journey.index != opened))
+    }
     var creditsOpen by remember { mutableStateOf(false) }
     val rider by rememberUpdatedState(model.rider)
 
