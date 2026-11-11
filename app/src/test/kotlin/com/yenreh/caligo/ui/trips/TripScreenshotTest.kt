@@ -2,6 +2,8 @@ package com.yenreh.caligo.ui.trips
 
 import android.content.Context
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
@@ -130,11 +132,26 @@ class TripScreenshotTest {
 
     /** On the ride, a stop further on tapped: where the rider gets off now, with Undo */
     private fun changed(name: String) {
-        running(name)
+        // As the trip takes the change: the stop tapped is the one to get off at now
+        var journey by androidx.compose.runtime.mutableStateOf(
+            com.yenreh.caligo.domain.Journey.single(TripFixtures.plan, NOW - 3 * MINUTE).copy(ride = riding),
+        )
+        compose.setContentAt(NOW) {
+            CaliGoTheme {
+                TripScreen(
+                    content = TripContent.Running(journey),
+                    title = "E21 a Universidades",
+                    subtitle = "Desde Plaza de Cayzedo A1",
+                    onAlight = { alight -> journey = journey.copy(ride = journey.ride?.alightAt(alight, NOW)) },
+                )
+            }
+        }
         val stop = "trip_stop_${TripFixtures.out[9].stopId}"
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasTestTag("trip_running")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag(stop))
         compose.onNodeWithTag(stop).performClick()
         compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasText("Ahora te bajas en Universidades")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasTestTag("trip_alight") and androidx.compose.ui.test.hasAnyDescendant(hasText("Universidades"))).assertExists()
         compose.settlePress()
         compose.captureWindow(name)
     }
