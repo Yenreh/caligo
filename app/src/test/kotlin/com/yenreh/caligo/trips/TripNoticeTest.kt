@@ -42,7 +42,7 @@ class TripNoticeTest {
     fun onTheEstimateTheTimeReadsAbout() {
         val n = notice(trip, NOW)
         assertEquals("Get off at Pampalinda, ~10${NBSP}min", n.title)
-        assertEquals("E21 · 7 stops · next: Centro", n.text)
+        assertEquals("E21 · 7${NBSP}stops · next: Centro", n.text)
         assertEquals("~10${NBSP}min", n.chip)
         assertEquals(TripChannel.TRIPS, n.channel)
         assertFalse(n.alerting)
@@ -53,7 +53,7 @@ class TripNoticeTest {
         val fixed = trip.fixed(fix(1210.0, NOW + 3 * MINUTE))
         val n = notice(fixed, NOW + 3 * MINUTE)
         assertEquals("Get off at Pampalinda, 6${NBSP}min", n.title)
-        assertEquals("E21 · 4 stops · next: Calle 5 con Kr 22", n.text)
+        assertEquals("E21 · 4${NBSP}stops · next: Calle 5 con Kr 22", n.text)
         assertEquals("6${NBSP}min", n.chip)
     }
 
@@ -130,7 +130,7 @@ class TripNoticeTest {
         assertTrue(n.alerting)
         assertEquals(TripChannel.WARNING_SOUND, n.channel)
         assertEquals("Get off at Pampalinda, 3${NBSP}min", n.title)
-        assertEquals("E21 · 2 stops · next: Calle 5 con Kr 39", n.text)
+        assertEquals("E21 · 2${NBSP}stops · next: Calle 5 con Kr 39", n.text)
         // Once out, it stays on that channel, silent
         val after = notice(near.warnedAt(NOW + 6 * MINUTE), NOW + 6 * MINUTE + 15_000, Alerts(sound = true))
         assertFalse(after.alerting)
@@ -164,7 +164,7 @@ class TripNoticeTest {
         val n = notice(follow, NOW)
         // There the bus's own destination, as the waits say it
         assertEquals("E21 to Universidades, ~13${NBSP}min", n.title)
-        assertEquals("9 stops · next: Centro", n.text)
+        assertEquals("9${NBSP}stops · next: Centro", n.text)
         val end = follow.fixed(fix(3200.0, NOW + 9 * MINUTE)).fixed(fix(3590.0, NOW + 10 * MINUTE))
         assertEquals("E21, end of the line", notice(end, NOW + 10 * MINUTE).title)
     }
@@ -233,9 +233,9 @@ class TripNoticeTest {
     fun inSpanish() {
         val es = TripWords(ApplicationProvider.getApplicationContext<Context>().resources)
         assertEquals("Bájate en Pampalinda, ~10${NBSP}min", TripNotice.of(trip, NOW, Alerts(), es, 15_000).title)
-        assertEquals("E21 · 7 paradas · próxima: Centro", TripNotice.of(trip, NOW, Alerts(), es, 15_000).text)
+        assertEquals("E21 · 7${NBSP}paradas · próxima: Centro", TripNotice.of(trip, NOW, Alerts(), es, 15_000).text)
         val last = trip.fixed(fix(2010.0, NOW + 6 * MINUTE))
-        assertEquals("E21 · 2 paradas · próxima: Calle 5 con Kr 39", TripNotice.of(last, NOW + 6 * MINUTE, Alerts(), es, 15_000).text)
+        assertEquals("E21 · 2${NBSP}paradas · próxima: Calle 5 con Kr 39", TripNotice.of(last, NOW + 6 * MINUTE, Alerts(), es, 15_000).text)
         val next = trip.fixed(fix(2410.0, NOW + 7 * MINUTE))
         assertEquals("E21, bájate en la próxima", TripNotice.of(next, NOW + 7 * MINUTE, Alerts(), es, 15_000).title)
         assertEquals("Pampalinda · en 1${NBSP}min", TripNotice.of(next, NOW + 7 * MINUTE, Alerts(), es, 15_000).text)
@@ -244,7 +244,7 @@ class TripNoticeTest {
         // Following the line to its end, and off the route
         val follow = Trip.start(plan.copy(alight = null), NOW)
         assertEquals("E21 a Universidades, ~13${NBSP}min", TripNotice.of(follow, NOW, Alerts(), es, 15_000).title)
-        assertEquals("9 paradas · próxima: Centro", TripNotice.of(follow, NOW, Alerts(), es, 15_000).text)
+        assertEquals("9${NBSP}paradas · próxima: Centro", TripNotice.of(follow, NOW, Alerts(), es, 15_000).text)
         val off = offAt(trip, 400.0, NOW + 2 * MINUTE)
         assertEquals("E21 · Fuera de la ruta", TripNotice.of(off, NOW + 2 * MINUTE, Alerts(), es, 15_000).text)
         val offFollowing = offAt(follow, 400.0, NOW + 2 * MINUTE)
@@ -259,13 +259,13 @@ class TripNoticeTest {
     fun inSpanishOneStopLeftFollowingTheLine() {
         val es = TripWords(ApplicationProvider.getApplicationContext<Context>().resources)
         val follow = Trip.start(plan.copy(alight = null), NOW).fixed(fix(3200.0, NOW + 9 * MINUTE))
-        assertEquals("1 parada · próxima: Universidades", TripNotice.of(follow, NOW + 9 * MINUTE, Alerts(), es, 15_000).text)
+        assertEquals("1${NBSP}parada · próxima: Universidades", TripNotice.of(follow, NOW + 9 * MINUTE, Alerts(), es, 15_000).text)
     }
 
     @Test
     fun inEnglishOneStopLeftFollowingTheLine() {
         val follow = Trip.start(plan.copy(alight = null), NOW).fixed(fix(3200.0, NOW + 9 * MINUTE))
-        assertEquals("1 stop · next: Universidades", notice(follow, NOW + 9 * MINUTE).text)
+        assertEquals("1${NBSP}stop · next: Universidades", notice(follow, NOW + 9 * MINUTE).text)
     }
 
     // The last word of a trip that ended by itself

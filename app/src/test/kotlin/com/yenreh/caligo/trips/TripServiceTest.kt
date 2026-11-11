@@ -355,7 +355,7 @@ class TripServiceTest {
         assertEquals(null, shown.group)
         assertEquals("~10${NBSP}min", NotificationCompat.getShortCriticalText(shown))
         assertEquals("Get off at Pampalinda, ~10${NBSP}min", with(h) { shown.title() })
-        assertEquals("E21 · 7 stops · next: Centro", with(h) { shown.text() })
+        assertEquals("E21 · 7${NBSP}stops · next: Centro", with(h) { shown.text() })
         // No clock: the minutes are in the title and the chip
         assertFalse(NotificationCompat.getUsesChronometer(shown))
         assertFalse(NotificationCompat.getShowWhen(shown))

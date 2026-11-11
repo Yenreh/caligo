@@ -335,15 +335,15 @@
     <string name="trip_where_off">Where do you get off?</string>
     <string name="trip_skip">Follow without a warning</string>
     <string name="trip_not_on_route">The routes of the %1$s do not show this stop, so there is no ride to follow.</string>
-    <string name="trip_minutes">%1$s min</string>
+    <string name="trip_minutes">%1$s\u00A0min</string>
     <string name="trip_you_get_off">You get off here</string>
     <string name="trip_get_off_at_action">Get off at %1$s</string>
     <string name="trip_heading_get_off">Get off at %1$s</string>
     <string name="trip_heading_follow">Following the ride to %1$s</string>
     <string name="trip_heading_here">You are at your stop</string>
     <plurals name="trip_heading_detail">
-        <item quantity="one">%1$s min · %2$d stop</item>
-        <item quantity="other">%1$s min · %2$d stops</item>
+        <item quantity="one">%1$s\u00A0min · %2$d\u00A0stop</item>
+        <item quantity="other">%1$s\u00A0min · %2$d\u00A0stops</item>
     </plurals>
     <string name="trip_by_fix">By your location</string>
     <string name="trip_by_bus">By the bus you are on</string>
@@ -368,7 +368,7 @@
     <string name="trip_ended_no_bus">The trip ended: no bus taken in %1$d\u00A0min.</string>
     <string name="trip_home_title">On the %1$s</string>
     <string name="trip_open">Open the trip</string>
-    <string name="trip_walk_to">Walk to %1$s, %2$s min</string>
+    <string name="trip_walk_to">Walk to %1$s, %2$s\u00A0min</string>
     <string name="trip_line_in">%1$s in %2$d\u00A0min</string>
     <string name="trip_line_minutes">%1$s %2$d\u00A0min</string>
     <string name="trip_line_at_stop">%1$s at the stop</string>
@@ -377,11 +377,11 @@
     <string name="trip_lines_or">%1$s or %2$s</string>
     <string name="trip_to_destination">Trip to %1$s</string>
     <string name="trip_heading_walk">Walk to %1$s</string>
-    <string name="trip_walk_detail">%1$s min · %2$d m</string>
+    <string name="trip_walk_detail">%1$s\u00A0min · %2$d\u00A0m</string>
     <string name="trip_heading_take">Take the %1$s</string>
     <string name="trip_at_stop">At %1$s</string>
     <string name="trip_then_label">Then</string>
-    <string name="trip_ahead_walk">Walk to %1$s, %2$d min</string>
+    <string name="trip_ahead_walk">Walk to %1$s, %2$d\u00A0min</string>
     <plurals name="trip_ahead_ride">
         <item quantity="one">%1$s · get off at %2$s, %3$d\u00A0stop</item>
         <item quantity="other">%1$s · get off at %2$s, %3$d\u00A0stops</item>
@@ -392,8 +392,8 @@
     <string name="trip_get_off_at">Get off at %1$s, %2$s\u00A0min</string>
     <string name="trip_with_line" translatable="false">%1$s · %2$s</string>
     <plurals name="trip_stops_next">
-        <item quantity="one">%1$d stop · next: %2$s</item>
-        <item quantity="other">%1$d stops · next: %2$s</item>
+        <item quantity="one">%1$d\u00A0stop · next: %2$s</item>
+        <item quantity="other">%1$d\u00A0stops · next: %2$s</item>
     </plurals>
     <string name="trip_get_off_next">%1$s, get off at the next stop</string>
     <string name="trip_get_off_here">%1$s, get off here</string>

@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
+import com.yenreh.caligo.NBSP
 import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.Journey
@@ -48,7 +49,7 @@ class HomeTripBarTest {
     fun theBarSaysWhereTheRiderGetsOffAndOpensTheTrip() {
         show()
         compose.onNode(hasText("On the E21")).assertExists()
-        compose.onNode(hasText("Get off at Pampalinda · ~10 min")).assertExists()
+        compose.onNode(hasText("Get off at Pampalinda · ~10${NBSP}min")).assertExists()
         compose.onNodeWithTag("home_trip").performClick()
         assertEquals(1, opened)
         compose.assertControlsAccessible()

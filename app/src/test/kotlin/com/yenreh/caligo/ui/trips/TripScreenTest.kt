@@ -79,7 +79,7 @@ class TripScreenTest {
         compose.onNode(hasText("E21 to Universidades")).assertExists()
         compose.onNode(hasText("From Plaza de Cayzedo A1")).assertExists()
         // The estimate from the boarding stop, marked as one
-        compose.onNode(hasText("~1 min")).assertExists()
+        compose.onNode(hasText("~1${NBSP}min")).assertExists()
         compose.assertControlsAccessible()
     }
 
@@ -101,7 +101,7 @@ class TripScreenTest {
         assertEquals(0, plan.direction)
         compose.onNodeWithTag("trip_heading").assertExists()
         compose.onNode(hasText("Get off at Pampalinda")).assertExists()
-        compose.onNode(hasText("~10 min · 7 stops")).assertExists()
+        compose.onNode(hasText("~10${NBSP}min · 7${NBSP}stops")).assertExists()
     }
 
     @Test
