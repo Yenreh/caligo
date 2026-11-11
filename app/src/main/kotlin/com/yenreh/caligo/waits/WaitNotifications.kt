@@ -142,12 +142,8 @@ object WaitNotifications {
             val label = if (button.action == WaitAction.TOOK && button.line != null) words.tookLine(button.line) else words.action(button.action)
             builder.addAction(0, label, intent)
         }
-        val countdownTo = notice.countdownTo
-        if (countdownTo != null) {
-            builder.setWhen(countdownTo).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
-        } else {
-            builder.setShowWhen(false)
-        }
+        // No clock, as the trip's: it would repeat the title's minutes, and in a group not say whose
+        builder.setShowWhen(false)
         return builder.asChannelBeforeO(notice.alerting, alerts, VIBRATION).build()
     }
 

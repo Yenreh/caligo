@@ -84,10 +84,8 @@ data class WaitNotice(
     val text: String,
     /** Title and text in one line, for screen readers and the ticker */
     val summary: String,
-    /** The status bar chip of a Live Update; null leaves none */
+    /** The status bar chip of a Live Update; null leaves none. The minutes are in it and in the title alone: no clock */
     val chip: String?,
-    /** A chronometer counts down to this, epoch milliseconds; null shows none */
-    val countdownTo: Long?,
     /** How far the wait has gone, of [progressMax] */
     val progress: Int,
     val progressMax: Int,
@@ -147,7 +145,6 @@ data class WaitNotice(
                 text = stop,
                 summary = "$title, $stop",
                 chip = own.chip,
-                countdownTo = own.countdownTo,
                 progress = own.progress,
                 progressMax = own.progressMax,
                 actions = emptyList(),
@@ -194,7 +191,6 @@ data class WaitNotice(
             val title: String
             val text: String
             var chip: String? = null
-            var countdownTo: Long? = null
             when (status) {
                 is WaitStatus.Coming -> {
                     val minutes = bus.minutesUntilArrival(now)
@@ -205,7 +201,6 @@ data class WaitNotice(
                     }
                     text = if (status.seen) wait.bus.stopName else words.notSeenNow(wait.bus.stopName)
                     chip = if (minutes == 0) words.chipNow else words.chipMinutes(minutes)
-                    if (status.arrivalTime > now) countdownTo = status.arrivalTime
                 }
                 WaitStatus.AtStop -> {
                     title = words.titleAtStop(bus.line, bus.destination)
@@ -240,7 +235,6 @@ data class WaitNotice(
                 text = text,
                 summary = "$title, $text",
                 chip = chip,
-                countdownTo = countdownTo,
                 progress = done,
                 progressMax = total,
                 actions = listOf(

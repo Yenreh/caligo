@@ -35,7 +35,6 @@ class WaitNoticeTest {
         assertEquals("Plaza de Cayzedo A1", notice.text)
         assertEquals("T31 to Universidades, 4${NBSP}min, Plaza de Cayzedo A1", notice.summary)
         assertEquals("4${NBSP}min", notice.chip)
-        assertEquals(t31.arrivalTime, notice.countdownTo)
         assertEquals(listOf(WaitAction.TOOK, WaitAction.STOP), notice.actions)
         assertEquals(WaitChannel.WAITS, notice.channel)
         assertFalse(notice.alerting)
@@ -78,7 +77,6 @@ class WaitNoticeTest {
         val at = notice(wait, due)
         assertEquals("E21 to Terminal Paso del Comercio, at the stop", at.title)
         assertEquals("Here", at.chip)
-        assertNull(at.countdownTo)
         assertEquals(at.progressMax, at.progress)
         val asking = notice(wait, due + MINUTE)
         assertEquals("Did you take the E21?", asking.title)
@@ -96,7 +94,6 @@ class WaitNoticeTest {
         val notice = notice(failing, NOW + MINUTE)
         assertEquals("T31 to Universidades, no data", notice.title)
         assertNull(notice.chip)
-        assertNull(notice.countdownTo)
         val ended = notice(failing.copy(telling = com.yenreh.caligo.domain.WaitEnding.NO_DATA), NOW + 6 * MINUTE)
         assertEquals("No data for a while", ended.title)
     }

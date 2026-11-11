@@ -770,10 +770,23 @@ class WaitServiceTest {
             assertEquals(null, notification.group)
         }
         assertEquals("10${NBSP}min", NotificationCompat.getShortCriticalText(notificationOf("T31")))
-        // Older versions count down with a chronometer to the bus
-        val t31Shown = notificationOf("T31")
-        assertTrue(NotificationCompat.getUsesChronometer(t31Shown))
-        assertEquals(t31.arrivalTime, t31Shown.`when`)
+    }
+
+    @Test
+    fun noClockTheTitleCountsDownAsTheMinutesChange() {
+        // One wait at one stop, two at another: neither shows a clock, on any version
+        start(awaited(t31), atAnotherStop(e21), atAnotherStop(a47))
+        advance(16_000)
+        for (minute in 0 until 4) {
+            for (shown in posted) {
+                assertFalse(NotificationCompat.getUsesChronometer(shown))
+                assertFalse(NotificationCompat.getShowWhen(shown))
+            }
+            // Older versions, with no Live Update, count down by the title: posted as its minutes change, within a beat
+            assertEquals("T31 to Universidades, ${10 - minute}${NBSP}min", notificationOf("T31").title())
+            assertEquals("E21 ${4 - minute}${NBSP}min · A47 ${20 - minute}${NBSP}min", notificationOf("A47").title())
+            advance(MINUTE)
+        }
     }
 
     @Test
