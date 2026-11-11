@@ -19,6 +19,7 @@ import com.yenreh.caligo.domain.repositories.CardRepository
 import com.yenreh.caligo.domain.repositories.PlacesRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import java.util.UUID
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -126,9 +127,15 @@ class Backup(
             for (stop in newStops) StopsLocalDatasource.insertInto(db, stop)
             for (place in newPlaces) PlacesLocalDatasource.insertInto(db, place)
         }
-        places.load()
+        // Saved: from here on nothing may report it failed
         if (fileSettings != null) settings.applyImported(fileSettings)
         imports.tryEmit(Unit)
+        try {
+            places.load()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            // The chips and the picker show them at the next read
+        }
         return newCards.size + newStops.size + newPlaces.size
     }
 

@@ -27,9 +27,12 @@ import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.TripPlace
+import com.yenreh.caligo.domain.repositories.PlacesRepository
 import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
@@ -303,6 +306,38 @@ class BackupTest {
         }
         assertEquals(3, device.places.places.value.size)
         assertEquals(1, device.stops.getFavorites().size)
+    }
+
+    @Test
+    fun anImportSavedIsReportedSoWhenThePlacesCannotBeReadAgain() = runTest {
+        val device = device("a")
+        // Fails the first read once the file's places are saved
+        val failing = object : PlacesRepository by device.places {
+            var failed = false
+
+            override suspend fun load() {
+                if (!failed && PlacesLocalDatasource(device.database).getAll().isNotEmpty()) {
+                    failed = true
+                    throw IllegalStateException("disk")
+                }
+                device.places.load()
+            }
+        }
+        val backup = Backup(device.database, device.cards, device.stops, device.settings, failing)
+        var imports = 0
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { backup.imported.collect { imports++ } }
+
+        val added = backup.import(
+            """{"favoritePlaces": [{"name": "Casa", "latitude": 3.4, "longitude": -76.5}], "settings": {"themeMode": 2}}""",
+        )
+
+        assertEquals(1, added)
+        assertTrue(failing.failed)
+        assertEquals(1, imports)
+        assertEquals(AppThemeMode.DARK, device.settings.settings.value.themeMode)
+        // Read at the next load
+        device.places.load()
+        assertEquals(listOf("Casa"), device.places.places.value.map { it.name })
     }
 
     @Test
