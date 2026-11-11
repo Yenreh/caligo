@@ -54,6 +54,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -83,8 +84,12 @@ import com.yenreh.caligo.ui.lab.LabListTile
 import com.yenreh.caligo.ui.lab.LabOutlinedButton
 import com.yenreh.caligo.ui.lab.LabPanel
 import com.yenreh.caligo.ui.lab.LabSectionLabel
+import com.yenreh.caligo.ui.lab.LabSnackbarHost
+import com.yenreh.caligo.ui.lab.LabSnackbars
 import com.yenreh.caligo.ui.lab.LabTextButton
 import com.yenreh.caligo.ui.lab.LabTopBar
+import com.yenreh.caligo.ui.lab.rememberLabSnackbars
+import com.yenreh.caligo.ui.lab.rememberUndoTime
 import com.yenreh.caligo.ui.map.HaloIcon
 import com.yenreh.caligo.ui.map.LabMap
 import com.yenreh.caligo.ui.map.LabMapMarker
@@ -227,6 +232,7 @@ fun TripScreen(
     onMessageDismiss: () -> Unit = {},
 ) {
     val p = LabTheme.palette
+    val snackbars = rememberLabSnackbars()
     LiveClock {
         Scaffold(
             modifier = modifier.fillMaxSize(),
@@ -234,6 +240,7 @@ fun TripScreen(
             contentWindowInsets = WindowInsets(0),
             // The boarding stop goes in the content, where large text has room for it
             topBar = { LabTopBar(title = title, onBack = onBack) },
+            snackbarHost = { LabSnackbarHost(snackbars, Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) },
             bottomBar = {
                 when (content) {
                     is TripContent.Choosing -> BottomButton {
@@ -294,7 +301,7 @@ fun TripScreen(
                                 .background(p.ink),
                         )
                     }
-                    Running(content.journey, subtitle, onAlight, awaited, onTookLine, Modifier.weight(1f))
+                    Running(content.journey, subtitle, onAlight, snackbars, awaited, onTookLine, Modifier.weight(1f))
                 }
                 is TripContent.Ended -> LabEmptyState(
                     icon = painterResource(R.drawable.ic_directions_bus),
@@ -376,6 +383,7 @@ private fun Running(
     journey: Journey,
     from: String?,
     onAlight: (Int?) -> Unit,
+    snackbars: LabSnackbars,
     awaited: List<AwaitedLine>,
     onTookLine: (String) -> Unit,
     modifier: Modifier,
@@ -386,6 +394,7 @@ private fun Running(
     val at = now()
     val phase = journey.phase(at)
     val words = rememberTripWords()
+    val change = rememberAlightChange(onAlight, snackbars)
     LazyColumn(modifier.testTag("trip_running")) {
         item {
             LabPanel(modifier = Modifier.padding(16.dp), accentTop = true) {
@@ -425,7 +434,11 @@ private fun Running(
                 }
             }
         }
-        if (phase is JourneyPhase.Riding) rideStops(phase.trip, at, words, onAlight)
+        if (phase is JourneyPhase.Riding) {
+            // A planner trip gets off where its plan says; a single ride where the rider taps
+            val plan = phase.trip.plan
+            rideStops(phase.trip, at, words, if (journey.planned) null else { index -> change(plan, index) })
+        }
         val ahead = journey.ahead
         if (ahead.isNotEmpty()) {
             item {
@@ -511,8 +524,34 @@ private fun RideHeading(trip: Trip, at: Long, words: TripWords) {
     )
 }
 
-/** The ride's stops ahead, each with its time, the one to get off at marked and the others a tap to choose */
-private fun androidx.compose.foundation.lazy.LazyListScope.rideStops(trip: Trip, at: Long, words: TripWords, onAlight: (Int?) -> Unit) {
+/**
+ * Get off at another stop of a ride's plan, with an Undo that puts back
+ * where the rider got off before, or just following the ride
+ */
+@Composable
+private fun rememberAlightChange(onAlight: (Int?) -> Unit, snackbars: LabSnackbars): (TripPlan, Int) -> Unit {
+    val resources = LocalResources.current
+    val time = rememberUndoTime()
+    val alight by rememberUpdatedState(onAlight)
+    return remember(resources, snackbars, time) {
+        { plan, index ->
+            val before = plan.alight
+            alight(index)
+            snackbars.showTimed(
+                resources.getString(R.string.trip_get_off_now, plan.stops[index].name),
+                resources.getString(R.string.undo),
+                time,
+            ) { alight(before) }
+        }
+    }
+}
+
+/**
+ * The ride's stops ahead, each with its time and the one to get off at
+ * marked; with [onChange], a single ride's, the others a tap to get off
+ * there instead
+ */
+private fun androidx.compose.foundation.lazy.LazyListScope.rideStops(trip: Trip, at: Long, words: TripWords, onChange: ((Int) -> Unit)?) {
     val plan = trip.plan
     val progress = trip.progress(at)
     val estimated = progress.source == TripSource.ESTIMATE
@@ -522,23 +561,34 @@ private fun androidx.compose.foundation.lazy.LazyListScope.rideStops(trip: Trip,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
         )
     }
+    if (onChange != null) {
+        item {
+            Text(
+                stringResource(R.string.trip_tap_to_get_off),
+                style = LabText.statusLine(LabTheme.palette),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+            )
+        }
+    }
     val ahead = ((progress.stop + 1).coerceAtMost(plan.stops.lastIndex)..plan.stops.lastIndex).toList()
     items(ahead, key = { "stop:$it" }) { index ->
         val p = LabTheme.palette
         val stop = plan.stops[index]
         val alighting = index == plan.alight
         val time = words.minutes(trip.minutesTo(index, at), estimated)
+        val tap = if (onChange != null && !alighting) {
+            Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.trip_get_off_at_action, stop.name)) { onChange(index) }
+        } else {
+            Modifier
+        }
         LabListTile(
             title = stop.name,
             subtitle = if (alighting) "$time · ${stringResource(R.string.trip_you_get_off)}" else time,
             contentColor = if (alighting) p.accent else null,
             titleWeight = if (alighting) FontWeight.Bold else FontWeight.Medium,
-            modifier = Modifier
-                .clickable(
-                    enabled = !alighting,
-                    role = Role.Button,
-                    onClickLabel = stringResource(R.string.trip_get_off_at_action, stop.name),
-                ) { onAlight(index) }
+            modifier = tap
+                // Chosen, not disabled
+                .semantics { selected = alighting }
                 .heightIn(min = 48.dp)
                 .testTag(if (alighting) "trip_alight" else "trip_stop_${stop.stopId}"),
         )

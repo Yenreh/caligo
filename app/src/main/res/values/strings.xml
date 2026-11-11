@@ -348,6 +348,9 @@
     <string name="trip_by_bus">By the bus you are on</string>
     <string name="trip_by_estimate">Estimated: no position yet</string>
     <string name="trip_stops_ahead">Stops ahead</string>
+    <string name="trip_tap_to_get_off">Tap a stop to get off there</string>
+    <string name="trip_get_off_now">You get off at %1$s now</string>
+    <string name="undo">Undo</string>
     <string name="trip_needs_location">CaliGo follows the ride with your location while it lasts. Allow it to start.</string>
     <string name="trip_location_off">Location is off. Turn it on to follow the ride.</string>
     <string name="trip_open_settings">Settings</string>

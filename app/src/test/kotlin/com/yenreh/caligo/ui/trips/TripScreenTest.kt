@@ -1,5 +1,10 @@
 package com.yenreh.caligo.ui.trips
 
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -127,6 +132,39 @@ class TripScreenTest {
         compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_heading"))
         compose.onNode(hasText("Get off at Universidades")).assertExists()
         compose.assertControlsAccessible()
+        // Said, with a way back to the stop before
+        compose.onNode(hasText("You get off at Universidades now")).assertExists()
+        compose.onNode(hasText("Undo")).performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.alights.size == 2 }
+        assertEquals(listOf<Int?>(9, 7), trips.alights)
+    }
+
+    @Test
+    fun aSingleRideSaysItsStopsAreATapToGetOffAndMarksTheOneChosen() {
+        show()
+        waitFor("trip_choose")
+        choose(TripFixtures.out[7].stopId)
+        waitFor("trip_running")
+        compose.onNode(hasText("Tap a stop to get off there")).assertExists()
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_alight"))
+        // Chosen, not disabled
+        compose.onNodeWithTag("trip_alight").assertIsSelected().assertIsEnabled()
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_stop_${TripFixtures.out[9].stopId}"))
+        compose.onNodeWithTag("trip_stop_${TripFixtures.out[9].stopId}").assertHasClickAction().assertIsNotSelected()
+    }
+
+    @Test
+    fun undoAfterAStopChosenOnARideFollowedGoesBackToFollowingIt() {
+        show()
+        waitFor("trip_skip")
+        compose.onNodeWithTag("trip_skip").performClick()
+        waitFor("trip_running")
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_stop_${TripFixtures.out[5].stopId}"))
+        compose.onNodeWithTag("trip_stop_${TripFixtures.out[5].stopId}").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.alights.isNotEmpty() }
+        compose.onNode(hasText("Undo")).performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.alights.size == 2 }
+        assertEquals(listOf(5, null), trips.alights)
     }
 
     @Test
@@ -333,6 +371,20 @@ class TripScreenTest {
         assertEquals(listOf(took.waitKey), waits.took)
         assertTrue(!exists("trip_choose"))
         compose.onNode(hasText("Get off at Calle 5 con Kr 39")).assertExists()
+    }
+
+    @Test
+    fun aPlannerRideGetsOffWhereItsPlanSaysWithNoStopToTap() {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        trips.running.value = trips.running.value!!.took("T31", NOW)
+        show(took = null)
+        waitFor("trip_running")
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_alight"))
+        compose.onNodeWithTag("trip_alight").assertIsSelected()
+        assertTrue(compose.onAllNodes(hasText("Tap a stop to get off there")).fetchSemanticsNodes().isEmpty())
+        val stop = "trip_stop_${TripFixtures.out[3].stopId}"
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag(stop))
+        compose.onNodeWithTag(stop).assertHasNoClickAction()
     }
 
     @Test

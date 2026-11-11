@@ -24,12 +24,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.yenreh.caligo.ui.theme.LabTheme
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -81,6 +83,52 @@ class LabSnackbars(val host: SnackbarHostState, private val scope: CoroutineScop
             }
             if (result == SnackbarResult.ActionPerformed) onAction()
         }
+    }
+
+    /**
+     * Show [message] with [actionLabel] for [duration], then gone whether
+     * used or not, as an Undo that lapses; [onAction] when used in time
+     */
+    fun showTimed(
+        message: String,
+        actionLabel: String,
+        duration: Duration,
+        tone: LabTone? = LabTone.NEUTRAL,
+        onAction: () -> Unit,
+    ) {
+        showing?.cancel()
+        showing = scope.launch {
+            val result = withTimeoutOrNull(duration) { host.showSnackbar(LabSnackbarVisuals(message, tone, actionLabel)) }
+            if (result == SnackbarResult.ActionPerformed) onAction()
+        }
+    }
+
+    /** Take the one showing away */
+    fun dismiss() {
+        showing?.cancel()
+        showing = null
+    }
+
+    companion object {
+        /** How long an Undo lasts on screen, before what screen readers ask for */
+        val UNDO_TIME = 8.seconds
+    }
+}
+
+/**
+ * How long an Undo snackbar of [base] stays: longer when the user asked
+ * screen readers for more time to act on controls
+ */
+@Composable
+fun rememberUndoTime(base: Duration = LabSnackbars.UNDO_TIME): Duration {
+    val accessibility = LocalAccessibilityManager.current
+    return remember(accessibility, base) {
+        accessibility?.calculateRecommendedTimeoutMillis(
+            base.inWholeMilliseconds,
+            containsIcons = false,
+            containsText = true,
+            containsControls = true,
+        )?.milliseconds ?: base
     }
 }
 

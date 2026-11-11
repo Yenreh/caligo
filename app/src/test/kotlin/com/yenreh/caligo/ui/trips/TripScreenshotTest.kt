@@ -3,6 +3,10 @@ package com.yenreh.caligo.ui.trips
 import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -10,6 +14,7 @@ import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.captureNotification
 import com.yenreh.caligo.captureWindow
+import com.yenreh.caligo.settlePress
 import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.trips.TripFixtures
 import com.yenreh.caligo.trips.TripFixtures.MINUTE
@@ -77,6 +82,28 @@ class TripScreenshotTest {
     @Test
     @Config(fontScale = 2f)
     fun rideFontScale2() = running("trip_ride_font2")
+
+    /** On the ride, a stop further on tapped: where the rider gets off now, with Undo */
+    private fun changed(name: String) {
+        running(name)
+        val stop = "trip_stop_${TripFixtures.out[9].stopId}"
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag(stop))
+        compose.onNodeWithTag(stop).performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasText("Ahora te bajas en Universidades")).fetchSemanticsNodes().isNotEmpty() }
+        compose.settlePress()
+        compose.captureWindow(name)
+    }
+
+    @Test
+    fun rideChangedLight() = changed("trip_ride_changed_light")
+
+    @Test
+    @Config(qualifiers = "+night")
+    fun rideChangedDark() = changed("trip_ride_changed_dark")
+
+    @Test
+    @Config(fontScale = 2f)
+    fun rideChangedFontScale2() = changed("trip_ride_changed_font2")
 
     // With the map, over fixture tiles
 
