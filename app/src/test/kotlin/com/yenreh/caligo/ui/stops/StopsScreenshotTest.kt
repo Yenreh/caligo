@@ -16,6 +16,7 @@ import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.captureScreen
 import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
+import com.yenreh.caligo.settlePress
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.entities.BusArrival
@@ -221,6 +222,7 @@ class StopsScreenshotTest {
         ).performClick()
         waitFor(hasTestTag("edit_favorite"))
         waitFor(hasText("P47C"))
+        compose.settlePress()
         compose.captureScreen(name)
     }
 

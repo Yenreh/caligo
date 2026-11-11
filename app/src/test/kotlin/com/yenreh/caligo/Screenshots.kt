@@ -5,15 +5,19 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.drawable.Icon
+import android.os.Looper
+import android.view.Gravity
 import android.view.View
+import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.core.graphics.drawable.toBitmap
-import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureRoboImage
-import com.github.takahirom.roborazzi.captureScreenRoboImage
+import java.time.Duration
+import org.robolectric.Shadows.shadowOf
 
 /**
  * Draws the activity's window, background included, to
@@ -32,13 +36,56 @@ fun AndroidComposeTestRule<*, out ComponentActivity>.captureWindow(name: String)
 }
 
 /**
- * Draws every window on screen, the dialogs and sheets over the activity
- * included, to build/outputs/roborazzi/[name].png
+ * Lets a press's ripple run out before a capture. It plays on the frame
+ * clock and the platform's animators, which move here only when told: the
+ * waits before move them by as many steps as their polls happen to take.
  */
-@OptIn(ExperimentalRoborazziApi::class)
+fun AndroidComposeTestRule<*, out ComponentActivity>.settlePress() {
+    mainClock.advanceTimeBy(PRESS_SETTLE_MS)
+    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PRESS_SETTLE_MS))
+    waitForIdle()
+}
+
+private const val PRESS_SETTLE_MS = 3_000L
+
+/**
+ * Draws every window on screen, the dialogs and sheets over the activity
+ * included, to build/outputs/roborazzi/[name].png: each a software draw,
+ * as [captureWindow] and for the same reason, in the order they stack,
+ * each window that dims what is behind it dimming it as the system would.
+ * Roborazzi's own capture of the screen at times drew the activity under a
+ * sheet as its background alone, and a ripple as far as real time had
+ * taken it.
+ */
 fun AndroidComposeTestRule<*, out ComponentActivity>.captureScreen(name: String) {
     waitForIdle()
-    captureScreenRoboImage("build/outputs/roborazzi/$name.png")
+    val screen = activity.window.decorView
+    val bitmap = Bitmap.createBitmap(screen.width, screen.height, Bitmap.Config.ARGB_8888)
+    runOnUiThread {
+        val canvas = Canvas(bitmap)
+        for (view in windowRoots()) {
+            val params = view.layoutParams as? WindowManager.LayoutParams
+            if (params != null && params.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND != 0) {
+                canvas.drawColor(Color.argb((params.dimAmount * 255).toInt(), 0, 0, 0))
+            }
+            // Where the system places it: by its gravity, as a dialog centred
+            val at = Rect()
+            Gravity.apply(params?.gravity ?: Gravity.NO_GRAVITY, view.width, view.height, Rect(0, 0, bitmap.width, bitmap.height), params?.x ?: 0, params?.y ?: 0, at)
+            canvas.save()
+            canvas.translate(at.left.toFloat(), at.top.toFloat())
+            view.draw(canvas)
+            canvas.restore()
+        }
+    }
+    bitmap.captureRoboImage("build/outputs/roborazzi/$name.png")
+}
+
+/** Every window's root view, in the order they were added: the activity's, then the dialogs and sheets over it */
+private fun windowRoots(): List<View> {
+    val global = Class.forName("android.view.WindowManagerGlobal")
+    val instance = global.getMethod("getInstance").invoke(null)
+    val views = global.getDeclaredField("mViews").apply { isAccessible = true }.get(instance) as List<*>
+    return views.filterIsInstance<View>().filter { it.isAttachedToWindow && it.visibility == View.VISIBLE }
 }
 
 /**

@@ -1,6 +1,5 @@
 package com.yenreh.caligo.ui.lines
 
-import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.remember
 import androidx.compose.ui.test.SemanticsMatcher
@@ -20,11 +19,11 @@ import com.yenreh.caligo.domain.entities.TransitLine
 import com.yenreh.caligo.ui.FakeLocationSource
 import com.yenreh.caligo.ui.FakeStopsRepository
 import com.yenreh.caligo.ui.map.FixtureTiles
+import com.yenreh.caligo.ui.map.waitForMapTiles
 import com.yenreh.caligo.ui.stops.AddStopScreen
 import com.yenreh.caligo.ui.stops.AddStopTabs
 import com.yenreh.caligo.ui.stops.StopsViewModel
 import com.yenreh.caligo.ui.theme.CaliGoTheme
-import java.time.Duration
 import java.util.Calendar
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.hours
@@ -33,7 +32,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -103,22 +101,8 @@ class LinesScreenshotTest {
 
     private fun waitFor(matcher: SemanticsMatcher) = compose.waitUntil(WAIT_TIMEOUT_MS) { exists(matcher) }
 
-    /**
-     * Until the tiles of [zoom] have come, and a moment for them to be
-     * drawn. The map paces its work with delays on the main thread, whose
-     * clock moves here only when told.
-     */
-    private fun waitForTiles(tiles: FixtureTiles, zoom: Int) {
-        compose.waitUntil(WAIT_TIMEOUT_MS) {
-            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
-            tiles.asked.count { it.startsWith("$zoom/") } >= 6
-        }
-        repeat(5) {
-            Thread.sleep(100)
-            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
-            compose.waitForIdle()
-        }
-    }
+    /** Until the tiles of [zoom] have come, and been drawn */
+    private fun waitForTiles(tiles: FixtureTiles, zoom: Int) = compose.waitForMapTiles { tiles.asked.count { it.startsWith("$zoom/") } >= 6 }
 
     // The line, with its route, buses and hours
 

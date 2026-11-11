@@ -19,6 +19,7 @@ import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureScreen
 import com.yenreh.caligo.captureWindow
+import com.yenreh.caligo.settlePress
 import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.PlaceKind
@@ -183,6 +184,7 @@ class SavedPlacesScreenshotTest {
         waitFor(hasTestTag("quick_plans"))
         compose.onNode(hasTestTag("quick_plan") and hasText("U")).performTouchInput { longClick() }
         waitFor(hasTestTag("place_sheet"))
+        compose.settlePress()
         compose.captureScreen(name)
     }
 

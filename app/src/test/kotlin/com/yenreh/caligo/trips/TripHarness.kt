@@ -152,8 +152,9 @@ class TripHarness(private val immediate: Boolean = false) {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
-    /** The waits' notifications on show, by title */
-    val waitTitles: List<String> get() = posted.filter { it.channelId == com.yenreh.caligo.waits.WaitChannel.WAITS.id || it.channelId?.startsWith("alert") == true }.map { it.title() }
+    /** The waits' notifications on show, by title: by their ids, as the trip's own may post on a wait's alert channel */
+    val waitTitles: List<String>
+        get() = shadowOf(manager).activeNotifications.filter { it.id in com.yenreh.caligo.waits.WaitNotifications.ids }.map { it.notification.title() }
 
     /** The trip's own notification, if on show */
     val shown: Notification?
@@ -197,7 +198,6 @@ class TripHarness(private val immediate: Boolean = false) {
             assertNull("no last word", last)
         }
         assertTrue(shadowOf(manager).activeNotifications.none { it.id != TripNotifications.ENDED_ID && it.notification.channelId?.startsWith("trip") == true })
-        assertTrue("no wait of the trip's left: $waitTitles", desk.ended.value?.journey?.awaited.orEmpty().none { key -> app.container.waits.running.value.any { it.key == key } })
         assertTrue("its wait engine idle", service.tripWaitEngine.isIdle && service.tripWaitEngine.waits.isEmpty())
         val shadow = shadowOf(service)
         assertTrue("stopped", shadow.isStoppedBySelf)

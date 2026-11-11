@@ -19,6 +19,7 @@ import com.yenreh.caligo.trips.TripNotice
 import com.yenreh.caligo.trips.TripNotifications
 import com.yenreh.caligo.trips.TripWords
 import com.yenreh.caligo.ui.common.setContentAt
+import com.yenreh.caligo.ui.map.waitForMapTiles
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import com.yenreh.caligo.waits.Alerts
 import org.junit.Rule
@@ -91,15 +92,7 @@ class TripScreenshotTest {
             }
         }
         // A close map covers a handful of tiles
-        compose.waitUntil(WAIT_TIMEOUT_MS) {
-            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50))
-            tiles.asked.size >= 4
-        }
-        repeat(5) {
-            Thread.sleep(100)
-            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(100))
-            compose.waitForIdle()
-        }
+        compose.waitForMapTiles { tiles.asked.size >= 4 }
         compose.captureWindow(name)
     }
 
