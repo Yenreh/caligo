@@ -135,6 +135,9 @@ class TripEngine(
     /** When the last request for the buses came back, answered or not */
     private var roundAt: Long? = null
 
+    /** Rounds of the buses in a row that no line answered: each puts the next off, as [failureBackoff] says */
+    private var roundFailures = 0
+
     /** The last round found a bus of the ride waited for nearing its stop */
     private var busNear = false
 
@@ -418,10 +421,10 @@ class TripEngine(
         .flatMap { if (stationOf(it.board.name) != null) listOf(it.board, it.alight) else listOf(it.board) }
         .distinctBy { it.stopId }
 
-    /** Ask for the buses when due, and say when the next round is */
+    /** Ask for the buses when due, after failures later, and say when the next round is */
     private fun rounds(now: Long): Long {
         if (request != null) return now + BEAT_MS
-        val due = roundAt?.let { it + BUS_INTERVAL_MS } ?: now
+        val due = roundAt?.let { it + BUS_INTERVAL_MS + failureBackoff(roundFailures).inWholeMilliseconds } ?: now
         if (now < due) return due
         val lines = linesToAsk(journey ?: return now + BEAT_MS, now)
         if (lines.isEmpty()) {
@@ -431,9 +434,11 @@ class TripEngine(
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 var near = false
+                var answered = false
                 for (line in lines) {
                     try {
                         val buses = source.buses(line, journey?.let { nearOf(it, line, now) })
+                        answered = true
                         near = near || journey?.busNear(line, buses, BUS_NEAR_METERS) == true
                         journey = journey?.withBuses(line, buses, now())
                     } catch (e: Exception) {
@@ -442,6 +447,7 @@ class TripEngine(
                     }
                 }
                 busNear = near
+                roundFailures = if (answered) 0 else roundFailures + 1
             } finally {
                 if (request === coroutineContext[Job]) {
                     request = null

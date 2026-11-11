@@ -579,6 +579,22 @@ class TripServiceTest {
     }
 
     @Test
+    fun failingRoundsOfTheBusesWaitLongerEachTimeUntilOneAnswers() {
+        var down = true
+        h.source.answer = { at -> if (down) throw com.yenreh.caligo.data.datasources.NetworkApiException("offline") else listOf(bus("32051", along(at))) }
+        h.start(plan)
+        // Held at the boarding stop, as a bus stuck
+        h.ride(8 * MINUTE + 5_000) { 10.0 }
+        // 30 s and 30 s more, then 60 and then 120 s more each time
+        assertEquals(listOf(0L, 60_000L, 150_000L, 300_000L, 450_000L), h.source.asked.map { it - TripFixtures.NOW })
+        down = false
+        h.ride(4 * MINUTE) { 10.0 }
+        // Answered at 10:00: every 30 s again
+        assertEquals(listOf(600_000L, 630_000L, 660_000L), h.source.asked.drop(5).take(3).map { it - TripFixtures.NOW })
+        h.assertRunning()
+    }
+
+    @Test
     fun theBusesAreAskedEvery30sAfterEachAnswer() {
         h.source.answer = { listOf(bus("32051", along(it))) }
         h.start(plan)

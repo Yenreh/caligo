@@ -8,6 +8,7 @@ import com.yenreh.caligo.domain.WaitAnswer
 import com.yenreh.caligo.domain.WaitEnding
 import com.yenreh.caligo.domain.WaitKey
 import com.yenreh.caligo.domain.WaitStep
+import com.yenreh.caligo.domain.failureBackoff
 import com.yenreh.caligo.ui.stops.StopsViewModel
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
@@ -66,7 +67,8 @@ enum class WaitStart {
  * The waits and their rounds, on [scope]'s single thread.
  *
  * Each round asks once around each point some waits share, at the pace
- * the home sets by how soon their buses come; an answer a screen fetched
+ * the home sets by how soon their buses come, put off further after
+ * failures in a row as [failureBackoff] says; an answer a screen fetched
  * for the same stop meanwhile serves instead, and moves the next round
  * on. In between, a beat of [BEAT] reads the waits again, ends those due
  * and shows the rest. Waits that only say how they ended ask nothing,
@@ -91,6 +93,9 @@ class WaitEngine(
 
     /** Points being looked up, by wait */
     private val resolving = HashMap<WaitKey, Job>()
+
+    /** Requests in a row that failed, by the point asked around: each puts the next off, as [failureBackoff] says */
+    private val failures = HashMap<AskPoint, Int>()
 
     /** Something changed: read the waits again now */
     private val poke = Channel<Unit>(Channel.CONFLATED)
@@ -117,7 +122,10 @@ class WaitEngine(
         waits = waits - wait
         resolving.remove(key)?.cancel()
         val point = wait.point
-        if (point != null && waits.none { it.point == point }) requests.remove(point)?.cancel()
+        if (point != null && waits.none { it.point == point }) {
+            requests.remove(point)?.cancel()
+            failures.remove(point)
+        }
         host.ended(wait, ending)
         if (waits.isEmpty()) stopAll() else poke.trySend(Unit)
     }
@@ -132,6 +140,7 @@ class WaitEngine(
         requests.clear()
         for (job in resolving.values) job.cancel()
         resolving.clear()
+        failures.clear()
         val running = loop
         loop = null
         running?.cancel()
@@ -184,10 +193,15 @@ class WaitEngine(
         for ((point, group) in asking.filter { it.point != null }.groupBy { it.point!! }) {
             val pace = pace(group, now)
             val answered = group.maxOf { it.answeredAt ?: Long.MIN_VALUE }
-            source.recent(point, pace)?.let { if (it.fetchedAt > answered) feed(point, it) }
+            source.recent(point, pace)?.let {
+                if (it.fetchedAt > answered) {
+                    failures.remove(point)
+                    feed(point, it)
+                }
+            }
             if (point in requests) continue
             val last = waits.filter { it.point == point }.maxOf { maxOf(it.answeredAt ?: Long.MIN_VALUE, it.askedAt ?: Long.MIN_VALUE) }
-            val due = if (last == Long.MIN_VALUE) now else last + pace
+            val due = if (last == Long.MIN_VALUE) now else last + pace + failureBackoff(failures[point] ?: 0).inWholeMilliseconds
             if (now >= due) ask(point, now) else wake = minOf(wake, due)
         }
         return wake
@@ -198,9 +212,11 @@ class WaitEngine(
         val request = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 val answer = source.ask(point)
+                failures.remove(point)
                 feed(point, answer)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                failures[point] = (failures[point] ?: 0) + 1
                 val at = now()
                 waits = waits.map { if (it.point == point) it.failed(at) else it }
             } finally {

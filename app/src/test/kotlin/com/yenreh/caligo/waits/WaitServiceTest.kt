@@ -418,6 +418,29 @@ class WaitServiceTest {
     }
 
     @Test
+    fun failingRequestsWaitLongerEachTimeYetTheWaitEndsAt5Minutes() {
+        failing = true
+        start(awaited(t31))
+        advance(Wait.NO_DATA_FOR.inWholeMilliseconds - 1_000)
+        // T31 ten minutes away, every minute: 30 s more, then 60, then 120
+        assertEquals(listOf(0L, 90_000L, 210_000L), source.asked.map { it.second - NOW })
+        assertEquals("T31 to Universidades, no data", posted.single().title())
+        advance(16_000)
+        assertEquals("No data for a while", posted.single().title())
+    }
+
+    @Test
+    fun anAnswerAfterFailuresGoesBackToTheUsualPace() {
+        failing = true
+        start(awaited(t31))
+        advance(100_000)
+        failing = false
+        // Answered at 3:30, two failures on: then every minute again
+        advance(3 * MINUTE)
+        assertEquals(listOf(0L, 90_000L, 210_000L, 270_000L), source.asked.map { it.second - NOW })
+    }
+
+    @Test
     fun noDataOneOfSeveral() {
         failing = true
         start(awaited(t31), a47Elsewhere)

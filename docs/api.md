@@ -136,6 +136,12 @@ gets the stops.
 - A service that answers HTTP 429, or keeps failing after one retry, is
   left alone for 1, 2, 4, 8 and at most 16 minutes; the first normal
   answer clears the wait. Rate limits are never retried.
+- Below that, what runs in the background while a trip or a wait lasts,
+  a trip's rounds of its line's buses, its rides' arrivals and each
+  wait's asks, waits 30, 60 and then 120 s longer than its usual pace
+  after failures in a row, timeouts or errors alike; any answer brings
+  the usual pace back. A wait still says it has no data after 5 minutes
+  of failures, as before.
 - Arrivals refresh every 30 s while a bus is within 5 minutes, every 60 s
   within 15, otherwise every 120 s, and only while the screen listing them
   is in view: never in the background, nor under another screen. A line's
