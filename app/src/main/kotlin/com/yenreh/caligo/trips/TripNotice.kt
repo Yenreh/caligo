@@ -13,6 +13,9 @@ import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.TripPlan
 import com.yenreh.caligo.domain.TripSource
 import com.yenreh.caligo.waits.Alerts
+import kotlin.math.ceil
+import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The app's notification channels for trips, as [AppChannel] makes them:
@@ -209,9 +212,10 @@ data class TripNotice(
                     }
                     chip = words.chipMinutes(minutes, phase.estimated)
                     tracker = TripTracker.WALKER
+                    // In steps of [WALK_BAR_METERS], so a fix a few metres off posts nothing new
                     val total = phase.leg.walk.meters.coerceAtLeast(1.0)
-                    progressMax = total.toInt().coerceAtLeast(1)
-                    progress = (total - phase.meters).coerceIn(0.0, total).toInt()
+                    progressMax = ceil(total / WALK_BAR_METERS).toInt().coerceAtLeast(1)
+                    progress = ((total - phase.meters).coerceIn(0.0, total) / WALK_BAR_METERS).roundToInt().coerceIn(0, progressMax)
                     if (near && next != null) lines = soonest.map { it.line }
                 }
                 is JourneyPhase.Waiting -> {
@@ -222,12 +226,13 @@ data class TripNotice(
                     text = if (soonest.isEmpty()) "$stop · ${words.tookItHint}" else "$stop · " + soonest.joinToString(" · ") { words.lineMinutes(it, now) }
                     val first = soonest.firstOrNull()
                     chip = first?.let { if (it.atStop) words.chipHere else words.chipMinutes(Trip.minutesOf(it.dueAt(now) - now), estimated = false) }
-                    // From when the waiting began to the soonest bus, filling as it nears; empty with none awaited
+                    // From when the waiting began to the soonest bus, filling as it nears, in steps of
+                    // [WAIT_BAR_SECONDS]; empty with none awaited
                     if (first != null) {
                         val since = journey.waitingSince()
                         val total = ((first.dueAt(now) - since) / 1000).coerceAtLeast(MIN_WAIT_BAR_SECONDS)
-                        progressMax = total.toInt()
-                        progress = ((now - since) / 1000).coerceIn(0, total).toInt()
+                        progressMax = ceil(total / WAIT_BAR_SECONDS.toDouble()).toInt()
+                        progress = (((now - since) / 1000).coerceIn(0, total) / WAIT_BAR_SECONDS).toInt()
                     }
                     lines = ordered
                 }
@@ -246,7 +251,7 @@ data class TripNotice(
                 tracker = tracker,
                 channel = TripChannel.TRIPS,
                 alerting = alerting,
-                timeoutAfter = nextPostIn + TIMEOUT_MARGIN_MS,
+                timeoutAfter = timeoutAfter(nextPostIn),
                 takeLines = lines.distinct().take(MAX_LINE_ACTIONS),
                 busChannel = if (busAlertOn && (alerting || alerted)) WaitChannel.alert(alerts) else null,
             )
@@ -254,6 +259,12 @@ data class TripNotice(
 
         /** A bus due within the minute still shows a bar worth reading */
         private const val MIN_WAIT_BAR_SECONDS = 60L
+
+        /** The walk's bar moves in steps this long */
+        const val WALK_BAR_METERS = 20.0
+
+        /** The wait's bar moves in steps this long */
+        const val WAIT_BAR_SECONDS = 30L
 
         /**
          * Lines with a button of their own: Android shows three actions at
@@ -330,7 +341,7 @@ data class TripNotice(
                 tracker = TripTracker.BUS,
                 channel = if (warningOn && (alerting || trip.alerted)) TripChannel.warning(alerts) else TripChannel.TRIPS,
                 alerting = alerting,
-                timeoutAfter = nextPostIn + TIMEOUT_MARGIN_MS,
+                timeoutAfter = timeoutAfter(nextPostIn),
             )
         }
 
@@ -364,6 +375,22 @@ data class TripNotice(
 
         /** Beyond the gap to the next post: a process killed leaves its notification this long at most */
         const val TIMEOUT_MARGIN_MS = 30_000L
+
+        /** A post the same as the last one is left out within this of it: see [TripService] */
+        val REPOST_AFTER = 20.seconds
+
+        /**
+         * The latest the next post comes while the trip runs, should every
+         * one before it be the same: the first beat past [REPOST_AFTER]
+         */
+        val LATEST_POST = REPOST_AFTER + TripEngine.BEAT
+
+        /**
+         * Gone by itself this long after it is posted: past the next post due
+         * in [nextPostIn] milliseconds, or the latest one should those be the
+         * same and left out, and [TIMEOUT_MARGIN_MS] more
+         */
+        fun timeoutAfter(nextPostIn: Long): Long = maxOf(nextPostIn, LATEST_POST.inWholeMilliseconds) + TIMEOUT_MARGIN_MS
     }
 }
 

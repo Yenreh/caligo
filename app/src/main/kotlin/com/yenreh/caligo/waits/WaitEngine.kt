@@ -168,7 +168,7 @@ class WaitEngine(
             val wake = rounds(now)
             val gap = (wake - now).coerceIn(MIN_GAP_MS, BEAT_MS)
             host.show(waits, now, gap)
-            waits = waits.map { if (it.alertDue(now)) it.copy(alerted = true) else it }
+            if (waits.any { it.alertDue(now) }) waits = waits.map { if (it.alertDue(now)) it.copy(alerted = true) else it }
             withTimeoutOrNull(gap) { poke.receive() }
         }
     }
@@ -224,7 +224,7 @@ class WaitEngine(
                 if (e is CancellationException) throw e
                 failures[point] = (failures[point] ?: 0) + 1
                 val at = now()
-                waits = waits.map { if (it.point == point) it.failed(at) else it }
+                update(waits.map { if (it.point == point) it.failed(at) else it })
             } finally {
                 if (requests[point] === coroutineContext[Job]) requests.remove(point)
             }
@@ -236,11 +236,16 @@ class WaitEngine(
 
     /** [answer], asked around [point], to every wait whose stop it reaches */
     private fun feed(point: AskPoint, answer: WaitAnswer) {
-        waits = waits.map { wait -> wait.point?.takeIf { covers(point, it) }?.let { wait.fed(answer) } ?: wait }
+        update(waits.map { wait -> wait.point?.takeIf { covers(point, it) }?.let { wait.fed(answer) } ?: wait })
     }
 
     private fun replace(key: WaitKey, change: (Wait) -> Wait) {
-        waits = waits.map { if (it.key == key) change(it) else it }
+        update(waits.map { if (it.key == key) change(it) else it })
+    }
+
+    /** The waits as [next], only when it changed them: each change shows them again, as the trip's notification */
+    private fun update(next: List<Wait>) {
+        if (next != waits) waits = next
     }
 
     companion object {

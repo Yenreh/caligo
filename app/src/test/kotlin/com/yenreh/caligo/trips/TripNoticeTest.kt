@@ -275,8 +275,36 @@ class TripNoticeTest {
     }
 
     @Test
-    fun itGoesByItselfSoonAfterItsNextUpdateIsDue() {
-        assertEquals(15_000 + TripNotice.TIMEOUT_MARGIN_MS, notice(trip, NOW).timeoutAfter)
+    fun itGoesByItselfSoonAfterTheLatestPostToComeAfterIt() {
+        // A post the same as this one is left out for 20 s, and the beat comes within 15 more
+        assertEquals(35_000 + TripNotice.TIMEOUT_MARGIN_MS, notice(trip, NOW).timeoutAfter)
+        assertEquals(35_000 + TripNotice.TIMEOUT_MARGIN_MS, TripNotice.of(trip, NOW, Alerts(), words, 1_000).timeoutAfter)
+        assertEquals(90_000 + TripNotice.TIMEOUT_MARGIN_MS, TripNotice.of(trip, NOW, Alerts(), words, 90_000).timeoutAfter)
+    }
+
+    @Test
+    fun aTripsActionsAreMadeOnceAndALinesButtonAgainOnlyForAnotherLine() {
+        val actions = TripActions(context, NOW)
+        assertTrue(actions.finish === actions.finish)
+        val e21 = actions.takeLine(0, "E21")
+        assertTrue(e21 === actions.takeLine(0, "E21"))
+        // The slot taken by the T31, then the E21 again: each button names its own line
+        val t31 = actions.takeLine(0, "T31")
+        assertEquals("T31", org.robolectric.Shadows.shadowOf(t31).savedIntent.getStringExtra(TripNotifications.EXTRA_LINE))
+        val again = actions.takeLine(0, "E21")
+        assertEquals("E21", org.robolectric.Shadows.shadowOf(again).savedIntent.getStringExtra(TripNotifications.EXTRA_LINE))
+        val built = TripNotifications.build(context, NOW, phaseNotice(waiting), Alerts(), words, actions)
+        assertTrue(built.actions.last().actionIntent === actions.finish)
+    }
+
+    @Test
+    fun theWalksBarMovesIn20MetreStepsAndTheWaitsIn30SecondOnes() {
+        val near = planned.fixed(fixAt(between(origin, stop, 200.0), NOW))
+        val nudged = planned.fixed(fixAt(between(origin, stop, 203.0), NOW))
+        assertEquals(phaseNotice(near).progress, phaseNotice(nudged).progress)
+        assertEquals(phaseNotice(near).copy(timeoutAfter = 0), phaseNotice(nudged).copy(timeoutAfter = 0))
+        val waitingNotice = phaseNotice(waiting)
+        assertEquals(waitingNotice.copy(timeoutAfter = 0), TripNotice.of(waiting, NOW + 10_000, Alerts(), words, 15_000, awaited = buses, near = true).copy(timeoutAfter = 0))
     }
 
     @Test

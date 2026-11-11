@@ -553,12 +553,39 @@ class TripServiceTest {
     }
 
     @Test
-    fun itGoesByItselfSoonAfterItsNextUpdateIsDue() {
+    fun itGoesByItselfSoonAfterTheLatestPostToComeAfterIt() {
         h.start(plan)
         h.advance(1)
         val timeout = checkNotNull(h.shown).timeoutAfter
         assertTrue(timeout > 0)
-        assertTrue(timeout <= TripEngine.BEAT.inWholeMilliseconds + TripNotice.TIMEOUT_MARGIN_MS)
+        assertTrue(timeout <= TripNotice.LATEST_POST.inWholeMilliseconds + TripNotice.TIMEOUT_MARGIN_MS)
+    }
+
+    @Test
+    fun postsTheSameAsTheLastAreLeftOutYetItNeverTimesOutWhileTheTripRuns() {
+        // Stuck at the boarding stop, fixes and the bus saying the same
+        h.source.answer = { listOf(bus("32051", 10.0)) }
+        h.start(plan)
+        var shown = checkNotNull(h.shown)
+        var postedAt = h.now()
+        val posts = h.service.posts
+        val end = h.now() + 10 * MINUTE
+        while (h.now() < end) {
+            h.location.emit(TripFixtures.fix(10.0 + (h.now() / 1_000 % 3), h.now()))
+            h.advance(1_000)
+            val now = checkNotNull(h.shown)
+            if (now !== shown) {
+                // Never later than the one before it would go
+                assertTrue("posted ${h.now() - postedAt} ms after one that went after ${shown.timeoutAfter}", h.now() - postedAt < shown.timeoutAfter)
+                shown = now
+                postedAt = h.now()
+            }
+            assertTrue(h.now() - postedAt < shown.timeoutAfter)
+        }
+        // At least every 35 s, the minutes the same: far fewer than a post every fix and beat
+        val perMinute = (h.service.posts - posts) / 10.0
+        assertTrue("$perMinute a minute", perMinute in 1.7..3.0)
+        h.assertRunning()
     }
 
     @Test

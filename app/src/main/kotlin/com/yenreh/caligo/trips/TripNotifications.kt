@@ -111,7 +111,13 @@ object TripNotifications {
      * action Undo, which works from the lock screen too; a swipe ends the
      * trip at once
      */
-    fun finishing(context: Context, startedAt: Long, notice: FinishingNotice, words: TripWords): Notification =
+    fun finishing(
+        context: Context,
+        startedAt: Long,
+        notice: FinishingNotice,
+        words: TripWords,
+        actions: TripActions = TripActions(context, startedAt),
+    ): Notification =
         NotificationCompat.Builder(context, TripChannel.TRIPS.id)
             .setSmallIcon(R.drawable.ic_directions_bus)
             .setContentTitle(notice.title)
@@ -123,13 +129,20 @@ object TripNotifications {
             .setTimeoutAfter(notice.timeoutAfter)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setShowWhen(false)
-            .setContentIntent(openTrip(context))
-            .setDeleteIntent(action(context, startedAt, ACTION_DISMISSED))
-            .addAction(0, words.undo, action(context, startedAt, ACTION_UNDO))
+            .setContentIntent(actions.open)
+            .setDeleteIntent(actions.dismissed)
+            .addAction(0, words.undo, actions.undo)
             .build()
 
-    /** [notice] of the trip started at [startedAt] as its notification */
-    fun build(context: Context, startedAt: Long, notice: TripNotice, alerts: Alerts, words: TripWords): Notification {
+    /** [notice] of the trip started at [startedAt] as its notification, with the trip's [actions] */
+    fun build(
+        context: Context,
+        startedAt: Long,
+        notice: TripNotice,
+        alerts: Alerts,
+        words: TripWords,
+        actions: TripActions = TripActions(context, startedAt),
+    ): Notification {
         val builder = NotificationCompat.Builder(context, notice.channelId)
             .setSmallIcon(R.drawable.ic_directions_bus)
             .setContentTitle(notice.title)
@@ -141,8 +154,8 @@ object TripNotifications {
             .setOnlyAlertOnce(!notice.alerting)
             .setTimeoutAfter(notice.timeoutAfter)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .setContentIntent(openTrip(context))
-            .setDeleteIntent(action(context, startedAt, ACTION_DISMISSED))
+            .setContentIntent(actions.open)
+            .setDeleteIntent(actions.dismissed)
             // The minutes are in the title and the chip: no clock to repeat them
             .setShowWhen(false)
             // Older versions draw this bar; Android 16 and later the style's
@@ -160,8 +173,8 @@ object TripNotifications {
                     .setProgressTrackerIcon(IconCompat.createWithResource(context, trackerIcon(notice.tracker))),
             )
         // The lines to take first, soonest first, then Finish: three at most, as Android shows
-        for ((i, line) in notice.takeLines.withIndex()) builder.addAction(0, words.tookLineAction(line), takeLine(context, startedAt, i, line))
-        builder.addAction(0, words.finish, action(context, startedAt, ACTION_FINISH))
+        for ((i, line) in notice.takeLines.withIndex()) builder.addAction(0, words.tookLineAction(line), actions.takeLine(i, line))
+        builder.addAction(0, words.finish, actions.finish)
         return builder.asChannelBeforeO(notice.alerting, alerts, VIBRATION).build()
     }
 
@@ -170,7 +183,7 @@ object TripNotifications {
         TripTracker.WALKER -> R.drawable.ic_progress_walker
     }
 
-    private fun action(context: Context, startedAt: Long, name: String): PendingIntent {
+    internal fun action(context: Context, startedAt: Long, name: String): PendingIntent {
         val intent = Intent(context, TripActionReceiver::class.java)
             .setAction(name)
             .putExtra(EXTRA_STARTED_AT, startedAt)
@@ -187,7 +200,7 @@ object TripNotifications {
     }
 
     /** "[line]: I took it", the [slot]-th button: straight to the trip service, which runs already */
-    private fun takeLine(context: Context, startedAt: Long, slot: Int, line: String): PendingIntent {
+    internal fun takeLine(context: Context, startedAt: Long, slot: Int, line: String): PendingIntent {
         val intent = Intent(context, TripActionReceiver::class.java)
             .setAction(ACTION_TAKE_LINE)
             .putExtra(EXTRA_STARTED_AT, startedAt)
@@ -218,4 +231,25 @@ object TripNotifications {
             .setSilent(true)
             .setTimeoutAfter(TripNotice.TIMEOUT_MARGIN_MS)
             .build()
+}
+
+/**
+ * The actions of the trip started at [startedAt], made once for it rather
+ * than at every post: its tap, its swipe, Finish, Undo, and a button per
+ * line, made again only when another line takes its place
+ */
+class TripActions(private val context: Context, val startedAt: Long) {
+    val open: PendingIntent by lazy(LazyThreadSafetyMode.NONE) { TripNotifications.openTrip(context) }
+    val dismissed: PendingIntent by lazy(LazyThreadSafetyMode.NONE) { TripNotifications.action(context, startedAt, TripNotifications.ACTION_DISMISSED) }
+    val finish: PendingIntent by lazy(LazyThreadSafetyMode.NONE) { TripNotifications.action(context, startedAt, TripNotifications.ACTION_FINISH) }
+    val undo: PendingIntent by lazy(LazyThreadSafetyMode.NONE) { TripNotifications.action(context, startedAt, TripNotifications.ACTION_UNDO) }
+
+    /** The line each button was last made for, by slot: one slot is one PendingIntent, its line in its extras */
+    private val lines = HashMap<Int, Pair<String, PendingIntent>>()
+
+    /** "[line]: I took it", the [slot]-th button */
+    fun takeLine(slot: Int, line: String): PendingIntent {
+        lines[slot]?.let { (made, intent) -> if (made == line) return intent }
+        return TripNotifications.takeLine(context, startedAt, slot, line).also { lines[slot] = line to it }
+    }
 }

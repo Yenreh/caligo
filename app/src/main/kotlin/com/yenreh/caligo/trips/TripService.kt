@@ -78,6 +78,13 @@ class TripService : Service(), TripHost {
     /** The trip last shown, by when it started: one that ends before it ever was says nothing */
     private var shownStartedAt: Long? = null
 
+    /** What was last posted, and when: the same again within [TripNotice.REPOST_AFTER] is left out */
+    private var lastPosted: Any? = null
+    private var lastPostedAt = 0L
+
+    /** The actions of the trip on show, made once for it */
+    private var actions: TripActions? = null
+
     override fun onCreate() {
         super.onCreate()
         val container = (application as CaliGoApp).container
@@ -107,7 +114,7 @@ class TripService : Service(), TripHost {
             // start, and may end it there
             val now = desk.now()
             val journey = start.journey(now)
-            if (!foreground(TripNotifications.TRIP_ID, notification(journey, now, TripEngine.BEAT.inWholeMilliseconds))) {
+            if (!foreground(TripNotifications.TRIP_ID, checkNotNull(notification(journey, now, TripEngine.BEAT.inWholeMilliseconds)))) {
                 // Not allowed to follow the location: nothing runs, and the screen hears why
                 if (engine.journey != null) engine.end(TripEnding.NO_LOCATION) else idle()
                 desk.endedAs(journey, TripEnding.NO_LOCATION)
@@ -163,18 +170,37 @@ class TripService : Service(), TripHost {
 
     override fun allowed(): Boolean = TripNotifications.allowed(this)
 
-    private fun notification(journey: Journey, now: Long, nextPostIn: Long): Notification {
+    /**
+     * [journey]'s notification at [now]; null when it would be what was
+     * last posted, under [TripNotice.REPOST_AFTER] ago, and [same] may be
+     * left out. Its timeout covers the latest post to come after it.
+     */
+    private fun notification(journey: Journey, now: Long, nextPostIn: Long, same: Boolean = false): Notification? {
+        val actions = actions?.takeIf { it.startedAt == journey.startedAt } ?: TripActions(this, journey.startedAt).also { actions = it }
         // Finishing: what Undo takes back, and nothing that alerts
         val until = engine.finishingUntil.takeIf { journey.startedAt == engine.journey?.startedAt }
-        if (until != null) return TripNotifications.finishing(this, journey.startedAt, FinishingNotice.of(journey, until, now, words), words)
+        if (until != null) {
+            val notice = FinishingNotice.of(journey, until, now, words)
+            if (posted(journey.startedAt to notice.copy(timeoutAfter = 0), now) && same) return null
+            return TripNotifications.finishing(this, journey.startedAt, notice, words, actions)
+        }
         val alerts = desk.alerts()
         val warningOn = channelOn(this, TripChannel.warning(alerts))
         val awaited = awaitedLines(journey, now)
         val busAlertOn = channelOn(this, WaitChannel.alert(alerts))
         val notice = TripNotice.of(journey, now, alerts, words, nextPostIn, warningOn, awaited, journey.nearBoarding(now), busAlertOn)
+        if (posted(Triple(journey.startedAt, notice.copy(timeoutAfter = 0), alerts), now) && same) return null
         // Once a ride, whoever posts first
         if (notice.alerting && notice.busChannel != null && journey.startedAt == engine.journey?.startedAt) engine.busAlerted()
-        return TripNotifications.build(this, journey.startedAt, notice, alerts, words)
+        return TripNotifications.build(this, journey.startedAt, notice, alerts, words, actions)
+    }
+
+    /** Whether [content] was posted last, under [TripNotice.REPOST_AFTER] before [now]; else it is taken as posted now */
+    private fun posted(content: Any, now: Long): Boolean {
+        if (content == lastPosted && now - lastPostedAt < REPOST_AFTER_MS) return true
+        lastPosted = content
+        lastPostedAt = now
+        return false
     }
 
     /** The buses the trip awaits for the ride ahead, as their waits read now, soonest first */
@@ -195,7 +221,11 @@ class TripService : Service(), TripHost {
     @SuppressLint("MissingPermission")
     override fun show(journey: Journey, now: Long, nextPostIn: Long) {
         shownStartedAt = journey.startedAt
-        NotificationManagerCompat.from(this).notify(TripNotifications.TRIP_ID, notification(journey, now, nextPostIn))
+        // The same as on show: not posted again, the beat still kept awake
+        notification(journey, now, nextPostIn, same = true)?.let {
+            posts++
+            NotificationManagerCompat.from(this).notify(TripNotifications.TRIP_ID, it)
+        }
         wakeLock.hold(nextPostIn + WAKE_MARGIN_MS)
     }
 
@@ -289,10 +319,16 @@ class TripService : Service(), TripHost {
 
     internal val holdsWakeLock: Boolean get() = wakeLock.isHeld
 
+    /** How many times the trip's notification was posted, for tests to count */
+    internal var posts = 0
+        private set
+
     companion object {
         /** How long past the next post the wake lock holds, should that post be late */
         const val WAKE_MARGIN_MS = 30_000L
 
         private const val WAKE_LOCK_TAG = "CaliGo:trip"
+
+        private val REPOST_AFTER_MS = TripNotice.REPOST_AFTER.inWholeMilliseconds
     }
 }

@@ -311,9 +311,12 @@ class TripEngine(
         return if (near) FixQuality.HIGH else FixQuality.BALANCED
     }
 
+    /** A fix: read the trip again only when it moved it, not for one too rough to count */
     private fun fixed(fix: TripFix) {
         val running = journey ?: return
-        journey = running.fixed(fix)
+        val moved = running.fixed(fix)
+        if (moved == running) return
+        journey = moved
         poke.trySend(Unit)
     }
 
