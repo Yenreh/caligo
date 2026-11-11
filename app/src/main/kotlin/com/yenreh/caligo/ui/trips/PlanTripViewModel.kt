@@ -236,7 +236,8 @@ class PlanTripViewModel(
 
     /**
      * Follow the open option as a trip: its walks, rides and changes, from
-     * this screen on show, after what a trip needs, as the trip screen asks
+     * this screen on show, after what a trip needs, as the trip screen asks;
+     * each ride on the line the rider tapped for it, or on any of its lines
      */
     fun startTrip() {
         val trips = trips ?: return
@@ -244,13 +245,15 @@ class PlanTripViewModel(
         val option = state.value.open ?: return
         if (option.rides.isEmpty()) return
         val destination = state.value.to?.name ?: option.rides.last().alight.name
+        // The lines the rider tapped for its rides, not the ones shown by default
+        val lines = state.value.expanded?.let { pinned[it] }.orEmpty().toMap()
         viewModelScope.launch {
             val missing = tripNeeds(notifications, location, trips)
             if (missing != null) {
                 state.update { it.copy(tripMessage = missing) }
                 return@launch
             }
-            trips.startJourney(option, destination, rideFactors)
+            trips.startJourney(option, destination, rideFactors, lines)
             started.trySend(Unit)
         }
     }

@@ -120,6 +120,7 @@ class PlanTripViewModelTest {
         hours: MutableStateFlow<Map<String, LineHours>?> = MutableStateFlow(emptyMap()),
         planning: CoroutineDispatcher = main,
         loader: TransitNetworkLoader = TransitNetworkLoader(repository, work, building = main),
+        trips: com.yenreh.caligo.trips.TripControl? = null,
     ): PlanTripViewModel = ViewModelProvider.create(
         store,
         viewModelFactory {
@@ -135,6 +136,8 @@ class PlanTripViewModelTest {
                     now = { clock },
                     planning = planning,
                     savedPlaces = places,
+                    trips = trips,
+                    notifications = com.yenreh.caligo.ui.stops.FakeNotificationAccess(granted = true),
                 )
             }
         },
@@ -437,6 +440,43 @@ class PlanTripViewModelTest {
         val chosen = model.screen.value.timed.getValue(row.index).firstRide!!
         assertEquals("T1", chosen.line)
         assertEquals(clock + 12.minutes.inWholeMilliseconds, chosen.departsAt)
+    }
+
+    // Starting the trip with the lines the rider chose
+
+    private fun twoLines(): FakeStopsRepository {
+        val route = line("a", 0..12)
+        return repository().apply {
+            routes = mapOf("T1" to route, "T2" to route.map { it.copy(direction = 1) })
+            tripArrivals = { arrivals("a0" to listOf(bus("T1", "v1", 12), bus("T2", "v2", 6))) }
+        }
+    }
+
+    @Test
+    fun aLineTheRiderTappedIsTheRidesChoiceOnTheTrip() = test {
+        val trips = com.yenreh.caligo.trips.FakeTripControl(clock)
+        val model = viewModel(twoLines(), trips = trips)
+        val row = model.screen.value.options.single()
+        model.toggle(row.index)
+        model.chooseLine(row.index, 0, "T1")
+        model.startTrip()
+        val start = trips.starts.single() as com.yenreh.caligo.trips.TripStart.Planned
+        assertEquals(mapOf(0 to "T1"), start.lines)
+        assertEquals("T1", trips.running.value?.chosenLine)
+    }
+
+    @Test
+    fun theLineShownByDefaultIsNoChoice() = test {
+        val trips = com.yenreh.caligo.trips.FakeTripControl(clock)
+        val model = viewModel(twoLines(), trips = trips)
+        val row = model.screen.value.options.single()
+        // T2, the soonest, shown first
+        assertEquals("T2", row.option.firstRide!!.line)
+        model.toggle(row.index)
+        model.startTrip()
+        val start = trips.starts.single() as com.yenreh.caligo.trips.TripStart.Planned
+        assertEquals(emptyMap<Int, String>(), start.lines)
+        assertNull(trips.running.value?.chosenLine)
     }
 
     // The device
