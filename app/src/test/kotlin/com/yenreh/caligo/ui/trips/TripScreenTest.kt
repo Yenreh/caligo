@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -550,7 +551,7 @@ class TripScreenTest {
     }
 
     @Test
-    fun asABusLeftThePanelAsksWithYesAndNo() {
+    fun asABusLeftThePanelAsksWithITookItAndNo() {
         trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
         trips.running.value = checkNotNull(trips.running.value).fixed(
             com.yenreh.caligo.trips.JourneyFixtures.fixAt(com.yenreh.caligo.domain.GeoPoint(TripFixtures.out[0].latitude, TripFixtures.out[0].longitude), NOW),
@@ -562,6 +563,9 @@ class TripScreenTest {
         show(took = null)
         waitFor("trip_asking")
         compose.onNode(hasText("Did you take the E21?")).assertExists()
+        // The same two answers as the notifications give
+        compose.onNodeWithTag("trip_asking_yes").assertTextEquals("I took it")
+        compose.onNodeWithTag("trip_asking_no").assertTextEquals("No")
         // Only the bus still coming has its time
         compose.onNode(hasText("T31 4${NBSP}min")).assertExists()
         // Yes says "I took the E21": only the other line keeps its button, under the hint

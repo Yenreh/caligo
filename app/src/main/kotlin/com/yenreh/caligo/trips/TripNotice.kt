@@ -166,7 +166,7 @@ data class TripNotice(
     val takeLines: List<String> = emptyList(),
     /** The waits' alert channel, in place of [channel], from the alert of an awaited bus on for the rest of its ride */
     val busChannel: WaitChannel? = null,
-    /** The line whose bus just left the stop, while the trip asks with Yes and No whether the rider took it */
+    /** The line whose bus just left the stop, while the trip asks with "I took it" and No whether the rider took it */
     val asking: String? = null,
 ) {
     /** The channel it posts on */
@@ -520,7 +520,8 @@ class TripWords(private val resources: Resources) {
     /** "Did you take the T31?", as its bus leaves the stop */
     fun didYouTake(line: String) = resources.getString(R.string.wait_title_asking, line)
 
-    val yes: String get() = resources.getString(R.string.trip_yes)
+    /** The answer that the bus asked about was taken, as a wait's notification gives it */
+    val tookIt: String get() = resources.getString(R.string.wait_took_it)
 
     val no: String get() = resources.getString(R.string.wait_not_taken)
 

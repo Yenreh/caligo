@@ -336,7 +336,7 @@ class TripJourneyTest {
         atTheStopAsTheE21Leaves()
         assertOne()
         assertEquals("Did you take the E21?", shown.title())
-        assertEquals(listOf("Yes", "No", "Finish"), shown.actions.map { it.title.toString() })
+        assertEquals(listOf("I took it", "No", "Finish"), shown.actions.map { it.title.toString() })
         assertTrue("silent", shown.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
         assertTrue(h.desk.awaited.value.any { it.line == "E21" && it.asking })
     }
@@ -344,7 +344,7 @@ class TripJourneyTest {
     @Test
     fun yesTakesTheLineFromWhenItsBusLeft() {
         atTheStopAsTheE21Leaves()
-        h.pressTitled("Yes")
+        h.pressTitled("I took it")
         h.advance(1)
         val ride = checkNotNull(h.desk.running.value?.ride)
         assertEquals("E21", ride.plan.line)

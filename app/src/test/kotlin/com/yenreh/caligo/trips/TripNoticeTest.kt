@@ -298,7 +298,7 @@ class TripNoticeTest {
     }
 
     @Test
-    fun asABusLeftItAsksWithYesAndNoAndNoAlert() {
+    fun asABusLeftItAsksWithITookItAndNoAndNoAlert() {
         val asking = listOf(AwaitedLine("E21", NOW - MINUTE, asking = true), AwaitedLine("T31", NOW + MINUTE))
         val notice = TripNotice.of(waiting, NOW, Alerts(), words, 15_000, awaited = asking, near = true)
         assertEquals("Did you take the E21?", notice.title)
@@ -308,7 +308,7 @@ class TripNoticeTest {
         assertFalse(notice.alerting)
         assertEquals("At Plaza de Cayzedo A1 · T31 1${NBSP}min", notice.text)
         val built = TripNotifications.build(context, NOW, notice, Alerts(), words)
-        assertEquals(listOf("Yes", "No", "Finish"), built.actions.map { it.title.toString() })
+        assertEquals(listOf("I took it", "No", "Finish"), built.actions.map { it.title.toString() })
         assertEquals(TripNotifications.ACTION_TAKE_LINE, org.robolectric.Shadows.shadowOf(built.actions[0].actionIntent).savedIntent.action)
         assertEquals(TripNotifications.ACTION_NOT_TAKEN, org.robolectric.Shadows.shadowOf(built.actions[1].actionIntent).savedIntent.action)
         assertEquals("E21", org.robolectric.Shadows.shadowOf(built.actions[1].actionIntent).savedIntent.getStringExtra(TripNotifications.EXTRA_LINE))
@@ -322,7 +322,7 @@ class TripNoticeTest {
         val es = TripWords(ApplicationProvider.getApplicationContext<Context>().resources)
         val notice = TripNotice.of(waiting, NOW, Alerts(), es, 15_000, awaited = listOf(AwaitedLine("T31", NOW - MINUTE, asking = true)), near = true)
         assertEquals("¿Tomaste el T31?", notice.title)
-        assertEquals(listOf("Sí", "No", "Terminar"), TripNotifications.build(context, NOW, notice, Alerts(), es).actions.map { it.title.toString() })
+        assertEquals(listOf("Lo tomé", "No", "Terminar"), TripNotifications.build(context, NOW, notice, Alerts(), es).actions.map { it.title.toString() })
     }
 
     @Test

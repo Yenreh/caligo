@@ -211,7 +211,7 @@ class TripEngine(
     fun took(took: TookRide): Boolean = finishingUntil == null && take(journey?.tookIt(took, now()))
 
     /**
-     * "I took the [line]" on the screen, "[line]: I took it" or Yes on the
+     * "I took the [line]" on the screen, "[line]: I took it" or "I took it" on the
      * notification: the ride awaited taken on that line, every wait of it
      * ending. Late, within [LATE_TAKE] of that line's awaited bus leaving
      * the stop, the ride starts from its leaving, where the estimate then

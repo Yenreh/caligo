@@ -45,12 +45,13 @@ class WaitNotificationScreenshotTest {
         var e21Wait = Wait.start(awaited(e21), NOW)
         var at = NOW + 6 * MINUTE + 30_000
         if (phase == "coming") at = NOW + 3 * MINUTE
-        if (phase == "asking") {
+        if (phase == "asking" || phase == "alone_asking") {
             // Listed until a minute before its time, then gone: at the stop, then passed
             e21Wait = e21Wait.fed(WaitFixtures.answer(NOW + 6 * MINUTE, e21)).fed(WaitFixtures.answer(NOW + 7 * MINUTE + 30_000))
             at = NOW + 9 * MINUTE + 15_000
         }
-        val waits = listOf(t31, e21Wait)
+        // The E21's wait alone, asking as a group does
+        val waits = if (phase == "alone_asking") listOf(e21Wait) else listOf(t31, e21Wait)
         val notice = WaitNotice.ofGroup(waits, at, Alerts(), words, 15_000)
         if (phase == "alerting") check(notice.alerting)
         captureNotification(context, WaitNotifications.build(context, WaitNotifications.FIRST_ID, waits, notice, Alerts(), words), "wait_group_${phase}_$name", 411 * 3, dark)
@@ -60,6 +61,7 @@ class WaitNotificationScreenshotTest {
         group(name, dark, "coming")
         group(name, dark, "asking")
         group(name, dark, "alerting")
+        group(name, dark, "alone_asking")
     }
 
     @Test

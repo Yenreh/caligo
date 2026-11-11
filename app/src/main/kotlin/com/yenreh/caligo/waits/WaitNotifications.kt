@@ -125,7 +125,7 @@ object WaitNotifications {
             )
         for (action in notice.actions) {
             val intent = when (action) {
-                WaitAction.TOOK, WaitAction.YES -> tookIt(context, id, wait, trips = trips)
+                WaitAction.TOOK -> tookIt(context, id, wait, trips = trips)
                 WaitAction.STOP, WaitAction.NOT_TAKEN -> action(context, id, wait, ACTION_STOP)
                 WaitAction.STOP_ALL -> action(context, id, wait, ACTION_STOP_GROUP)
             }
@@ -135,7 +135,7 @@ object WaitNotifications {
         for ((slot, button) in notice.buttons.withIndex()) {
             val own = waits.firstOrNull { it.key == button.key } ?: continue
             val intent = when (button.action) {
-                WaitAction.TOOK, WaitAction.YES -> tookIt(context, id, own, slot, trips)
+                WaitAction.TOOK -> tookIt(context, id, own, slot, trips)
                 WaitAction.STOP, WaitAction.NOT_TAKEN -> action(context, id, own, ACTION_STOP)
                 WaitAction.STOP_ALL -> action(context, id, own, ACTION_STOP_GROUP)
             }

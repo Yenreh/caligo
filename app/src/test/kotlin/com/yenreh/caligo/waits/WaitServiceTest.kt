@@ -446,7 +446,7 @@ class WaitServiceTest {
         start(awaited(t31), awaited(e21))
         advance(e21.arrivalTime + MINUTE + 15_000 - now())
         assertEquals("Did you take the E21?", group.title())
-        assertEquals(listOf("Yes", "No", "Stop waiting"), group.actions.map { it.title.toString() })
+        assertEquals(listOf("I took it", "No", "Stop waiting"), group.actions.map { it.title.toString() })
         // No: that bus no longer waited for; the T31 alone, as one wait shows
         group.actions[1].actionIntent.send()
         shadowOf(Looper.getMainLooper()).idle()

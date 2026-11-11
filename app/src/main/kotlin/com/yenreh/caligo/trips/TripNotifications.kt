@@ -175,10 +175,10 @@ object TripNotifications {
                     .setProgress(notice.progress)
                     .setProgressTrackerIcon(IconCompat.createWithResource(context, trackerIcon(notice.tracker))),
             )
-        // Asking whether the bus that left was taken: Yes and No; else the lines to take first, soonest
+        // Asking whether the bus that left was taken: I took it and No; else the lines to take first, soonest
         // first; then Finish: three at most, as Android shows
         notice.asking?.let { line ->
-            builder.addAction(0, words.yes, actions.takeLine(0, line))
+            builder.addAction(0, words.tookIt, actions.takeLine(0, line))
             builder.addAction(0, words.no, actions.notTaken(line))
         }
         for ((i, line) in notice.takeLines.withIndex()) builder.addAction(0, words.tookLineAction(line), actions.takeLine(i, line))

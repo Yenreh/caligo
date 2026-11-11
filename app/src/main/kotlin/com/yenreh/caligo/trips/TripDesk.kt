@@ -58,7 +58,7 @@ interface TripControl {
     /** The buses the trip awaits for the ride ahead, soonest first */
     val awaited: StateFlow<List<AwaitedLine>>
 
-    /** "I took the [line]" on the screen, or Yes as its bus left: the ride awaited taken on that line */
+    /** "I took the [line]" on the screen, or "I took it" as its bus left: the ride awaited taken on that line */
     fun takeLine(line: String)
 
     /** "No" on the screen as a bus of [line] left: back to waiting for the next */

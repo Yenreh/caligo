@@ -238,7 +238,7 @@ fun TripScreen(
     onAlight: (Int?) -> Unit = {},
     /** The buses a planner trip awaits for the ride ahead, soonest first */
     awaited: List<AwaitedLine> = emptyList(),
-    /** "I took the A47", while waiting at the stop or near it on foot, or Yes as its bus left */
+    /** "I took the A47", while waiting at the stop or near it on foot, or "I took it" as its bus left */
     onTookLine: (String) -> Unit = {},
     /** "No" as a bus of that line left */
     onNotTaken: (String) -> Unit = {},
@@ -492,7 +492,7 @@ private fun Running(
                         Detail(words.atStop(phase.leg.ride.board.name))
                         AwaitedTimes(awaited, at, words)
                         DidYouTake(awaited, lines, words, onTookLine, onNotTaken)
-                        // Its Yes already says it of the line asked about
+                        // The question's "I took it" already says it of the line asked about
                         TookButtons(ordered.filter { it != askingLine(awaited, lines) }, onTookLine)
                     }
                 }
@@ -668,7 +668,7 @@ private fun LineRow(row: LineTimes, words: TripWords, onClick: (() -> Unit)?) {
 /** The line of [lines] whose awaited bus just left the stop, which the trip asks about; none when it asks nothing */
 private fun askingLine(awaited: List<AwaitedLine>, lines: List<String>): String? = awaited.firstOrNull { it.asking && it.line in lines }?.line
 
-/** "Did you take the T31?" with Yes and No, while a bus of [lines] awaited has just left the stop */
+/** "Did you take the T31?" with "I took it" and No, while a bus of [lines] awaited has just left the stop */
 @Composable
 private fun DidYouTake(awaited: List<AwaitedLine>, lines: List<String>, words: TripWords, onYes: (String) -> Unit, onNo: (String) -> Unit) {
     val line = askingLine(awaited, lines) ?: return
@@ -680,7 +680,7 @@ private fun DidYouTake(awaited: List<AwaitedLine>, lines: List<String>, words: T
     )
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        LabFilledButton(onClick = { onYes(line) }, modifier = Modifier.weight(1f).testTag("trip_asking_yes")) { Text(words.yes) }
+        LabFilledButton(onClick = { onYes(line) }, modifier = Modifier.weight(1f).testTag("trip_asking_yes")) { Text(words.tookIt) }
         LabOutlinedButton(onClick = { onNo(line) }, modifier = Modifier.weight(1f).testTag("trip_asking_no")) { Text(words.no) }
     }
 }

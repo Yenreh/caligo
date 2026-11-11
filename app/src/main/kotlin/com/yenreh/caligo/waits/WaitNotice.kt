@@ -54,9 +54,6 @@ enum class WaitAction {
     /** "No", the answer to "Did you take it?": stops waiting, as [STOP] */
     NOT_TAKEN,
 
-    /** "Yes" to "Did you take the T31?" in a stop's group: that bus taken, as [TOOK] */
-    YES,
-
     /** "Stop waiting" in a stop's group: every wait of it ends */
     STOP_ALL,
 }
@@ -106,7 +103,7 @@ data class WaitNotice(
          * below, the chip and the bar the soonest's, an "I took it" for the
          * two soonest and "Stop waiting" for all. A bus that passed asks
          * "Did you take the T31?" for its minute, the earliest first, with
-         * Yes, No and "Stop waiting". [alerted] are the waits whose alert
+         * "I took it", No and "Stop waiting". [alerted] are the waits whose alert
          * has gone out: one more alerts at most, once.
          */
         fun ofGroup(
@@ -132,7 +129,8 @@ data class WaitNotice(
             val title = asking?.let { words.titleAsking(it.last.line) } ?: sorted.joinToString(" · ") { words.short(it, now) }
             val buttons = if (asking != null) {
                 listOf(
-                    WaitButton(WaitAction.YES, asking.key, asking.last.line),
+                    // As one wait asks, and the trip: "I took it", not a "Yes" of its own
+                    WaitButton(WaitAction.TOOK, asking.key),
                     WaitButton(WaitAction.NOT_TAKEN, asking.key, asking.last.line),
                     WaitButton(WaitAction.STOP_ALL, sorted.first().key),
                 )
@@ -310,7 +308,6 @@ class WaitWords(private val resources: Resources) {
             WaitAction.TOOK -> R.string.wait_took_it
             WaitAction.STOP -> R.string.wait_stop_waiting
             WaitAction.NOT_TAKEN -> R.string.wait_not_taken
-            WaitAction.YES -> R.string.wait_yes
             WaitAction.STOP_ALL -> R.string.wait_stop_waiting
         },
     )
