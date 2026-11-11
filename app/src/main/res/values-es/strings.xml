@@ -272,7 +272,7 @@
     <string name="save_place">Guardar lugar</string>
     <string name="edit_place">Editar lugar</string>
     <string name="place_name_label">Nombre</string>
-    <string name="place_name_hint">Corto, como Casa o Trabajo: planea el viaje hasta allí con un toque desde el planeador</string>
+    <string name="place_name_hint">Corto, como Casa o Trabajo. Luego, con un toque planeas el viaje hasta allí.</string>
     <string name="delete_place">Eliminar lugar</string>
     <string name="save_place_action">Guardar %1$s como lugar</string>
     <string name="edit_place_action">Editar el lugar guardado %1$s</string>

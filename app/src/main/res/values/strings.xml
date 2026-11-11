@@ -277,7 +277,7 @@
     <string name="save_place">Save place</string>
     <string name="edit_place">Edit place</string>
     <string name="place_name_label">Name</string>
-    <string name="place_name_hint">Short, such as Home or Work: it plans a trip there with one tap from the planner</string>
+    <string name="place_name_hint">Short, such as Home or Work. Then one tap plans a trip there.</string>
     <string name="delete_place">Delete place</string>
     <string name="save_place_action">Save %1$s as a place</string>
     <string name="edit_place_action">Edit the saved place %1$s</string>
