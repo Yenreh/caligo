@@ -71,6 +71,9 @@ class FakeTripSource(private val now: () -> Long) : TripSource {
     val askedNear = mutableListOf<GeoPoint?>()
     var arrivalsAnswer: (stops: List<LineStop>, at: Long) -> LiveArrivals = { _, _ -> LiveArrivals.NONE }
     val arrivalsAsked = mutableListOf<List<String>>()
+
+    /** When each was asked */
+    val arrivalsAskedAt = mutableListOf<Long>()
     val observed = mutableListOf<Map<String, Double>>()
 
     override suspend fun buses(line: String, near: GeoPoint?): List<LineBus> {
@@ -83,6 +86,7 @@ class FakeTripSource(private val now: () -> Long) : TripSource {
 
     override suspend fun arrivals(stops: List<LineStop>): LiveArrivals {
         arrivalsAsked.add(stops.map { it.stopId })
+        arrivalsAskedAt.add(now())
         return arrivalsAnswer(stops, now())
     }
 

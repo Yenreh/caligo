@@ -145,8 +145,13 @@ gets the stops.
   ride followed asks for its line's buses every 30 s, the request the line
   screen makes. A trip started from the planner asks, for each ride, the
   arrivals of its stops once, as the planner does, to wait for the next
-  bus of each of its lines, and, from 300 m before its stop until a bus is
-  taken, those lines' buses every 30 s, not once the rider is 300 m from
+  bus of each of its lines: where it boards, and where it gets off only
+  when it boards at a station's platform, as a bus listed at another
+  platform counts only once seen there. While none of its lines lists a
+  bus to catch, it asks again after 1, 2 and then every 4 minutes, and
+  after a minute once the waits it found end with none taken. It also
+  asks, from 300 m before its stop until a bus is taken, those lines'
+  buses every 30 s, not once the rider is 300 m from
   the stop and off those lines' routes. Waiting there ends the trip after
   45 minutes with no bus taken, or after 3 minutes 400 m away. The rider's
   own position never leaves the phone: the bus is told among the line's by

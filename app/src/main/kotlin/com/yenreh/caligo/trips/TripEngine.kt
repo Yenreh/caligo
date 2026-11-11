@@ -18,7 +18,9 @@ import com.yenreh.caligo.domain.entities.LineBus
 import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.entities.RideLeg
 import com.yenreh.caligo.domain.entities.TripOption
+import com.yenreh.caligo.domain.failureBackoff
 import com.yenreh.caligo.domain.metersBetween
+import com.yenreh.caligo.domain.stationOf
 import com.yenreh.caligo.ui.lines.LineViewModel
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.minutes
@@ -136,6 +138,16 @@ class TripEngine(
     /** The last round found a bus of the ride waited for nearing its stop */
     private var busNear = false
 
+    /**
+     * The ride [awaitFor] waited for, the arrivals asked in a row that
+     * listed no bus of it to catch, and those that failed: each makes the
+     * next ask wait longer, until a bus is found, the leg changes or a bus
+     * is taken
+     */
+    private var awaitFor: Int? = null
+    private var awaitEmpty = 0
+    private var awaitFailures = 0
+
     private val poke = Channel<Unit>(Channel.CONFLATED)
 
     /** Whether nothing runs: no beat, no request, no fixes asked */
@@ -175,6 +187,7 @@ class TripEngine(
     /** The trip goes on as [taken], a bus taken, if any: every wait of the ride goes, the one taken too */
     private fun take(taken: Journey?): Boolean {
         journey = taken ?: return false
+        awaitFor = null
         settleWaits()
         poke.trySend(Unit)
         return true
@@ -327,24 +340,36 @@ class TripEngine(
 
     /**
      * The waits for the ride waited for: started as the leg to it begins,
-     * and asked for again when all have ended with none taken
+     * and asked for again when all have ended with none taken, after
+     * [AWAIT_AGAIN], then 2 and 4 minutes while no bus of it to catch is
+     * listed, and longer after failures, as [failureBackoff] says
      */
     private fun awaitRide(running: Journey, now: Long) {
         if (!running.planned || asking != null) return
         val pending = running.pendingRide ?: return
         if (running.declinedFor == pending) return
+        // Another leg: what the asks before found says nothing of it
+        if (awaitFor != pending) {
+            awaitFor = pending
+            awaitEmpty = 0
+            awaitFailures = 0
+        }
         if (running.awaitedFor == pending) {
             if (running.awaited.any { it in host.runningWaits() }) return
-            if (now - (running.awaitedAt ?: now) < AWAIT_AGAIN_MS) return
+            if (now - (running.awaitedAt ?: now) < awaitAgain()) return
         }
         val candidates = running.pendingCandidates
         // From when the rider gets to the stop
         val walk = (running.phase(now) as? JourneyPhase.Walking)?.millis ?: 0
         val job = scope.launch(start = CoroutineStart.LAZY) {
             var keys: List<WaitKey> = emptyList()
+            var found: Boolean? = null
             try {
-                val live = source.arrivals(candidates.flatMap { listOf(it.board, it.alight) })
-                keys = host.startWaits(awaitedBuses(live, candidates, now + walk))
+                val live = source.arrivals(stopsToAsk(candidates))
+                val buses = awaitedBuses(live, candidates, now + walk)
+                // None, as an area that could not be asked leaves it: a failure, not an answer
+                found = if (buses.isEmpty() && live.failed) null else buses.isNotEmpty()
+                keys = host.startWaits(buses)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 // Asked again a little later
@@ -357,12 +382,41 @@ class TripEngine(
                 host.stopWaits(keys)
                 return@launch
             }
+            if (awaitFor == pending) {
+                when (found) {
+                    null -> awaitFailures++
+                    true -> {
+                        awaitEmpty = 0
+                        awaitFailures = 0
+                    }
+                    false -> {
+                        awaitEmpty++
+                        awaitFailures = 0
+                    }
+                }
+            }
             journey = current.awaiting(pending, keys, now())
             poke.trySend(Unit)
         }
         asking = job
         job.start()
     }
+
+    /** How long after the last ask the ride waited for is asked about again */
+    private fun awaitAgain(): Long {
+        val empty = if (awaitEmpty <= 1) 1L else 1L shl minOf(awaitEmpty - 1, 2)
+        return AWAIT_AGAIN_MS * empty + failureBackoff(awaitFailures).inWholeMilliseconds
+    }
+
+    /**
+     * The stops whose arrivals tell the next bus of each of [candidates]:
+     * where it boards; where it gets off only for a station's platform,
+     * since a bus listed at another platform of it counts only once seen
+     * there, as [LiveArrivals.nextBus] tells
+     */
+    private fun stopsToAsk(candidates: List<RideLeg>): List<LineStop> = candidates
+        .flatMap { if (stationOf(it.board.name) != null) listOf(it.board, it.alight) else listOf(it.board) }
+        .distinctBy { it.stopId }
 
     /** Ask for the buses when due, and say when the next round is */
     private fun rounds(now: Long): Long {
@@ -447,7 +501,11 @@ class TripEngine(
         /** Within this many stops of where the ride ends, the fixes are asked at high accuracy */
         const val NEAR_STOPS = 2
 
-        /** The waits for a ride, all ended with none taken, are asked for again after this */
+        /**
+         * The waits for a ride, all ended with none taken, are asked for
+         * again after this; while the arrivals list no bus of it to catch,
+         * after twice and then four times as long
+         */
         val AWAIT_AGAIN = 60.seconds
 
         /** Waiting at the stop, a bus to take within this of it asks the fixes at high accuracy */

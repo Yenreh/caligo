@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.NBSP
 import com.yenreh.caligo.data.location.FixQuality
 import com.yenreh.caligo.domain.GeoPoint
+import com.yenreh.caligo.domain.LiveArrivals
 import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.domain.TookRide
 import com.yenreh.caligo.domain.TripEnding
@@ -306,6 +307,63 @@ class TripJourneyTest {
         assertTrue("the old trip's waits gone", h.awaitedLines.isEmpty())
         h.assertRunning()
         assertEquals(1, h.tripOwn.size)
+    }
+
+    // Asking for the next ride's buses
+
+    /** Minutes from the start each ride's arrivals were asked at */
+    private val askedMinutes get() = h.source.arrivalsAskedAt.map { (it - NOW) / MINUTE.toDouble() }
+
+    @Test
+    fun withNoBusOfTheRideListedItsArrivalsAreAskedAfter1Then2Then4Minutes() {
+        h.source.arrivalsAnswer = { _, at -> LiveArrivals(at, emptyList()) }
+        startJourney()
+        h.move(12 * MINUTE) { stop }
+        assertEquals(listOf(0.0, 1.0, 3.0, 7.0, 11.0), askedMinutes)
+    }
+
+    @Test
+    fun aBusListedAgainResetsTheWait() {
+        var listed = false
+        h.source.arrivalsAnswer = { _, at -> if (listed) firstArrivals(at, e21In = 3, t31In = 4) else LiveArrivals(at, emptyList()) }
+        // The waits see those buses until they reach the stop, at 10 and 11
+        h.waitsAnswering { _, at -> WaitAnswer(if (at < NOW + 9 * MINUTE) firstArrivals(NOW + 7 * MINUTE, e21In = 3, t31In = 4).stops else emptyList(), at) }
+        startJourney()
+        h.move(4 * MINUTE) { stop }
+        assertEquals(listOf(0.0, 1.0, 3.0), askedMinutes)
+        // Listed at 7: its waits run, and pass with none taken
+        listed = true
+        h.move(4 * MINUTE) { stop }
+        assertEquals(7.0, askedMinutes.last(), 0.0)
+        listed = false
+        h.move(12 * MINUTE) { stop }
+        // Once they ended, none listed again: a minute, not four, as the wait starts over
+        val after = askedMinutes.filter { it > 7.0 }
+        assertTrue(after.toString(), after.size >= 2)
+        assertEquals(after.toString(), 1.0, after[1] - after[0], 0.0)
+    }
+
+    @Test
+    fun aFailingAskWaitsLongerEachTimeUpTo2MinutesMore() {
+        h.source.arrivalsAnswer = { _, _ -> throw com.yenreh.caligo.data.datasources.NetworkApiException("offline") }
+        startJourney()
+        h.move(10 * MINUTE) { stop }
+        // 1 min and 30 s, then 2 min, then 3 min each
+        assertEquals(listOf(0.0, 1.5, 3.5, 6.5, 9.5), askedMinutes)
+    }
+
+    @Test
+    fun theStopsToGetOffAtAreAskedOnlyForAStationsPlatform() {
+        startJourney()
+        // Plaza de Cayzedo A1, a station's platform: where the ride gets off too, once each
+        assertEquals(listOf(out[0].stopId, out[6].stopId), h.source.arrivalsAsked.first())
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.pressTitled("T31: I took it")
+        val t31At = h.now()
+        h.source.byLine = { line, at -> if (line == "T31") listOf(busOn(calle5Route, "41022", (at - t31At) * 7.0 / 1000)) else emptyList() }
+        h.move(7 * MINUTE) { at -> if (h.desk.running.value?.ride != null) calle5Route.pointAt((at - t31At) * 7.0 / 1000) else null }
+        // Kr 22 con Cl 10, a street stop: only where the A47 boards
+        assertEquals(listOf(a47[0].stopId), h.source.arrivalsAsked.last())
     }
 
     @Test
