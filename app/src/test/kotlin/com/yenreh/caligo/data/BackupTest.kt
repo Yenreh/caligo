@@ -14,12 +14,15 @@ import com.yenreh.caligo.data.datasources.StopsLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsRemoteDatasource
 import com.yenreh.caligo.data.json.JsonFormatException
 import com.yenreh.caligo.data.json.JsonTypeException
+import com.yenreh.caligo.data.json.MAX_LINES
+import com.yenreh.caligo.data.json.MAX_TEXT
 import com.yenreh.caligo.data.json.dartTryParse
 import com.yenreh.caligo.data.repositories.CardRepositoryImpl
 import com.yenreh.caligo.data.repositories.PlacesRepositoryImpl
 import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.entities.AppThemeMode
 import com.yenreh.caligo.domain.entities.CardEntity
+import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.domain.entities.PlaceKind
@@ -213,6 +216,70 @@ class BackupTest {
         }
         assertTrue(device.cards.getAllCards().isEmpty())
         assertEquals(1, device.places.places.value.size)
+    }
+
+    @Test
+    fun aPointOffTheMapIsAFaultForAPlaceAndAStop() = runTest {
+        val device = device("a")
+        val card = """{"internalId": "x", "id": "1", "name": "A"}"""
+        fun place(latitude: String, longitude: String) =
+            """{"name": "B", "label": "B", "latitude": $latitude, "longitude": $longitude}"""
+        fun stop(latitude: String, longitude: String) =
+            """{"id": "1", "name": "A", "anchorLatitude": $latitude, "anchorLongitude": $longitude}"""
+
+        // 1e999 reads as Infinity, which no export could write again
+        for ((latitude, longitude) in listOf("1e999" to "-76.5", "3.4" to "-1e999", "90.5" to "-76.5", "3.4" to "180.5")) {
+            assertThrowsSuspend<JsonTypeException> {
+                device.backup.import("""{"cards": [$card], "favoritePlaces": [${place(latitude, longitude)}]}""")
+            }
+            assertThrowsSuspend<JsonTypeException> {
+                device.backup.import("""{"cards": [$card], "favoriteStops": [${stop(latitude, longitude)}]}""")
+            }
+        }
+        assertTrue(device.cards.getAllCards().isEmpty())
+        assertTrue(device.stops.getFavorites().isEmpty())
+        assertTrue(device.places.places.value.isEmpty())
+
+        // The ends themselves are on the map
+        assertEquals(2, device.backup.import("""{"favoritePlaces": [${place("90", "-180")}], "favoriteStops": [${stop("-90", "180")}]}"""))
+        assertTrue(device.backup.export()!!.contains("\"latitude\": 90.0"))
+    }
+
+    @Test
+    fun longTextsAreCappedAndLongListsCut() = runTest {
+        val device = device("a")
+        val long = "x".repeat(5_000)
+        // An emoji across the cut is left out whole
+        val label = "y".repeat(MAX_TEXT - 1) + "\uD83D\uDE8C" + "z"
+        val places = listOf(
+            """{"name": "$long", "label": "$label", "detail": "$long", "stopId": "0$long", "latitude": 3.4, "longitude": -76.5}""",
+        ) + (1 until 600).map { i -> """{"name": "P$i", "stopId": "s$i", "latitude": 3.4, "longitude": -76.5, "position": $i}""" }
+        val lines = (0 until 300).joinToString { "\"$long\"" }
+        val stops = listOf(
+            """{"id": "0$long", "name": "$long", "customName": "$long", "stopId": "$long",
+                "anchorLatitude": 3.4, "anchorLongitude": -76.5, "lines": [$lines]}""",
+        ) + (1 until 600).map { i -> """{"id": "$i", "name": "S$i", "anchorLatitude": 3.4, "anchorLongitude": -76.5}""" }
+
+        val imported = device.backup.import(
+            """{"favoritePlaces": [${places.joinToString()}], "favoriteStops": [${stops.joinToString()}]}""",
+        )
+
+        assertEquals(2 * Backup.MAX_ENTRIES, imported)
+        val saved = device.places.places.value
+        assertEquals(Backup.MAX_ENTRIES, saved.size)
+        assertEquals("P499", saved.last().name)
+        val place = saved.first()
+        assertEquals("x".repeat(FavoritePlace.MAX_NAME), place.name)
+        assertEquals("y".repeat(MAX_TEXT - 1), place.label)
+        assertEquals(listOf(MAX_TEXT), listOf(place.detail!!, place.stopId!!).map { it.length }.distinct())
+        val favorites = device.stops.getFavorites()
+        assertEquals(Backup.MAX_ENTRIES, favorites.size)
+        val stop = favorites.single { it.lines.isNotEmpty() }
+        assertEquals(listOf(MAX_TEXT), listOf(stop.id, stop.name, stop.customName!!, stop.stopId!!).map { it.length }.distinct())
+        assertEquals(MAX_LINES, stop.lines.size)
+        assertEquals(MAX_TEXT, stop.lines.first().length)
+        // And all of it exports again
+        assertTrue(device.backup.export()!!.contains("\"P499\""))
     }
 
     @Test

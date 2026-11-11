@@ -81,3 +81,7 @@ fun List<FavoritePlace>.matching(place: TripPlace): FavoritePlace? =
 fun List<FavoritePlace>.matching(latitude: Double, longitude: Double, stopId: String?): FavoritePlace? =
     filter { it.isAt(latitude, longitude, stopId) }
         .minByOrNull { metersBetween(it.latitude, it.longitude, latitude, longitude) }
+
+/** At most [max] UTF-16 units, one fewer rather than half a surrogate pair */
+fun String.cutAt(max: Int): String =
+    if (length <= max) this else take(if (Character.isHighSurrogate(this[max - 1])) max - 1 else max)

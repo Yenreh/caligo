@@ -8,6 +8,7 @@ import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.Settings
+import com.yenreh.caligo.domain.entities.cutAt
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -62,17 +63,21 @@ fun FavoriteStop.toJson(): JsonObject = buildJsonObject {
     put("lines", JsonArray(lines.map(::JsonPrimitive)))
 }
 
-/** The missing count is not exported: it starts again at zero */
+/**
+ * The missing count is not exported: it starts again at zero. Unlike the
+ * Flutter app, a point off the map is a fault, and its texts and lines are
+ * capped: a crafted file could otherwise stop every later export or read.
+ */
 fun favoriteFromJson(json: JsonObject) = FavoriteStop(
-    id = json["id"].string(),
-    name = json["name"].string(),
-    customName = json["customName"].stringOrNull(),
-    stopId = json["stopId"].stringOrNull(),
-    anchorLatitude = json["anchorLatitude"].double(),
-    anchorLongitude = json["anchorLongitude"].double(),
+    id = json["id"].string().cutAt(MAX_TEXT),
+    name = json["name"].string().cutAt(MAX_TEXT),
+    customName = json["customName"].stringOrNull()?.cutAt(MAX_TEXT),
+    stopId = json["stopId"].stringOrNull()?.cutAt(MAX_TEXT),
+    anchorLatitude = json["anchorLatitude"].latitude(),
+    anchorLongitude = json["anchorLongitude"].longitude(),
     position = json["position"].position(),
     showOnHome = json["showOnHome"].boolOrNull() ?: true,
-    lines = json["lines"].listOrNull()?.map { it.dartString() ?: "null" } ?: emptyList(),
+    lines = json["lines"].listOrNull()?.take(MAX_LINES)?.map { (it.dartString() ?: "null").cutAt(MAX_TEXT) } ?: emptyList(),
 )
 
 /** A saved place in a backup, a key the Flutter app never wrote; its id is the device's own */
@@ -87,22 +92,39 @@ fun FavoritePlace.toJson(): JsonObject = buildJsonObject {
     put("position", position)
 }
 
-/** A saved place from a backup, its name cleaned as one typed; one without a name is a fault */
+/**
+ * A saved place from a backup, its name cleaned as one typed and its texts
+ * capped; one without a name, or off the map, is a fault
+ */
 fun favoritePlaceFromJson(json: JsonObject): FavoritePlace {
     val name = json["name"].string()
-    val label = json["label"].stringOrNull() ?: name
+    val label = (json["label"].stringOrNull() ?: name).cutAt(MAX_TEXT)
     return FavoritePlace(
         id = 0,
         name = FavoritePlace.cleanName(name) ?: FavoritePlace.cleanName(label) ?: throw JsonTypeException("Expected a name"),
         kind = PlaceKind.of(json["kind"].stringOrNull()),
         label = label,
-        detail = json["detail"].stringOrNull(),
-        latitude = json["latitude"].double(),
-        longitude = json["longitude"].double(),
-        stopId = json["stopId"].stringOrNull(),
+        detail = json["detail"].stringOrNull()?.cutAt(MAX_TEXT),
+        latitude = json["latitude"].latitude(),
+        longitude = json["longitude"].longitude(),
+        stopId = json["stopId"].stringOrNull()?.cutAt(MAX_TEXT),
         position = json["position"].position(),
     )
 }
+
+/** The longest text a stop or a place keeps from a backup: a name, a label, an id */
+const val MAX_TEXT = 200
+
+/** The most lines a stop keeps from a backup, more than any station serves */
+const val MAX_LINES = 100
+
+/** A latitude: a finite number within ±90; anything else is a fault */
+private fun JsonElement?.latitude(): Double =
+    double().also { if (it !in -90.0..90.0) throw JsonTypeException("Expected a latitude, found $it") }
+
+/** A longitude: a finite number within ±180; anything else is a fault */
+private fun JsonElement?.longitude(): Double =
+    double().also { if (it !in -180.0..180.0) throw JsonTypeException("Expected a longitude, found $it") }
 
 /**
  * A stop's or a place's position, as `(json['position'] as num?)?.toInt() ?? 0`

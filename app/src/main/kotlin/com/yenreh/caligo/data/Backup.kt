@@ -87,7 +87,9 @@ class Backup(
      * backup throws before anything changes; cards and stops are written
      * in one transaction, and the settings applied once it commits. A card
      * number or a stop id the file repeats is imported once; so is a place
-     * the star would show as saved, by its stop or where it is.
+     * the star would show as saved, by its stop or where it is. A stop or a
+     * place off the map is a fault too; long texts are capped, and only the
+     * first [MAX_ENTRIES] stops and places are read.
      */
     suspend fun import(text: String): Int {
         val data = parseJson(text).obj()
@@ -96,10 +98,12 @@ class Backup(
         val fileCards = (data["cards"].listOrNull() ?: JsonArray(emptyList())).map { cardFromJson(it.obj()) }
         val fileStops = (data["favoriteStops"].listOrNull() ?: JsonArray(emptyList()))
             .filterIsInstance<JsonObject>()
+            .take(MAX_ENTRIES)
             .map(::favoriteFromJson)
         // Before 5.2 backups carried no places
         val filePlaces = (data["favoritePlaces"].listOrNull() ?: JsonArray(emptyList()))
             .filterIsInstance<JsonObject>()
+            .take(MAX_ENTRIES)
             .map(::favoritePlaceFromJson)
             .sortedBy { it.position }
         val settingsJson = data["settings"]
@@ -130,6 +134,13 @@ class Backup(
 
     companion object {
         const val VERSION = 4
+
+        /**
+         * The most stops, and the most places, read from one file: far more
+         * than anyone saves. The rest of a longer list is left, so a crafted
+         * file cannot fill the lists, the chips and the next export.
+         */
+        const val MAX_ENTRIES = 500
 
         /** Two spaces, as Dart's `JsonEncoder.withIndent('  ')` */
         @OptIn(ExperimentalSerializationApi::class)
