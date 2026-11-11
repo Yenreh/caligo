@@ -210,6 +210,12 @@ class BackupTest {
         val place = device.places.places.value.single()
         assertEquals("Casa de mi mamá en el ba", place.name)
         assertEquals(PlaceKind.PLACE, place.kind)
+        // Without a name, the label's first words, as the save sheet suggests them
+        device.backup.import(
+            """{"favoritePlaces": [{"name": " ", "label": "Universidad del Valle Meléndez", "latitude": 3.37, "longitude": -76.53}]}""",
+        )
+        assertEquals("Universidad del Valle", device.places.places.value.last().name)
+        device.places.delete(device.places.places.value.last().id)
 
         assertThrowsSuspend<JsonTypeException> {
             device.backup.import("""{"cards": [$card], "favoritePlaces": [{"name": "B", "latitude": "north"}]}""")

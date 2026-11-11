@@ -94,14 +94,17 @@ fun FavoritePlace.toJson(): JsonObject = buildJsonObject {
 
 /**
  * A saved place from a backup, its name cleaned as one typed and its texts
- * capped; one without a name, or off the map, is a fault
+ * capped. A blank name falls back on the label's first words, as the save
+ * sheet suggests them; one with neither, or off the map, is a fault.
  */
 fun favoritePlaceFromJson(json: JsonObject): FavoritePlace {
     val name = json["name"].string()
     val label = (json["label"].stringOrNull() ?: name).cutAt(MAX_TEXT)
     return FavoritePlace(
         id = 0,
-        name = FavoritePlace.cleanName(name) ?: FavoritePlace.cleanName(label) ?: throw JsonTypeException("Expected a name"),
+        name = FavoritePlace.cleanName(name)
+            ?: FavoritePlace.cleanName(FavoritePlace.suggestedName(label))
+            ?: throw JsonTypeException("Expected a name"),
         kind = PlaceKind.of(json["kind"].stringOrNull()),
         label = label,
         detail = json["detail"].stringOrNull()?.cutAt(MAX_TEXT),

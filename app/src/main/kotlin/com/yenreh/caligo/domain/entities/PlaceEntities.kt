@@ -60,16 +60,19 @@ data class FavoritePlace(
 
         private val SPACES = Regex("\\s+")
 
-        /** [raw] as a name: one space between words, [MAX_NAME] at most; null when nothing is left */
+        /**
+         * [raw] as a name: one space between words, [MAX_NAME] at most, as
+         * the name box counts them, never half an emoji; null when nothing is left
+         */
         fun cleanName(raw: String): String? =
-            raw.replace(SPACES, " ").trim().take(MAX_NAME).trimEnd().ifEmpty { null }
+            raw.replace(SPACES, " ").trim().cutAt(MAX_NAME).trimEnd().ifEmpty { null }
 
         /** What the name box starts with for a place called [label]: whole words up to [MAX_NAME] */
         fun suggestedName(label: String): String {
             val clean = label.replace(SPACES, " ").trim()
             if (clean.length <= MAX_NAME) return clean
             val cut = clean.take(MAX_NAME + 1).lastIndexOf(' ')
-            return if (cut > 0) clean.take(cut).trimEnd(',', ' ') else clean.take(MAX_NAME)
+            return if (cut > 0) clean.take(cut).trimEnd(',', ' ') else clean.cutAt(MAX_NAME)
         }
     }
 }

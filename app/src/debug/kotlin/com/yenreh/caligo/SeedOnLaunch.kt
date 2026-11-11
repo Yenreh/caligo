@@ -22,7 +22,7 @@ internal fun seedOnLaunch(app: CaliGoApp) {
         try {
             val imported = app.container.backup.import(file.readText())
             file.renameTo(File(folder, "import.done.json"))
-            Log.i(TAG, "Imported $imported cards and stops from ${file.path}")
+            Log.i(TAG, "Imported $imported cards, stops and places from ${file.path}")
         } catch (e: Exception) {
             Log.e(TAG, "Could not import ${file.path}", e)
         }

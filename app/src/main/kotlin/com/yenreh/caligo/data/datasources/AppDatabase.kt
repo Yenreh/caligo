@@ -26,6 +26,10 @@ class AppDatabase(context: Context, name: String? = NAME) :
      * The Flutter app's chain, step for step. From version 1 it fails as
      * there: favorite_stops is created whole, then stop_ref added again.
      * Every caligo.db was created at version 7, so none takes that path.
+     *
+     * Every step from 8 on must be safe to run again: a 5.1 app stamps
+     * version 7 back over a database it finds newer, and the next upgrade
+     * runs the step once more on what the last one left.
      */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createFavoriteStops(db)

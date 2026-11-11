@@ -52,7 +52,8 @@ class Backup(
 
     /**
      * Each import that went through, for the screens to read the cards
-     * and stops again, as the Flutter app reloads them after one
+     * and stops again, as the Flutter app reloads them after one; the
+     * places follow from their repository
      */
     val imported: SharedFlow<Unit> = imports.asSharedFlow()
 
@@ -85,12 +86,12 @@ class Backup(
      *
      * All or nothing, unlike the Flutter app, which kept whatever came
      * before a fault: the file is read whole first, so one that is not a
-     * backup throws before anything changes; cards and stops are written
-     * in one transaction, and the settings applied once it commits. A card
-     * number or a stop id the file repeats is imported once; so is a place
-     * the star would show as saved, by its stop or where it is. A stop or a
-     * place off the map is a fault too; long texts are capped, and only the
-     * first [MAX_ENTRIES] stops and places are read.
+     * backup throws before anything changes; cards, stops and places are
+     * written in one transaction, and the settings applied once it commits.
+     * A card number or a stop id the file repeats is imported once; so is a
+     * place the star would show as saved, by its stop or where it is. A stop
+     * or a place off the map is a fault too; long texts are capped, and only
+     * the first [MAX_ENTRIES] stops and places are read.
      */
     suspend fun import(text: String): Int {
         val data = parseJson(text).obj()

@@ -18,6 +18,9 @@ class FavoritePlaceTest {
         assertEquals(FavoritePlace.MAX_NAME, FavoritePlace.cleanName("x".repeat(40))!!.length)
         // Cut where a space ends it, the space goes too
         assertEquals("Universidad del Valle 1", FavoritePlace.cleanName("Universidad del Valle 1 2"))
+        // Never half an emoji: a pair across the cut is left out whole
+        assertEquals("x".repeat(23), FavoritePlace.cleanName("x".repeat(23) + "\uD83C\uDFE0"))
+        assertEquals("x".repeat(22) + "\uD83C\uDFE0", FavoritePlace.cleanName("x".repeat(22) + "\uD83C\uDFE0"))
         assertNull(FavoritePlace.cleanName(""))
         assertNull(FavoritePlace.cleanName("  \n "))
     }
@@ -28,6 +31,8 @@ class FavoritePlaceTest {
         assertEquals("Universidad del Valle", FavoritePlace.suggestedName("Universidad del Valle Meléndez"))
         assertEquals("Cl. 13 #100-00, Cali", FavoritePlace.suggestedName("Cl. 13 #100-00, Cali, Valle del Cauca"))
         assertEquals("x".repeat(FavoritePlace.MAX_NAME), FavoritePlace.suggestedName("x".repeat(30)))
+        assertEquals("\uD83C\uDFE0".repeat(12), FavoritePlace.suggestedName("\uD83C\uDFE0".repeat(13)))
+        assertEquals("x" + "\uD83C\uDFE0".repeat(11), FavoritePlace.suggestedName("x" + "\uD83C\uDFE0".repeat(13)))
     }
 
     @Test

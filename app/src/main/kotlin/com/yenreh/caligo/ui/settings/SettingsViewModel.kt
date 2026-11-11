@@ -65,7 +65,7 @@ sealed interface SettingsMessage {
     /** The backup could not be written or shared; the Flutter app said there was nothing to export */
     data object ExportFailed : SettingsMessage
 
-    /** [count] cards and stops added, -1 for a failure */
+    /** [count] cards, stops and places added, -1 for a failure */
     data class Imported(val count: Int) : SettingsMessage
 }
 

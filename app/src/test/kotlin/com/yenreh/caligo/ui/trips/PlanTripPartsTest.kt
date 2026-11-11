@@ -137,12 +137,18 @@ class PlanTripPartsTest {
     }
 
     @Test
-    fun aListSavedBeforeSavedPlacesWereFollowedStillRestores() {
+    fun aListAnOlderVersionSavedStillRestores() {
+        // Before saved places were followed, and before they were saved at all
         val older = listOf(true, false, 3.4, -76.5, "Casa", false, false, 0.0, 0.0, "address", "", "")
+        val oldest = listOf(true, true, 3.4, -76.5, "Casa", false, true, 3.41, -76.51)
 
-        val restored = PickedPlaces.Saver.restore(older)!!
-
-        assertEquals(PickedPlace(false, TripPlace(3.4, -76.5, "Casa", kind = PlaceKind.ADDRESS)), restored.place)
+        assertEquals(PickedPlace(false, TripPlace(3.4, -76.5, "Casa", kind = PlaceKind.ADDRESS)), PickedPlaces.Saver.restore(older)!!.place)
+        val restored = PickedPlaces.Saver.restore(oldest)!!
+        assertEquals(PickedPlace(true, TripPlace(3.4, -76.5, "Casa")), restored.place)
+        assertEquals(GeoPoint(3.41, -76.51), restored.point)
+        // A value of another type falls back as a missing one
+        val odd = older.toMutableList<Any>().apply { set(9, 3) }
+        assertEquals(PickedPlace(false, TripPlace(3.4, -76.5, "Casa")), PickedPlaces.Saver.restore(odd)!!.place)
     }
 
     @Test

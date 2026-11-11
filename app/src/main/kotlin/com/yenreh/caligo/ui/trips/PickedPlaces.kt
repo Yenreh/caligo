@@ -66,29 +66,34 @@ class PickedPlaces(place: PickedPlace? = null, point: GeoPoint? = null) {
                     place?.place?.label.orEmpty(),
                 )
             },
-            restore = {
+            // Each value by position, with a fallback: a list an older
+            // version saved, shorter or otherwise, restores what it can
+            restore = { saved ->
                 PickedPlaces(
-                    place = if (it[0] as Boolean) {
+                    place = if (saved.at(0, false)) {
                         PickedPlace(
-                            origin = it[1] as Boolean,
+                            origin = saved.at(1, false),
                             place = TripPlace(
-                                it[2] as Double,
-                                it[3] as Double,
-                                it[4] as String,
-                                it[5] as Boolean,
-                                kind = PlaceKind.of(it[9] as String),
-                                detail = (it[10] as String).ifEmpty { null },
-                                stopId = (it[11] as String).ifEmpty { null },
-                                savedId = (it.getOrNull(12) as? Long)?.takeIf { id -> id > 0 },
-                                label = (it.getOrNull(13) as? String)?.ifEmpty { null },
+                                saved.at(2, 0.0),
+                                saved.at(3, 0.0),
+                                saved.at(4, ""),
+                                saved.at(5, false),
+                                kind = PlaceKind.of(saved.at(9, PlaceKind.PLACE.key)),
+                                detail = saved.at(10, "").ifEmpty { null },
+                                stopId = saved.at(11, "").ifEmpty { null },
+                                savedId = saved.at(12, 0L).takeIf { it > 0 },
+                                label = saved.at(13, "").ifEmpty { null },
                             ),
                         )
                     } else {
                         null
                     },
-                    point = if (it[6] as Boolean) GeoPoint(it[7] as Double, it[8] as Double) else null,
+                    point = if (saved.at(6, false)) GeoPoint(saved.at(7, 0.0), saved.at(8, 0.0)) else null,
                 )
             },
         )
     }
 }
+
+/** The value at [index] when there is one of type [T], else [fallback] */
+private inline fun <reified T> List<Any>.at(index: Int, fallback: T): T = getOrNull(index) as? T ?: fallback
