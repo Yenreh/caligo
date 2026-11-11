@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -99,6 +101,28 @@ object TripNotifications {
             ?: channel.replaces?.let { manager.getNotificationChannelCompat(it) }
             ?: return true
         return made.importance != NotificationManagerCompat.IMPORTANCE_NONE
+    }
+
+    /**
+     * Whether a trip may post: the app's notifications on, and the trips'
+     * channel. The warning's only silences the warning, and the waits'
+     * have no say: the trip's notification carries its awaited buses.
+     */
+    fun allowed(context: Context): Boolean =
+        NotificationManagerCompat.from(context).areNotificationsEnabled() && channelOn(context, TripChannel.TRIPS)
+
+    /** The settings that let a trip post: the trips' channel when only it is off, else the app's notifications */
+    fun settingsIntent(context: Context): Intent {
+        val appOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
+        val intent = when {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.O ->
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+            appOn && !channelOn(context, TripChannel.TRIPS) -> Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .putExtra(Settings.EXTRA_CHANNEL_ID, TripChannel.TRIPS.id)
+            else -> Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        }
+        return intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
     /** At every process start no trip runs: a notification a killed process left goes */

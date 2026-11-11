@@ -177,6 +177,30 @@ class TripScreenTest {
     }
 
     @Test
+    fun withTheTripsChannelOffNoTripStartsAndItsSettingsOpen() {
+        trips.allowed = false
+        show()
+        waitFor("trip_choose")
+        choose(TripFixtures.out[7].stopId)
+        waitFor("trip_message")
+        compose.onNode(hasText("notifications are off", substring = true)).assertExists()
+        assertTrue(trips.started.isEmpty())
+        compose.onNode(hasText("Settings")).performClick()
+        assertEquals(1, trips.settingsOpened)
+        assertEquals(0, notifications.settingsOpened)
+    }
+
+    @Test
+    fun withTheWaitsChannelOffATripStillStarts() {
+        notifications.enabled = false
+        show()
+        waitFor("trip_choose")
+        choose(TripFixtures.out[7].stopId)
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.started.isNotEmpty() }
+        assertTrue(!exists("trip_message"))
+    }
+
+    @Test
     fun aStopTheLineDoesNotCallAtHasNoRide() {
         show(TripFixtures.took.copy(stopId = "nowhere"))
         compose.waitUntil(WAIT_TIMEOUT_MS) {

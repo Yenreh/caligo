@@ -216,7 +216,7 @@ class PlanTripViewModel(
         if (option.rides.isEmpty()) return
         val destination = state.value.to?.name ?: option.rides.last().alight.name
         viewModelScope.launch {
-            val missing = tripNeeds(notifications, location)
+            val missing = tripNeeds(notifications, location, trips)
             if (missing != null) {
                 state.update { it.copy(tripMessage = missing) }
                 return@launch
@@ -228,10 +228,10 @@ class PlanTripViewModel(
 
     fun dismissTripMessage() = state.update { it.copy(tripMessage = null) }
 
-    /** The notification settings, for the message that asks for them */
+    /** The notification settings, for the message that asks for them: the trips' channel, or the app's */
     fun openNotificationSettings() {
         dismissTripMessage()
-        notifications?.openSettings()
+        trips?.openSettings()
     }
 
     /** Line chosen for a ride by tapping it, by plan and then by ride */

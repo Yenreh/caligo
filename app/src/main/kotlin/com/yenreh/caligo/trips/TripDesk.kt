@@ -50,6 +50,12 @@ interface TripControl {
 
     /** Finish, on the screen */
     fun finish()
+
+    /** Whether a trip may post its notification: the app's notifications on, and the trips' channel */
+    fun allowed(): Boolean
+
+    /** The settings that let a trip post */
+    fun openSettings()
 }
 
 /**
@@ -110,6 +116,12 @@ class TripDesk(
     }
 
     override fun took(took: TookRide): Boolean = service?.took(took) == true
+
+    override fun allowed(): Boolean = TripNotifications.allowed(context)
+
+    override fun openSettings() {
+        context.startActivity(TripNotifications.settingsIntent(context))
+    }
 
     override fun alightAt(alight: Int?) {
         service?.alightAt(alight)

@@ -120,4 +120,14 @@ class FakeTripControl(private val now: Long = TripFixtures.NOW) : TripControl {
         finished++
         running.value = null
     }
+
+    /** Whether a trip may post, as the trips' channel says */
+    var allowed = true
+    var settingsOpened = 0
+
+    override fun allowed() = allowed
+
+    override fun openSettings() {
+        settingsOpened++
+    }
 }

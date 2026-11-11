@@ -30,12 +30,12 @@ enum class TripMessage { NEEDS_NOTIFICATIONS, NEEDS_LOCATION, LOCATION_OFF }
 
 /**
  * What a trip needs and does not have, after asking for it, from the
- * screen on show: its notification, location on and the while-in-use
- * permission; null when all is there
+ * screen on show: its notification, as [trips] may post it, location on
+ * and the while-in-use permission; null when all is there
  */
-suspend fun tripNeeds(notifications: NotificationAccess, location: LocationSource): TripMessage? {
+suspend fun tripNeeds(notifications: NotificationAccess, location: LocationSource, trips: TripControl): TripMessage? {
     if (!notifications.granted() && !notifications.request()) return TripMessage.NEEDS_NOTIFICATIONS
-    if (!notifications.enabled()) return TripMessage.NEEDS_NOTIFICATIONS
+    if (!trips.allowed()) return TripMessage.NEEDS_NOTIFICATIONS
     if (!location.isServiceEnabled()) return TripMessage.LOCATION_OFF
     var permission = location.checkPermission()
     if (permission != LocationPermission.GRANTED) {
@@ -142,7 +142,7 @@ class TripViewModel(
         }
     }
 
-    private suspend fun missing(): TripMessage? = tripNeeds(notifications, location)
+    private suspend fun missing(): TripMessage? = tripNeeds(notifications, location, trips)
 
     /** Get off at [alight] instead, while the trip runs */
     fun alightAt(alight: Int?) = trips.alightAt(alight)
@@ -154,10 +154,10 @@ class TripViewModel(
 
     fun dismissMessage() = state.update { it.copy(message = null) }
 
-    /** The notification settings, for the message that asks for them */
+    /** The notification settings, for the message that asks for them: the trips' channel, or the app's */
     fun openNotificationSettings() {
         dismissMessage()
-        notifications.openSettings()
+        trips.openSettings()
     }
 
     companion object {

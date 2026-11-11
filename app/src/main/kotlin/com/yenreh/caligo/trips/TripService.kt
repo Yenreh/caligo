@@ -146,9 +146,7 @@ class TripService : Service(), TripHost {
     /** The engine, for tests to see that nothing runs */
     internal val tripEngine: TripEngine get() = engine
 
-    // The warning channel off only silences the warning: the trip goes on, on its own channel
-    override fun allowed(): Boolean = NotificationManagerCompat.from(this).areNotificationsEnabled() &&
-        TripNotifications.channelOn(this, TripChannel.TRIPS)
+    override fun allowed(): Boolean = TripNotifications.allowed(this)
 
     private fun notification(journey: Journey, now: Long, nextPostIn: Long): Notification {
         val alerts = desk.alerts()
@@ -231,8 +229,8 @@ class TripService : Service(), TripHost {
      * here, where the trip's own notification carries them, soonest first
      */
     private val tripWaits = object : WaitHost {
-        override fun allowed(): Boolean = NotificationManagerCompat.from(this@TripService).areNotificationsEnabled() &&
-            WaitNotifications.channelOn(this@TripService, WaitChannel.WAITS)
+        // The trip's own notification carries them, and the trip asks for its own channel
+        override fun allowed(): Boolean = true
 
         // The trip's own notification carries them: nothing of their own
         override fun show(waits: List<Wait>, now: Long, nextPostIn: Long) {}
