@@ -6,10 +6,11 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import com.yenreh.caligo.CaliGoApp
+import com.yenreh.caligo.ServiceWakeLock
+import com.yenreh.caligo.channelOn
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.FadingArrivals
 import com.yenreh.caligo.domain.RunningWait
@@ -41,7 +42,7 @@ class WaitService : Service(), WaitHost {
     private lateinit var scope: CoroutineScope
     private lateinit var engine: WaitEngine
     private lateinit var words: WaitWords
-    private var wakeLock: PowerManager.WakeLock? = null
+    private val wakeLock = ServiceWakeLock(this, WAKE_LOCK_TAG)
 
     /** Each wait's notification id, in the order they started */
     private val slots = LinkedHashMap<WaitKey, Int>()
@@ -89,7 +90,7 @@ class WaitService : Service(), WaitHost {
         val manager = NotificationManagerCompat.from(this)
         for (id in slots.values) manager.cancel(id)
         slots.clear()
-        releaseWakeLock()
+        wakeLock.release()
         desk.detach(this)
         super.onDestroy()
     }
@@ -104,13 +105,13 @@ class WaitService : Service(), WaitHost {
 
     // The alert channel off only silences the alert: the waits go on, on their own channel
     override fun allowed(): Boolean = NotificationManagerCompat.from(this).areNotificationsEnabled() &&
-        WaitNotifications.channelOn(this, WaitChannel.WAITS)
+        channelOn(this, WaitChannel.WAITS)
 
     // allowed() holds before every post: the app's notifications are on
     @SuppressLint("MissingPermission")
     override fun show(waits: List<Wait>, now: Long, nextPostIn: Long) {
         val alerts = desk.alerts()
-        val alertOn = WaitNotifications.channelOn(this, WaitChannel.alert(alerts))
+        val alertOn = channelOn(this, WaitChannel.alert(alerts))
         val manager = NotificationManagerCompat.from(this)
         for (wait in waits) {
             val id = slots.getOrPut(wait.key) { WaitNotifications.ids.first { it !in slots.values } }
@@ -128,7 +129,7 @@ class WaitService : Service(), WaitHost {
                 manager.notify(id, notification)
             }
         }
-        holdWakeLock(nextPostIn + WAKE_MARGIN_MS)
+        wakeLock.hold(nextPostIn + WAKE_MARGIN_MS)
     }
 
     override fun ended(wait: Wait, ending: WaitEnding) {
@@ -150,7 +151,7 @@ class WaitService : Service(), WaitHost {
         slots.clear()
         alerted.clear()
         carrier = null
-        releaseWakeLock()
+        wakeLock.release()
         desk.detach(this)
         // A start that came meanwhile keeps it running
         stopSelfResult(lastStartId)
@@ -169,20 +170,7 @@ class WaitService : Service(), WaitHost {
         ServiceCompat.startForeground(this, id, notification, type)
     }
 
-    private fun holdWakeLock(timeout: Long) {
-        val lock = wakeLock ?: getSystemService(PowerManager::class.java)
-            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
-            .apply { setReferenceCounted(false) }
-            .also { wakeLock = it }
-        // Not reference counted: each hold replaces the last one's timeout
-        lock.acquire(timeout)
-    }
-
-    private fun releaseWakeLock() {
-        wakeLock?.let { if (it.isHeld) it.release() }
-    }
-
-    internal val holdsWakeLock: Boolean get() = wakeLock?.isHeld == true
+    internal val holdsWakeLock: Boolean get() = wakeLock.isHeld
 
     companion object {
         /** How long past the next post the wake lock holds, should that post be late */

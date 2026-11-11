@@ -7,10 +7,11 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import com.yenreh.caligo.CaliGoApp
+import com.yenreh.caligo.ServiceWakeLock
+import com.yenreh.caligo.channelOn
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.TookRide
@@ -63,7 +64,7 @@ class TripService : Service(), TripHost {
     private lateinit var words: TripWords
     private lateinit var waits: WaitDesk
     private lateinit var waitEngine: WaitEngine
-    private var wakeLock: PowerManager.WakeLock? = null
+    private val wakeLock = ServiceWakeLock(this, WAKE_LOCK_TAG)
 
     private val endWaitFromDesk: (WaitKey, WaitEnding) -> Unit = { key, ending -> endWait(key, ending) }
 
@@ -123,7 +124,7 @@ class TripService : Service(), TripHost {
         // Killed with a trip on: the waits it started go with it
         waits.detachTripWaits(endWaitFromDesk)
         desk.awaitedChanged(emptyList())
-        releaseWakeLock()
+        wakeLock.release()
         desk.detach(this)
         super.onDestroy()
     }
@@ -154,14 +155,14 @@ class TripService : Service(), TripHost {
 
     private fun notification(journey: Journey, now: Long, nextPostIn: Long): Notification {
         val alerts = desk.alerts()
-        val warningOn = TripNotifications.channelOn(this, TripChannel.warning(alerts))
+        val warningOn = channelOn(this, TripChannel.warning(alerts))
         val awaited = awaitedLines(journey, now)
         val near = when (val phase = journey.phase(now)) {
             is JourneyPhase.Waiting -> true
             is JourneyPhase.Walking -> phase.leg.toStop && phase.meters <= TripEngine.NEAR_BOARD_METERS
             is JourneyPhase.Riding -> false
         }
-        val busAlertOn = WaitNotifications.channelOn(this, WaitChannel.alert(alerts))
+        val busAlertOn = channelOn(this, WaitChannel.alert(alerts))
         val notice = TripNotice.of(journey, now, alerts, words, nextPostIn, warningOn, awaited, near, busAlertOn)
         // Once a ride, whoever posts first
         if (notice.alerting && notice.busChannel != null && journey.startedAt == engine.journey?.startedAt) engine.busAlerted()
@@ -187,7 +188,7 @@ class TripService : Service(), TripHost {
     override fun show(journey: Journey, now: Long, nextPostIn: Long) {
         shownStartedAt = journey.startedAt
         NotificationManagerCompat.from(this).notify(TripNotifications.TRIP_ID, notification(journey, now, nextPostIn))
-        holdWakeLock(nextPostIn + WAKE_MARGIN_MS)
+        wakeLock.hold(nextPostIn + WAKE_MARGIN_MS)
     }
 
     // allowed() holds before the last word: the app's notifications are on
@@ -200,7 +201,7 @@ class TripService : Service(), TripHost {
         // hears it. Not one that ends as it starts, the screen on show.
         if (journey.startedAt != shownStartedAt || !allowed()) return
         val alerts = desk.alerts()
-        val warningOn = TripNotifications.channelOn(this, TripChannel.warning(alerts))
+        val warningOn = channelOn(this, TripChannel.warning(alerts))
         val notice = EndedNotice.of(journey, ending, alerts, words, warningOn) ?: return
         manager.notify(TripNotifications.ENDED_ID, TripNotifications.ended(this, notice, alerts))
     }
@@ -214,7 +215,7 @@ class TripService : Service(), TripHost {
         manager.cancel(TripNotifications.TRIP_ID)
         manager.cancel(TripNotifications.PLACEHOLDER_ID)
         desk.location.stop()
-        releaseWakeLock()
+        wakeLock.release()
         desk.detach(this)
         // A start that came meanwhile keeps it running
         stopSelfResult(lastStartId)
@@ -278,19 +279,7 @@ class TripService : Service(), TripHost {
         }
     }
 
-    private fun holdWakeLock(timeout: Long) {
-        val lock = wakeLock ?: getSystemService(PowerManager::class.java)
-            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
-            .apply { setReferenceCounted(false) }
-            .also { wakeLock = it }
-        lock.acquire(timeout)
-    }
-
-    private fun releaseWakeLock() {
-        wakeLock?.let { if (it.isHeld) it.release() }
-    }
-
-    internal val holdsWakeLock: Boolean get() = wakeLock?.isHeld == true
+    internal val holdsWakeLock: Boolean get() = wakeLock.isHeld
 
     companion object {
         /** How long past the next post the wake lock holds, should that post be late */

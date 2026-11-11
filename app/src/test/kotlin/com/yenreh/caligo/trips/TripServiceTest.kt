@@ -9,6 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.MainActivity
 import com.yenreh.caligo.NBSP
+import com.yenreh.caligo.channelOn
 import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.trips.TripFixtures.MINUTE
@@ -442,11 +443,11 @@ class TripServiceTest {
     fun aTripsChannelTurnedOffBeforeStaysOff() {
         h.manager.createNotificationChannel(NotificationChannel("trips", "Trips", NotificationManager.IMPORTANCE_NONE))
         // Read from the old one before the new is made
-        assertFalse(TripNotifications.channelOn(h.app, TripChannel.TRIPS))
+        assertFalse(channelOn(h.app, TripChannel.TRIPS))
         TripNotifications.createChannels(h.app)
         assertNull(h.manager.getNotificationChannel("trips"))
         assertEquals(NotificationManager.IMPORTANCE_NONE, h.manager.getNotificationChannel(TripChannel.TRIPS.id).importance)
-        assertFalse(TripNotifications.channelOn(h.app, TripChannel.TRIPS))
+        assertFalse(channelOn(h.app, TripChannel.TRIPS))
         h.start(plan)
         h.advance(TripEngine.BEAT.inWholeMilliseconds)
         h.assertEnded(TripEnding.BLOCKED)

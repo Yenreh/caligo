@@ -1,6 +1,7 @@
 package com.yenreh.caligo.trips
 
 import android.content.res.Resources
+import com.yenreh.caligo.AppChannel
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.JourneyLeg
@@ -13,25 +14,30 @@ import com.yenreh.caligo.domain.TripSource
 import com.yenreh.caligo.waits.Alerts
 
 /**
- * The app's notification channels for trips, apart from the waits' so
- * each can be set on its own in the system. Each is made once and never
- * altered, so what the user sets for it wins. A channel's importance
- * cannot change, so one that needs another takes a new id and [replaces]
- * the old.
+ * The app's notification channels for trips, as [AppChannel] makes them:
+ * apart from the waits' so each can be set on its own in the system
  */
-enum class TripChannel(val id: String, val sound: Boolean, val vibrate: Boolean, val replaces: String? = null) {
+enum class TripChannel(
+    override val id: String,
+    override val title: Int,
+    override val description: Int,
+    override val sound: Boolean,
+    override val vibrate: Boolean,
+    override val replaces: String? = null,
+    override val urgent: Boolean = true,
+) : AppChannel {
     /**
      * Every update: of default importance, so it shows on a lock screen
      * that hides silent notifications, yet never sounds, vibrates nor
      * peeks. It replaces the first, low "trips".
      */
-    TRIPS("trip_updates", sound = false, vibrate = false, replaces = "trips"),
+    TRIPS("trip_updates", R.string.trip_channel, R.string.trip_channel_description, sound = false, vibrate = false, replaces = "trips", urgent = false),
 
     /** The warning before the stop to get off at, as the settings ask */
-    WARNING_SILENT("trip_warning_silent", sound = false, vibrate = false),
-    WARNING_VIBRATE("trip_warning_vibrate", sound = false, vibrate = true),
-    WARNING_SOUND("trip_warning_sound", sound = true, vibrate = false),
-    WARNING_SOUND_VIBRATE("trip_warning_sound_vibrate", sound = true, vibrate = true),
+    WARNING_SILENT("trip_warning_silent", R.string.trip_warning_channel_silent, R.string.trip_warning_channel_description, sound = false, vibrate = false),
+    WARNING_VIBRATE("trip_warning_vibrate", R.string.trip_warning_channel_vibrate, R.string.trip_warning_channel_description, sound = false, vibrate = true),
+    WARNING_SOUND("trip_warning_sound", R.string.trip_warning_channel_sound, R.string.trip_warning_channel_description, sound = true, vibrate = false),
+    WARNING_SOUND_VIBRATE("trip_warning_sound_vibrate", R.string.trip_warning_channel_sound_vibrate, R.string.trip_warning_channel_description, sound = true, vibrate = true),
     ;
 
     companion object {

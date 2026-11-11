@@ -4,16 +4,16 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.yenreh.caligo.MainActivity
+import com.yenreh.caligo.asChannelBeforeO
+import com.yenreh.caligo.channelOn
+import com.yenreh.caligo.createChannels
 import com.yenreh.caligo.R
 import com.yenreh.caligo.waits.Alerts
 
@@ -52,62 +52,8 @@ object TripNotifications {
 
     private val VIBRATION = longArrayOf(0, 250, 150, 250, 150, 250)
 
-    /**
-     * The channels still missing; one made is never made again nor
-     * altered. One that replaces another is made off if the user had
-     * turned that one off, and the other goes.
-     */
-    fun createChannels(context: Context) {
-        val manager = NotificationManagerCompat.from(context)
-        for (channel in TripChannel.entries) {
-            // Read before it goes: a replaced channel the user turned off stays off
-            val replaced = channel.replaces?.let { manager.getNotificationChannelCompat(it) }
-            if (replaced != null) manager.deleteNotificationChannel(replaced.id)
-            if (manager.getNotificationChannelCompat(channel.id) != null) continue
-            val off = replaced?.importance == NotificationManagerCompat.IMPORTANCE_NONE
-            val builder = when (channel) {
-                TripChannel.TRIPS -> NotificationChannelCompat.Builder(channel.id, if (off) NotificationManagerCompat.IMPORTANCE_NONE else NotificationManagerCompat.IMPORTANCE_DEFAULT)
-                    .setName(context.getString(R.string.trip_channel))
-                    .setDescription(context.getString(R.string.trip_channel_description))
-                else -> NotificationChannelCompat.Builder(channel.id, NotificationManagerCompat.IMPORTANCE_HIGH)
-                    .setName(context.getString(warningName(channel)))
-                    .setDescription(context.getString(R.string.trip_warning_channel_description))
-            }
-            builder.setShowBadge(false)
-            if (channel.sound) {
-                builder.setSound(
-                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build(),
-                )
-            } else {
-                builder.setSound(null, null)
-            }
-            builder.setVibrationEnabled(channel.vibrate)
-            if (channel.vibrate) builder.setVibrationPattern(VIBRATION)
-            manager.createNotificationChannel(builder.build())
-        }
-    }
-
-    private fun warningName(channel: TripChannel) = when (channel) {
-        TripChannel.WARNING_VIBRATE -> R.string.trip_warning_channel_vibrate
-        TripChannel.WARNING_SOUND -> R.string.trip_warning_channel_sound
-        TripChannel.WARNING_SOUND_VIBRATE -> R.string.trip_warning_channel_sound_vibrate
-        else -> R.string.trip_warning_channel_silent
-    }
-
-    /** Whether [channel] is on: not turned off by the user, nor the one it replaces, or not made yet */
-    fun channelOn(context: Context, channel: TripChannel): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
-        val manager = NotificationManagerCompat.from(context)
-        // Before the channels are set up, the one it replaces says
-        val made = manager.getNotificationChannelCompat(channel.id)
-            ?: channel.replaces?.let { manager.getNotificationChannelCompat(it) }
-            ?: return true
-        return made.importance != NotificationManagerCompat.IMPORTANCE_NONE
-    }
+    /** The channels still missing, as [createChannels] makes them */
+    fun createChannels(context: Context) = createChannels(context, TripChannel.entries, VIBRATION)
 
     /**
      * Whether a trip may post: the app's notifications on, and the trips'
@@ -153,17 +99,7 @@ object TripNotifications {
             // Gone within minutes: a clock would say little
             .setShowWhen(false)
             .setContentIntent(openTrip(context))
-        // No channels before Android 8: the notification carries what its channel would
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            if (notice.alerting) {
-                builder.priority = NotificationCompat.PRIORITY_HIGH
-                if (alerts.sound) builder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
-                if (alerts.vibrate) builder.setVibrate(VIBRATION)
-            } else {
-                builder.priority = NotificationCompat.PRIORITY_DEFAULT
-            }
-        }
-        return builder.build()
+        return builder.asChannelBeforeO(notice.alerting, alerts, VIBRATION).build()
     }
 
     /** [notice] of the trip started at [startedAt] as its notification */
@@ -200,18 +136,7 @@ object TripNotifications {
         // The lines to take first, soonest first, then Finish: three at most, as Android shows
         for ((i, line) in notice.takeLines.withIndex()) builder.addAction(0, words.tookLine(line), takeLine(context, startedAt, i, line))
         builder.addAction(0, words.finish, action(context, startedAt, ACTION_FINISH))
-        // No channels before Android 8: the notification carries what its channel would
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            if (notice.alerting) {
-                builder.priority = NotificationCompat.PRIORITY_HIGH
-                if (alerts.sound) builder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
-                if (alerts.vibrate) builder.setVibrate(VIBRATION)
-            } else {
-                // As the channel of updates: shown on the lock screen, silent all the same
-                builder.priority = NotificationCompat.PRIORITY_DEFAULT
-            }
-        }
-        return builder.build()
+        return builder.asChannelBeforeO(notice.alerting, alerts, VIBRATION).build()
     }
 
     private fun trackerIcon(tracker: TripTracker) = when (tracker) {

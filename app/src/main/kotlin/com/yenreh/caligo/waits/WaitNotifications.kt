@@ -4,14 +4,12 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.RingtoneManager
-import android.os.Build
-import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.yenreh.caligo.MainActivity
+import com.yenreh.caligo.asChannelBeforeO
+import com.yenreh.caligo.createChannels
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.TookRide
 import com.yenreh.caligo.domain.Wait
@@ -53,63 +51,8 @@ object WaitNotifications {
 
     private val VIBRATION = longArrayOf(0, 250, 150, 250)
 
-    /**
-     * The channels still missing. One made is never made again nor
-     * altered: whatever the user set for it in the system stays. One that
-     * replaces another is made off if the user had turned that one off,
-     * and the other goes.
-     */
-    fun createChannels(context: Context) {
-        val manager = NotificationManagerCompat.from(context)
-        for (channel in WaitChannel.entries) {
-            // Read before it goes: a replaced channel the user turned off stays off
-            val replaced = channel.replaces?.let { manager.getNotificationChannelCompat(it) }
-            if (replaced != null) manager.deleteNotificationChannel(replaced.id)
-            if (manager.getNotificationChannelCompat(channel.id) != null) continue
-            val off = replaced?.importance == NotificationManagerCompat.IMPORTANCE_NONE
-            val builder = when (channel) {
-                WaitChannel.WAITS -> NotificationChannelCompat.Builder(channel.id, if (off) NotificationManagerCompat.IMPORTANCE_NONE else NotificationManagerCompat.IMPORTANCE_DEFAULT)
-                    .setName(context.getString(R.string.wait_channel))
-                    .setDescription(context.getString(R.string.wait_channel_description))
-                else -> NotificationChannelCompat.Builder(channel.id, NotificationManagerCompat.IMPORTANCE_HIGH)
-                    .setName(context.getString(alertName(channel)))
-                    .setDescription(context.getString(R.string.alert_channel_description))
-            }
-            builder.setShowBadge(false)
-            if (channel.sound) {
-                builder.setSound(
-                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build(),
-                )
-            } else {
-                builder.setSound(null, null)
-            }
-            builder.setVibrationEnabled(channel.vibrate)
-            if (channel.vibrate) builder.setVibrationPattern(VIBRATION)
-            manager.createNotificationChannel(builder.build())
-        }
-    }
-
-    private fun alertName(channel: WaitChannel) = when (channel) {
-        WaitChannel.ALERT_VIBRATE -> R.string.alert_channel_vibrate
-        WaitChannel.ALERT_SOUND -> R.string.alert_channel_sound
-        WaitChannel.ALERT_SOUND_VIBRATE -> R.string.alert_channel_sound_vibrate
-        else -> R.string.alert_channel_silent
-    }
-
-    /** Whether [channel] is on: not turned off by the user, nor the one it replaces, or not made yet */
-    fun channelOn(context: Context, channel: WaitChannel): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
-        val manager = NotificationManagerCompat.from(context)
-        // Before the channels are set up, the one it replaces says
-        val made = manager.getNotificationChannelCompat(channel.id)
-            ?: channel.replaces?.let { manager.getNotificationChannelCompat(it) }
-            ?: return true
-        return made.importance != NotificationManagerCompat.IMPORTANCE_NONE
-    }
+    /** The channels still missing, as [createChannels] makes them */
+    fun createChannels(context: Context) = createChannels(context, WaitChannel.entries, VIBRATION)
 
     /**
      * At every process start no wait runs yet, so none of their
@@ -170,18 +113,7 @@ object WaitNotifications {
         } else {
             builder.setShowWhen(false)
         }
-        // No channels before Android 8: the notification carries what its channel would
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            if (notice.alerting) {
-                builder.priority = NotificationCompat.PRIORITY_HIGH
-                if (alerts.sound) builder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
-                if (alerts.vibrate) builder.setVibrate(VIBRATION)
-            } else {
-                // As the channel of updates: shown on the lock screen, silent all the same
-                builder.priority = NotificationCompat.PRIORITY_DEFAULT
-            }
-        }
-        return builder.build()
+        return builder.asChannelBeforeO(notice.alerting, alerts, VIBRATION).build()
     }
 
     private fun action(context: Context, id: Int, wait: Wait, name: String): PendingIntent {

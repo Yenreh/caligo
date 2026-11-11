@@ -14,6 +14,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import com.yenreh.caligo.channelOn
 import kotlinx.coroutines.CompletableDeferred
 
 /** Whether the app may show a wait's notification, and the way to let it */
@@ -74,7 +75,7 @@ class AndroidNotificationAccess(private val context: Context) : NotificationAcce
 
     // An alert channel turned off only silences the alert
     override fun enabled(): Boolean = NotificationManagerCompat.from(context).areNotificationsEnabled() &&
-        WaitNotifications.channelOn(context, WaitChannel.WAITS)
+        channelOn(context, WaitChannel.WAITS)
 
     override fun openSettings() {
         val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

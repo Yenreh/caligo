@@ -1,6 +1,7 @@
 package com.yenreh.caligo.waits
 
 import android.content.res.Resources
+import com.yenreh.caligo.AppChannel
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.Wait
 import com.yenreh.caligo.domain.WaitStatus
@@ -8,25 +9,28 @@ import com.yenreh.caligo.domain.WaitStatus
 /** How the alert near the stop sounds, as the settings' "Alerts" ask */
 data class Alerts(val sound: Boolean = false, val vibrate: Boolean = false)
 
-/**
- * The app's notification channels for waits. Each is made once and never
- * altered, so what the user sets for it in the system wins. A channel's
- * importance cannot change, so one that needs another takes a new id and
- * [replaces] the old.
- */
-enum class WaitChannel(val id: String, val sound: Boolean, val vibrate: Boolean, val replaces: String? = null) {
+/** The app's notification channels for waits, as [AppChannel] makes them */
+enum class WaitChannel(
+    override val id: String,
+    override val title: Int,
+    override val description: Int,
+    override val sound: Boolean,
+    override val vibrate: Boolean,
+    override val replaces: String? = null,
+    override val urgent: Boolean = true,
+) : AppChannel {
     /**
      * Every update: of default importance, so it shows on a lock screen
      * that hides silent notifications, yet never sounds, vibrates nor
      * peeks. It replaces 5.1's low "waits".
      */
-    WAITS("wait_updates", sound = false, vibrate = false, replaces = "waits"),
+    WAITS("wait_updates", R.string.wait_channel, R.string.wait_channel_description, sound = false, vibrate = false, replaces = "waits", urgent = false),
 
     /** The alert near the stop, as the settings ask */
-    ALERT_SILENT("alert_silent", sound = false, vibrate = false),
-    ALERT_VIBRATE("alert_vibrate", sound = false, vibrate = true),
-    ALERT_SOUND("alert_sound", sound = true, vibrate = false),
-    ALERT_SOUND_VIBRATE("alert_sound_vibrate", sound = true, vibrate = true),
+    ALERT_SILENT("alert_silent", R.string.alert_channel_silent, R.string.alert_channel_description, sound = false, vibrate = false),
+    ALERT_VIBRATE("alert_vibrate", R.string.alert_channel_vibrate, R.string.alert_channel_description, sound = false, vibrate = true),
+    ALERT_SOUND("alert_sound", R.string.alert_channel_sound, R.string.alert_channel_description, sound = true, vibrate = false),
+    ALERT_SOUND_VIBRATE("alert_sound_vibrate", R.string.alert_channel_sound_vibrate, R.string.alert_channel_description, sound = true, vibrate = true),
     ;
 
     companion object {
