@@ -155,7 +155,12 @@ gets the stops.
   when it boards at a station's platform, as a bus listed at another
   platform counts only once seen there. While none of its lines lists a
   bus to catch, it asks again after 1, 2 and then every 4 minutes, and
-  after a minute once the waits it found end with none taken. It also
+  after a minute once the waits it found end with none taken. A ride the
+  rider takes on one of its lines alone, on the trip screen or tapped in
+  the planner, awaits and asks about that line alone; back to any line,
+  it asks its arrivals once more. The trip screen's rows of each line's
+  next buses ask nothing of their own: they read what those arrivals and
+  the waits' answers already list. It also
   asks, from 300 m before its stop until a bus is taken, those lines'
   buses every 30 s, not once the rider is 300 m from
   the stop and off those lines' routes. Waiting there ends the trip after
