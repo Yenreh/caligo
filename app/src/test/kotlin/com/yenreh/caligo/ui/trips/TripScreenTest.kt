@@ -212,7 +212,7 @@ class TripScreenTest {
         compose.onNode(hasText("Trip to Unicentro")).assertExists()
         compose.onNode(hasText("Walk to Plaza de Cayzedo A1")).assertExists()
         compose.onNode(hasText("THEN")).assertExists()
-        compose.onNode(hasText("E21 or T31 to Calle 5 con Kr 39, 6 stops")).assertExists()
+        compose.onNode(hasText("E21 or T31 · get off at Calle 5 con Kr 39, 6${NBSP}stops")).assertExists()
         compose.assertControlsAccessible()
     }
 

@@ -362,9 +362,9 @@
     <string name="trip_then_label">Después</string>
     <string name="trip_ahead_walk">Camina a %1$s, %2$d min</string>
     <plurals name="trip_ahead_ride">
-        <item quantity="one">%1$s hasta %2$s, %3$d parada</item>
-        <item quantity="many">%1$s hasta %2$s, %3$d paradas</item>
-        <item quantity="other">%1$s hasta %2$s, %3$d paradas</item>
+        <item quantity="one">%1$s · bájate en %2$s, %3$d\u00A0parada</item>
+        <item quantity="many">%1$s · bájate en %2$s, %3$d\u00A0paradas</item>
+        <item quantity="other">%1$s · bájate en %2$s, %3$d\u00A0paradas</item>
     </plurals>
     <string name="trip_follow_me">Seguir mi posición</string>
     <string name="trip_start">Empezar viaje</string>
