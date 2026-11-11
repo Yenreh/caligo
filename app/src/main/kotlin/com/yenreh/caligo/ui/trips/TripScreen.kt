@@ -219,7 +219,7 @@ fun TripScreen(
     onAlight: (Int?) -> Unit = {},
     /** The buses a planner trip awaits for the ride ahead, soonest first */
     awaited: List<AwaitedLine> = emptyList(),
-    /** "I took the A47", while waiting at the stop */
+    /** "I took the A47", while waiting at the stop or near it on foot */
     onTookLine: (String) -> Unit = {},
     onFinish: () -> Unit = {},
     message: TripMessage? = null,
@@ -406,6 +406,8 @@ private fun Running(
                                 modifier = Modifier.testTag("trip_then"),
                             )
                             AwaitedTimes(awaited, at, words)
+                            // Near the stop, as the notification's buttons show: the bus may come before the rider is there
+                            if (journey.nearBoarding(at)) TookButtons(ordered, onTookLine)
                         }
                     }
                     is JourneyPhase.Waiting -> {
@@ -414,17 +416,7 @@ private fun Running(
                         Heading(words.take(words.lines(ordered)))
                         Detail(words.atStop(phase.leg.ride.board.name))
                         AwaitedTimes(awaited, at, words)
-                        Spacer(Modifier.height(4.dp))
-                        Text(stringResource(R.string.trip_took_it_hint), style = LabText.statusLine(p))
-                        for (line in ordered) {
-                            Spacer(Modifier.height(8.dp))
-                            LabOutlinedButton(
-                                onClick = { onTookLine(line) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("trip_took_$line"),
-                            ) { Text(stringResource(R.string.trip_took_line, line)) }
-                        }
+                        TookButtons(ordered, onTookLine)
                     }
                 }
                 if (from != null) {
@@ -466,6 +458,22 @@ private fun Detail(text: String) {
         style = MaterialTheme.typography.bodyLarge.copy(color = LabTheme.palette.ink, fontWeight = FontWeight.Medium),
         modifier = Modifier.testTag("trip_detail"),
     )
+}
+
+/** "As you board, tap the line you took", then an "I took the E21" button for each of [lines] */
+@Composable
+private fun TookButtons(lines: List<String>, onTookLine: (String) -> Unit) {
+    Spacer(Modifier.height(4.dp))
+    Text(stringResource(R.string.trip_took_it_hint), style = LabText.statusLine(LabTheme.palette))
+    for (line in lines) {
+        Spacer(Modifier.height(8.dp))
+        LabOutlinedButton(
+            onClick = { onTookLine(line) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("trip_took_$line"),
+        ) { Text(stringResource(R.string.trip_took_line, line)) }
+    }
 }
 
 /** The buses awaited, soonest first: "E21 2 min · T31 5 min"; nothing with none */

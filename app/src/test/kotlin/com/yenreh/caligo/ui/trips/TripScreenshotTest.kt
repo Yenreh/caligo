@@ -104,6 +104,41 @@ class TripScreenshotTest {
 
     private val walking = com.yenreh.caligo.domain.Journey.planned(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro", NOW - 2 * MINUTE)
 
+    /** On foot 100 m from the stop, the T31 due in 2 min and the E21 in 5: a button for each line */
+    private val nearTheStop = com.yenreh.caligo.domain.Journey.planned(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro", NOW - 2 * MINUTE)
+        .fixed(
+            com.yenreh.caligo.trips.JourneyFixtures.fixAt(
+                com.yenreh.caligo.trips.JourneyFixtures.east(com.yenreh.caligo.domain.GeoPoint(TripFixtures.out[0].latitude, TripFixtures.out[0].longitude), -100.0),
+                NOW,
+            ),
+        )
+
+    private val nearAwaited = listOf(
+        com.yenreh.caligo.trips.AwaitedLine("T31", NOW + 2 * MINUTE),
+        com.yenreh.caligo.trips.AwaitedLine("E21", NOW + 5 * MINUTE),
+    )
+
+    private fun nearStop(name: String) {
+        compose.setContentAt(NOW) {
+            CaliGoTheme {
+                TripScreen(content = TripContent.Running(nearTheStop), title = "Viaje a Unicentro", awaited = nearAwaited)
+            }
+        }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasTestTag("trip_took_T31")).fetchSemanticsNodes().isNotEmpty() }
+        compose.captureWindow(name)
+    }
+
+    @Test
+    fun walkNearLight() = nearStop("trip_walk_near_light")
+
+    @Test
+    @Config(qualifiers = "+night")
+    fun walkNearDark() = nearStop("trip_walk_near_dark")
+
+    @Test
+    @Config(fontScale = 2f)
+    fun walkNearFontScale2() = nearStop("trip_walk_near_font2")
+
     @Test
     fun mapRideLight() = map("trip_map_ride_light", onTheT31, dark = false)
 

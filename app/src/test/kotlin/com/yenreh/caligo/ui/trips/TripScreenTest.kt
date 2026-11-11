@@ -289,6 +289,38 @@ class TripScreenTest {
         compose.onNode(hasText("T31 6${NBSP}min · E21 9${NBSP}min")).assertExists()
     }
 
+    /** A planner trip on foot, its last fix [meters] from the stop to board at */
+    private fun walkingAt(meters: Double) {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        val stop = com.yenreh.caligo.domain.GeoPoint(TripFixtures.out[0].latitude, TripFixtures.out[0].longitude)
+        val at = com.yenreh.caligo.trips.JourneyFixtures.east(stop, -meters)
+        trips.running.value = trips.running.value!!.fixed(com.yenreh.caligo.trips.JourneyFixtures.fixAt(at, NOW))
+    }
+
+    @Test
+    fun onFootNearTheStopEachLineHasItsButtonAsAtTheStop() {
+        walkingAt(100.0)
+        trips.awaited.value = listOf(com.yenreh.caligo.trips.AwaitedLine("T31", NOW + 2 * 60_000))
+        show(took = null)
+        waitFor("trip_took_T31")
+        compose.onNode(hasText("As you board, tap the line you took")).assertExists()
+        assertTrue(exists("trip_took_E21"))
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_took_E21"))
+        compose.onNodeWithTag("trip_took_E21").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.takenLines.isNotEmpty() }
+        assertEquals(listOf("E21"), trips.takenLines)
+        compose.assertControlsAccessible()
+    }
+
+    @Test
+    fun onFootFarFromTheStopNoLineHasAButton() {
+        walkingAt(600.0)
+        show(took = null)
+        waitFor("trip_then")
+        assertTrue(!exists("trip_took_E21"))
+        assertTrue(!exists("trip_took_T31"))
+    }
+
     @Test
     fun iTookItOnAWaitOfAPlannerTripTakesThatLineAsItsRide() {
         trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
