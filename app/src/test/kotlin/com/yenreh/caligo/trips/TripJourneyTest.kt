@@ -456,7 +456,11 @@ class TripJourneyTest {
     @Test
     fun theWalkAsksForNoBusesUntilNearTheStop() {
         startJourney()
-        h.move(30_000) { origin }
-        assertTrue(h.source.askedLines.toString(), h.source.askedLines.isEmpty() || h.source.askedLines.all { it in setOf("E21", "T31") })
+        // 600 m away: no line's buses, however long
+        h.move(2 * MINUTE) { JourneyFixtures.east(stop, -600.0) }
+        assertTrue(h.source.askedLines.toString(), h.source.askedLines.isEmpty())
+        // Within 150 m: the buses of each line that makes the ride
+        h.move(30_000) { JourneyFixtures.east(stop, -150.0) }
+        assertEquals(setOf("E21", "T31"), h.source.askedLines.toSet())
     }
 }

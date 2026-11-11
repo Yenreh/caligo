@@ -25,7 +25,7 @@ import kotlin.time.Duration.Companion.minutes
 object JourneyFixtures {
     private val metersPerLongitude = 111320.0 * cos(out[0].latitude * PI / 180)
 
-    private fun east(point: GeoPoint, meters: Double) = GeoPoint(point.latitude, point.longitude + meters / metersPerLongitude)
+    fun east(point: GeoPoint, meters: Double) = GeoPoint(point.latitude, point.longitude + meters / metersPerLongitude)
 
     private fun north(point: GeoPoint, meters: Double) = GeoPoint(point.latitude + meters / 111320.0, point.longitude)
 
