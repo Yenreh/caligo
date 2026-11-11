@@ -12,6 +12,7 @@ import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.captureWindow
 import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.entities.HomeContent
+import com.yenreh.caligo.trips.JourneyFixtures
 import com.yenreh.caligo.trips.TripFixtures
 import com.yenreh.caligo.ui.common.setContentAt
 import com.yenreh.caligo.ui.theme.CaliGoTheme
@@ -28,7 +29,7 @@ class HomeTripBarTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
-    private val trip = Journey.single(TripFixtures.plan, HomeSamples.NOW)
+    private var trip = Journey.single(TripFixtures.plan, HomeSamples.NOW)
     private var opened = 0
 
     private fun show() {
@@ -53,6 +54,14 @@ class HomeTripBarTest {
         compose.onNodeWithTag("home_trip").performClick()
         assertEquals(1, opened)
         compose.assertControlsAccessible()
+    }
+
+    @Test
+    fun aPlannerTripOnFootOrAtTheStopIsNamedByWhereItGoes() {
+        trip = Journey.planned(JourneyFixtures.option, "Unicentro", HomeSamples.NOW)
+        show()
+        compose.onNode(hasText("Trip to Unicentro")).assertExists()
+        compose.onNode(hasText("Walk to Plaza de Cayzedo A1, ~", substring = true)).assertExists()
     }
 
     @Test

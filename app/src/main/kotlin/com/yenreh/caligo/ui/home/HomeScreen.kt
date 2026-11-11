@@ -345,11 +345,11 @@ private fun TripBar(journey: Journey, onTrip: () -> Unit) {
             subtitle = if (progress.stopsLeft > 0) "$heading · $minutes" else heading
         }
         is JourneyPhase.Walking -> {
-            title = stringResource(R.string.trip_channel)
+            title = stringResource(R.string.trip_to_destination, journey.destinationName)
             subtitle = words.walkTo(phase.leg.toName, Trip.minutesOf(phase.millis), phase.estimated)
         }
         is JourneyPhase.Waiting -> {
-            title = stringResource(R.string.trip_channel)
+            title = stringResource(R.string.trip_to_destination, journey.destinationName)
             subtitle = words.take(words.lines(phase.leg.ride.lines))
         }
     }
