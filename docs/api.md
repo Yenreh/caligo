@@ -143,8 +143,11 @@ gets the stops.
   screen makes. A trip started from the planner asks, for each ride, the
   arrivals of its stops once, as the planner does, to wait for the next
   bus of each of its lines, and, from 300 m before its stop until a bus is
-  taken, those lines' buses every 30 s. The rider's own position never
-  leaves the phone: the bus is told among the line's by where each one is.
+  taken, those lines' buses every 30 s, not once the rider is 300 m from
+  the stop and off those lines' routes. Waiting there ends the trip after
+  45 minutes with no bus taken, or after 3 minutes 400 m away. The rider's
+  own position never leaves the phone: the bus is told among the line's by
+  where each one is.
 - One request answers for every stop within 280 m of the point asked
   around, so favorites and the stops of a trip are grouped to need as few
   as possible, and a trip reuses areas asked about within a minute. With

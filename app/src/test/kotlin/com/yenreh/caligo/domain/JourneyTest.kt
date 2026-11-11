@@ -170,6 +170,70 @@ class JourneyTest {
         assertTrue(far.step(lastWalkDue + 30 * MINUTE) is JourneyStep.Goes)
     }
 
+    // Waiting at the stop
+
+    /** At the stop from 5 min */
+    private val atStop = journey.fixed(fixAt(stop, NOW + 5 * MINUTE))
+
+    /** [meters] north of the stop, off Calle 5 */
+    private fun northOf(meters: Double) = GeoPoint(stop.latitude + meters / 111320.0, stop.longitude)
+
+    /** [from] with a fix every 15 s from [start] until [end], where [pointAt] puts the rider; each step goes on */
+    private fun fixes(from: Journey, start: Long, end: Long, pointAt: (Long) -> GeoPoint): Journey {
+        var j = from
+        var at = start
+        while (at < end) {
+            j = j.fixed(fixAt(pointAt(at), at))
+            val step = j.step(at)
+            assertTrue("$at: $step", step is JourneyStep.Goes)
+            at += 15_000
+        }
+        return j
+    }
+
+    @Test
+    fun aRiderWhoStaysAtTheStopWaitsUntilTheLimit() {
+        val since = NOW + 5 * MINUTE
+        val limit = since + Journey.WAITING_LIMIT.inWholeMilliseconds
+        val waited = fixes(atStop, since, limit) { stop }
+        assertEquals(JourneyStep.Ends(TripEnding.NO_BUS), waited.step(limit))
+    }
+
+    @Test
+    fun withoutFixesTheWaitingByTheEstimateEndsAtTheLimitToo() {
+        val since = journey.waitingSince()
+        assertTrue(journey.phase(since) is JourneyPhase.Waiting)
+        assertTrue(journey.step(since + Journey.WAITING_LIMIT.inWholeMilliseconds - 1) is JourneyStep.Goes)
+        assertEquals(JourneyStep.Ends(TripEnding.NO_BUS), journey.step(since + Journey.WAITING_LIMIT.inWholeMilliseconds))
+    }
+
+    @Test
+    fun aRiderGoneFromTheStopForThreeMinutesEndsTheTrip() {
+        val left = NOW + 6 * MINUTE
+        val gone = fixes(atStop, left, left + Journey.AWAY_FOR.inWholeMilliseconds) { northOf(500.0) }
+        assertEquals(left, gone.awaySince)
+        val last = left + Journey.AWAY_FOR.inWholeMilliseconds
+        assertEquals(JourneyStep.Ends(TripEnding.LEFT_STOP), gone.fixed(fixAt(northOf(500.0), last)).step(last))
+    }
+
+    @Test
+    fun aRiderBackAtTheStopIsNoLongerGone() {
+        val left = NOW + 6 * MINUTE
+        val strayed = fixes(atStop, left, left + 2 * MINUTE) { northOf(500.0) }
+        val back = strayed.fixed(fixAt(northOf(100.0), left + 2 * MINUTE))
+        assertNull(back.awaySince)
+        val again = fixes(back, left + 3 * MINUTE, left + 5 * MINUTE) { northOf(500.0) }
+        assertEquals(left + 3 * MINUTE, again.awaySince)
+    }
+
+    @Test
+    fun aRiderAlongTheRideRouteIsNotGoneAsOnABusNotToldApartYet() {
+        val left = NOW + 6 * MINUTE
+        // Held 800 m along Calle 5 for ten minutes, as a bus in traffic
+        val held = fixes(atStop, left, left + 10 * MINUTE) { calle5Route.pointAt(800.0) }
+        assertNull(held.awaySince)
+    }
+
     @Test
     fun threeHoursEndAPlannerTrip() {
         assertEquals(JourneyStep.Ends(TripEnding.TIME_LIMIT), journey.step(NOW + Journey.TIME_LIMIT.inWholeMilliseconds))

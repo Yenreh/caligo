@@ -10,6 +10,7 @@ import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.domain.JourneyStep
 import com.yenreh.caligo.domain.LiveArrivals
 import com.yenreh.caligo.domain.TookRide
+import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.TripFix
 import com.yenreh.caligo.domain.TripPlan
@@ -21,6 +22,7 @@ import com.yenreh.caligo.domain.entities.TripOption
 import com.yenreh.caligo.domain.metersBetween
 import com.yenreh.caligo.ui.lines.LineViewModel
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -79,6 +81,9 @@ interface TripHost {
 
     /** The waits running now */
     fun runningWaits(): Set<WaitKey> = emptySet()
+
+    /** When the soonest bus the trip awaits is due, as its wait reads it at [now]; null with none */
+    fun soonestAwaited(now: Long): Long?
 }
 
 /**
@@ -113,6 +118,9 @@ class TripEngine(
     /** When the last request for the buses came back, answered or not */
     private var roundAt: Long? = null
 
+    /** The last round found a bus of the ride waited for nearing its stop */
+    private var busNear = false
+
     private val poke = Channel<Unit>(Channel.CONFLATED)
 
     /** Whether nothing runs: no beat, no request, no fixes asked */
@@ -122,6 +130,7 @@ class TripEngine(
     fun start(start: TripStart) {
         journey?.let { finish(it, TripEnding.REPLACED) }
         roundAt = null
+        busNear = false
         journey = start.journey(now())
         if (loop?.isActive != true) {
             val beat = scope.launch(start = CoroutineStart.LAZY) { run() }
@@ -235,11 +244,15 @@ class TripEngine(
         }
     }
 
-    /** High accuracy near the stop to get off at, near the stop to board at, and waiting at it; balanced elsewhere */
+    /**
+     * High accuracy near the stop to get off at, and near the stop to
+     * board at; waiting there, only once a bus to take nears it, so its
+     * fixes tell the rider leaving on it; balanced elsewhere
+     */
     private fun quality(journey: Journey, now: Long): FixQuality {
         val near = when (val phase = journey.phase(now)) {
             is JourneyPhase.Riding -> phase.trip.progress(now).stopsLeft <= NEAR_STOPS
-            is JourneyPhase.Waiting -> true
+            is JourneyPhase.Waiting -> busNear || host.soonestAwaited(now)?.let { it - now <= AWAITED_NEAR_MS } == true
             is JourneyPhase.Walking -> phase.leg.toStop && phase.meters <= NEAR_BOARD_METERS
         }
         return if (near) FixQuality.HIGH else FixQuality.BALANCED
@@ -323,18 +336,24 @@ class TripEngine(
         val due = roundAt?.let { it + BUS_INTERVAL_MS } ?: now
         if (now < due) return due
         val lines = linesToAsk(journey ?: return now + BEAT_MS, now)
-        if (lines.isEmpty()) return now + BEAT_MS
+        if (lines.isEmpty()) {
+            busNear = false
+            return now + BEAT_MS
+        }
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
+                var near = false
                 for (line in lines) {
                     try {
                         val buses = source.buses(line)
+                        near = near || journey?.busNear(line, buses, BUS_NEAR_METERS) == true
                         journey = journey?.withBuses(line, buses, now())
                     } catch (e: Exception) {
                         if (e is CancellationException) throw e
                         // The guard leaves the service alone meanwhile; the rider's own fixes go on
                     }
                 }
+                busNear = near
             } finally {
                 if (request === coroutineContext[Job]) {
                     request = null
@@ -352,17 +371,22 @@ class TripEngine(
     /**
      * The lines whose buses to follow: the one ridden; for a ride waited
      * for, each of its lines once the rider is near its stop, to tell
-     * which one they leave on
+     * which one they leave on. Waiting, not once a fresh fix has them
+     * gone elsewhere, away from the stop and its lines' routes.
      */
     private fun linesToAsk(running: Journey, now: Long): List<String> {
         running.ride?.let { return listOf(it.plan.line) }
         val pending = running.pendingRide ?: return emptyList()
         val candidates = (running.legs[pending] as JourneyLeg.Ride).candidates
         val fix = running.fix
+        if (running.phase(now) is JourneyPhase.Waiting) {
+            val fresh = fix?.takeIf { now - it.at <= FIX_FRESH_MS }
+            return if (fresh == null || running.nearRide(fresh.point, NEAR_BOARD_METERS)) candidates.map { it.line } else emptyList()
+        }
         val near = fix != null && candidates.any {
             metersBetween(fix.point.latitude, fix.point.longitude, it.board.latitude, it.board.longitude) <= NEAR_BOARD_METERS
         }
-        return if (near || running.phase(now) is JourneyPhase.Waiting) candidates.map { it.line } else emptyList()
+        return if (near) candidates.map { it.line } else emptyList()
     }
 
     companion object {
@@ -381,9 +405,17 @@ class TripEngine(
         /** The waits for a ride, all ended with none taken, are asked for again after this */
         val AWAIT_AGAIN = 60.seconds
 
+        /** Waiting at the stop, a bus to take within this of it asks the fixes at high accuracy */
+        const val BUS_NEAR_METERS = 600.0
+
+        /** Waiting at the stop, an awaited bus due within this asks the fixes at high accuracy */
+        val AWAITED_NEAR = 2.minutes
+
         private val BEAT_MS = BEAT.inWholeMilliseconds
         private val BUS_INTERVAL_MS = BUS_INTERVAL.inWholeMilliseconds
         private val AWAIT_AGAIN_MS = AWAIT_AGAIN.inWholeMilliseconds
+        private val AWAITED_NEAR_MS = AWAITED_NEAR.inWholeMilliseconds
+        private val FIX_FRESH_MS = Trip.FIX_FRESH.inWholeMilliseconds
         private const val MIN_GAP_MS = 1_000L
 
         /**

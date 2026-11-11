@@ -76,6 +76,8 @@ data class Journey(
     val busAlertedFor: Int? = null,
     /** From the planner: whole, with walks; a single ride from "I took it" has its stop to get off at chosen */
     val planned: Boolean = true,
+    /** Waiting for a ride, since when every good fix has been well away from it */
+    val awaySince: Long? = null,
 ) {
     val leg: JourneyLeg get() = legs[index]
 
@@ -114,7 +116,7 @@ data class Journey(
         }
     }
 
-    /** With [fix]: a walk measured, a ride followed */
+    /** With [fix]: a walk measured, a ride followed, the rider at the stop or gone */
     fun fixed(fix: TripFix): Journey {
         if (!fix.good) return this
         val moved = copy(fix = fix, previousFix = this.fix, ride = ride?.fixed(fix))
@@ -123,7 +125,39 @@ data class Journey(
             val meters = metersBetween(fix.point.latitude, fix.point.longitude, on.to.latitude, on.to.longitude)
             if (meters <= ARRIVED_METERS + minOf(fix.accuracy, ARRIVED_ERROR_METERS)) return moved.next(fix.at)
         }
-        return moved
+        if (moved.ride != null || on !is JourneyLeg.Ride) return moved
+        val away = !moved.nearRide(fix.point, AWAY_METERS)
+        return moved.copy(awaySince = if (away) awaySince ?: fix.at else null)
+    }
+
+    /**
+     * Whether [point] is near the ride waited for: within [meters] of where
+     * one of its lines boards, or along one of their routes, as on a bus
+     * of it not told apart yet
+     */
+    fun nearRide(point: GeoPoint, meters: Double): Boolean {
+        val r = pendingRide ?: return false
+        return (legs[r] as JourneyLeg.Ride).candidates.any { c ->
+            metersBetween(point.latitude, point.longitude, c.board.latitude, c.board.longitude) <= meters ||
+                TripRoute(c.stops).snaps(point).isNotEmpty()
+        }
+    }
+
+    /** Whether a bus of [line] among [buses] is within [meters] of where the ride waited for boards on that line */
+    fun busNear(line: String, buses: List<LineBus>, meters: Double): Boolean {
+        if (ride != null) return false
+        val r = pendingRide ?: return false
+        val board = (legs[r] as JourneyLeg.Ride).candidates.firstOrNull { it.line == line }?.board ?: return false
+        return buses.any { bus ->
+            (bus.direction == null || bus.direction == board.direction) &&
+                metersBetween(bus.latitude, bus.longitude, board.latitude, board.longitude) <= meters
+        }
+    }
+
+    /** When the waiting at the stop began: the ride's leg on, or the walk to it done by the estimate */
+    fun waitingSince(): Long = when (val on = leg) {
+        is JourneyLeg.Walk -> legStartedAt + on.walk.duration.inWholeMilliseconds
+        is JourneyLeg.Ride -> legStartedAt
     }
 
     /**
@@ -160,7 +194,7 @@ data class Journey(
         val board = chosen.board
         val took = TookRide(line, chosen.towards, board.stopId, board.name, vehicleId = "", trip = at)
         val plan = TripPlan(took, board.direction, chosen.stops, board = 0, alight = chosen.stops.lastIndex, factor = factors[line] ?: 1.0)
-        return copy(index = r, legStartedAt = at, ride = Trip.start(plan, at))
+        return copy(index = r, legStartedAt = at, ride = Trip.start(plan, at), awaySince = null)
     }
 
     /**
@@ -177,7 +211,7 @@ data class Journey(
     fun awaiting(rideIndex: Int, keys: List<WaitKey>, at: Long): Journey = copy(awaited = keys, awaitedFor = rideIndex, awaitedAt = at)
 
     /** On to the next leg from [at], or past the last */
-    private fun next(at: Long): Journey = copy(index = index + 1, legStartedAt = at, ride = null)
+    private fun next(at: Long): Journey = copy(index = index + 1, legStartedAt = at, ride = null, awaySince = null)
 
     /** At [now]: whether it goes on, moving to the next leg as one ends, or how it ends */
     fun step(now: Long): JourneyStep {
@@ -194,6 +228,13 @@ data class Journey(
             }
         }
         val on = leg
+        // Waiting for a bus: gone elsewhere, or none taken for long
+        if (on is JourneyLeg.Ride) {
+            val since = awaySince
+            val last = fix
+            if (since != null && last != null && last.at - since >= AWAY_FOR_MS) return JourneyStep.Ends(TripEnding.LEFT_STOP)
+        }
+        if (phase(now) is JourneyPhase.Waiting && now >= waitingSince() + WAITING_LIMIT_MS) return JourneyStep.Ends(TripEnding.NO_BUS)
         if (on is JourneyLeg.Walk && !on.toStop) {
             val last = fix?.takeIf { it.at >= legStartedAt }
             val here = last?.let { metersBetween(it.point.latitude, it.point.longitude, on.to.latitude, on.to.longitude) }
@@ -245,6 +286,13 @@ data class Journey(
         /** The last fix within this of the destination lets the walk's estimate end the journey */
         const val DESTINATION_NEAR_METERS = 300.0
 
+        /** Good fixes this far from the ride waited for, and off its routes, for [AWAY_FOR], end the journey: the rider left */
+        const val AWAY_METERS = 400.0
+        val AWAY_FOR = 3.minutes
+
+        /** The longest a journey waits at a stop with no bus taken */
+        val WAITING_LIMIT = 45.minutes
+
         /** Faster than anyone walks: 12.6 km/h */
         const val BUS_PACE = 3.5
 
@@ -257,5 +305,7 @@ data class Journey(
         private val FIX_FRESH_MS = Trip.FIX_FRESH.inWholeMilliseconds
         private val TIME_LIMIT_MS = TIME_LIMIT.inWholeMilliseconds
         private val SPEED_GAP_MS = SPEED_GAP.inWholeMilliseconds
+        private val AWAY_FOR_MS = AWAY_FOR.inWholeMilliseconds
+        private val WAITING_LIMIT_MS = WAITING_LIMIT.inWholeMilliseconds
     }
 }

@@ -190,12 +190,6 @@ data class TripNotice(
         /** A bus due within the minute still shows a bar worth reading */
         private const val MIN_WAIT_BAR_SECONDS = 60L
 
-        /** When the waiting at the stop began: the ride's leg on, or the walk to it done by the estimate */
-        private fun Journey.waitingSince(): Long = when (val on = leg) {
-            is JourneyLeg.Walk -> legStartedAt + on.walk.duration.inWholeMilliseconds
-            is JourneyLeg.Ride -> legStartedAt
-        }
-
         /**
          * Lines with a button of their own: Android shows three actions at
          * most, and Finish takes one

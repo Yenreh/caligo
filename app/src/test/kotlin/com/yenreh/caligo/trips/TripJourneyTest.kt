@@ -3,6 +3,7 @@ package com.yenreh.caligo.trips
 import android.app.Notification
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.NBSP
+import com.yenreh.caligo.data.location.FixQuality
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.domain.TookRide
@@ -353,7 +354,8 @@ class TripJourneyTest {
     @Test
     fun threeHoursEndAWholeTrip() {
         startJourney()
-        h.move(com.yenreh.caligo.domain.Journey.TIME_LIMIT.inWholeMilliseconds + MINUTE) { stop }
+        // Never at the stop, never gone from it: only the limit ends it
+        h.move(com.yenreh.caligo.domain.Journey.TIME_LIMIT.inWholeMilliseconds + MINUTE) { origin }
         h.assertEnded(TripEnding.TIME_LIMIT)
         assertTrue(waits.running.value.isEmpty())
     }
@@ -381,6 +383,63 @@ class TripJourneyTest {
         h.move(9 * MINUTE) { stop }
         assertTrue(h.source.arrivalsAsked.size > asked)
         assertEquals(2, h.awaitedLines.size)
+    }
+
+    // Waiting at the stop
+
+    @Test
+    fun waitingAsksBalancedFixesUntilABusOfTheRideNearsTheStop() {
+        // Awaited buses 20 and 25 min away: only the round's buses count
+        h.source.arrivalsAnswer = { _, at -> firstArrivals(at, e21In = 20, t31In = 25) }
+        h.waitsAnswering { _, at -> WaitAnswer(firstArrivals(NOW, e21In = 20, t31In = 25).stops, at) }
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        assertTrue(h.desk.running.value?.phase(h.now()) is JourneyPhase.Waiting)
+        assertEquals(FixQuality.BALANCED, h.location.requested)
+        // An E21 400 m before the stop, in the next round
+        h.source.byLine = { line, _ -> if (line == "E21") listOf(busOn(calle5Route, "41001", 0.0).copy(longitude = origin.longitude - 100 / 111320.0)) else emptyList() }
+        h.move(TripEngine.BUS_INTERVAL.inWholeMilliseconds + 15_000) { stop }
+        assertEquals(FixQuality.HIGH, h.location.requested)
+        // Gone from the round: balanced again
+        h.source.byLine = { _, _ -> emptyList() }
+        h.move(TripEngine.BUS_INTERVAL.inWholeMilliseconds + 15_000) { stop }
+        assertEquals(FixQuality.BALANCED, h.location.requested)
+    }
+
+    @Test
+    fun waitingAsksHighFixesOnceAnAwaitedBusIsDueWithinTwoMinutes() {
+        startJourney()
+        // The E21 is due at 8 min
+        h.move(5 * MINUTE + 30_000) { toTheStop(it) }
+        assertEquals(FixQuality.BALANCED, h.location.requested)
+        h.move(MINUTE) { stop }
+        assertEquals(FixQuality.HIGH, h.location.requested)
+    }
+
+    @Test
+    fun aRiderGoneFromTheStopEndsTheTripAndAsksNoMoreBuses() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        val asked = h.source.askedLines.size
+        // Away north in a taxi at 5 m/s, off the ride's route
+        val leftAt = h.now()
+        h.move(5 * MINUTE) { at -> GeoPoint(stop.latitude + (at - leftAt) * 5.0 / 1000 / 111320.0, stop.longitude) }
+        h.assertEnded(TripEnding.LEFT_STOP)
+        assertTrue(waits.running.value.isEmpty())
+        // Asked while near, not once gone 300 m
+        assertTrue(h.source.askedLines.toString(), h.source.askedLines.size - asked <= 6)
+    }
+
+    @Test
+    fun aRiderWhoStaysAtTheStopWithNoBusTakenEndsTheTripAt45Minutes() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.assertRunning()
+        h.move(com.yenreh.caligo.domain.Journey.WAITING_LIMIT.inWholeMilliseconds - 2 * MINUTE) { stop }
+        h.assertRunning()
+        h.move(2 * MINUTE) { stop }
+        h.assertEnded(TripEnding.NO_BUS)
+        assertTrue(waits.running.value.isEmpty())
     }
 
     @Test

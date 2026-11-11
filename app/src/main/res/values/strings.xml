@@ -359,6 +359,8 @@
     <string name="trip_ended_blocked">Notifications are off, so the trip ended.</string>
     <string name="trip_ended_no_location">Without your location the ride cannot be followed.</string>
     <string name="trip_ended_replaced">Another trip took its place.</string>
+    <string name="trip_ended_left_stop">The trip ended: you left the stop.</string>
+    <string name="trip_ended_no_bus">The trip ended: no bus taken in %1$d\u00A0min.</string>
     <string name="trip_home_title">On the %1$s</string>
     <string name="trip_open">Open the trip</string>
     <string name="trip_walk_to">Walk to %1$s, %2$s min</string>

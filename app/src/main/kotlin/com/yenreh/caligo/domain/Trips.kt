@@ -116,6 +116,12 @@ enum class TripEnding {
 
     /** Another ride started in its place */
     REPLACED,
+
+    /** A planner trip waiting for its bus, the rider gone well away from every stop to take it at */
+    LEFT_STOP,
+
+    /** A planner trip waiting at the stop too long, no bus taken */
+    NO_BUS,
 }
 
 /** What backs a trip's progress at a moment */

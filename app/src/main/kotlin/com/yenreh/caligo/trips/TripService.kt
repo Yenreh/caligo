@@ -224,6 +224,8 @@ class TripService : Service(), TripHost {
 
     override fun runningWaits(): Set<WaitKey> = waitEngine.waits.mapTo(HashSet()) { it.key }
 
+    override fun soonestAwaited(now: Long): Long? = engine.journey?.let { awaitedLines(it, now).firstOrNull()?.dueAt(now) }
+
     /**
      * What the trip's wait engine asks of the one that shows its waits:
      * here, where the trip's own notification carries them, soonest first

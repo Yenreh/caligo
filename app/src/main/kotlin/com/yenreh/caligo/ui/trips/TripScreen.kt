@@ -718,6 +718,8 @@ private fun endedText(ended: EndedTrip?): String = when (ended?.ending) {
     TripEnding.BLOCKED -> stringResource(R.string.trip_ended_blocked)
     TripEnding.NO_LOCATION -> stringResource(R.string.trip_ended_no_location)
     TripEnding.REPLACED -> stringResource(R.string.trip_ended_replaced)
+    TripEnding.LEFT_STOP -> stringResource(R.string.trip_ended_left_stop)
+    TripEnding.NO_BUS -> stringResource(R.string.trip_ended_no_bus, Journey.WAITING_LIMIT.inWholeMinutes.toInt())
     TripEnding.FINISHED, null -> stringResource(R.string.trip_ended_finished)
 }
 
