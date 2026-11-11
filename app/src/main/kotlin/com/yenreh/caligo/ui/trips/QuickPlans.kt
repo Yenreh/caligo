@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -33,6 +34,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.TripPlace
@@ -120,7 +122,9 @@ private fun PlaceChip(place: FavoritePlace, onClick: () -> Unit, onEdit: () -> U
                 .padding(start = 10.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource(R.drawable.ic_star), contentDescription = null, modifier = Modifier.size(16.dp), tint = p.accent)
+            // As large as the name beside it, at any text size
+            val star = with(LocalDensity.current) { STAR_SIZE.toDp() }
+            Icon(painterResource(R.drawable.ic_star), contentDescription = null, modifier = Modifier.size(star), tint = p.accent)
             Spacer(Modifier.width(6.dp))
             Text(
                 place.name,
@@ -130,3 +134,6 @@ private fun PlaceChip(place: FavoritePlace, onClick: () -> Unit, onEdit: () -> U
         }
     }
 }
+
+/** The chip's star, in text units so it grows with the name */
+private val STAR_SIZE = 16.sp
