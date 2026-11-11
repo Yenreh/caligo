@@ -17,6 +17,8 @@ class FakePlacesRepository(private val stored: List<FavoritePlace> = emptyList()
         saved.value = all
     }
 
+    override suspend fun all(): List<FavoritePlace> = all
+
     override suspend fun add(name: String, place: TripPlace): FavoritePlace {
         failure?.let { throw it }
         val added = FavoritePlace(

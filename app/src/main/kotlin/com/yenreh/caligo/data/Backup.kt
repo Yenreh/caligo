@@ -13,7 +13,6 @@ import com.yenreh.caligo.data.json.obj
 import com.yenreh.caligo.data.json.parseJson
 import com.yenreh.caligo.data.json.settingsFromJson
 import com.yenreh.caligo.data.json.toJson
-import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.matching
 import com.yenreh.caligo.domain.repositories.CardRepository
 import com.yenreh.caligo.domain.repositories.PlacesRepository
@@ -64,8 +63,7 @@ class Backup(
     suspend fun export(): String? {
         val cards = cards.getAllCards()
         val stops = stops.getFavorites()
-        places.load()
-        val saved = places.places.value
+        val saved = places.all()
         if (cards.isEmpty() && stops.isEmpty() && saved.isEmpty()) return null
 
         val data = buildJsonObject {
@@ -117,8 +115,7 @@ class Backup(
         val newCards = fileCards.filter { cardIds.add(it.id) }.map { it.copy(internalId = newId()) }
         val stopIds = stops.getFavorites().map { it.id }.toMutableSet()
         val newStops = fileStops.filter { stopIds.add(it.id) }
-        places.load()
-        val knownPlaces = places.places.value.toMutableList<FavoritePlace>()
+        val knownPlaces = places.all().toMutableList()
         val newPlaces = filePlaces.filter { place ->
             (knownPlaces.matching(place.latitude, place.longitude, place.stopId) == null).also { if (it) knownPlaces.add(place) }
         }

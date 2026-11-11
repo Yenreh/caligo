@@ -17,6 +17,8 @@ class PlacesRepositoryImpl(private val local: PlacesLocalDatasource) : PlacesRep
         saved.value = local.getAll()
     }
 
+    override suspend fun all(): List<FavoritePlace> = local.getAll()
+
     override suspend fun add(name: String, place: TripPlace): FavoritePlace {
         val added = local.insert(
             FavoritePlace(
