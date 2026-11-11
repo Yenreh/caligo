@@ -21,6 +21,18 @@ class TripTest {
     private val stretch = 400 * 1.15 / 7 + 20
 
     @Test
+    fun theRouteIsBuiltOncePerPlanNotForEveryReadingOfTheRide() {
+        val moved = trip.fixed(fix(400.0, NOW + MINUTE)).fixed(fix(800.0, NOW + 2 * MINUTE))
+        assertTrue(moved.route === trip.route)
+        assertEquals(trip.minutesTo(7, NOW), moved.copy(confirmed = 0.0, confirmedAt = NOW, confirmedBy = TripSource.ESTIMATE, lastFix = null, lastFixAlong = null).minutesTo(7, NOW))
+        // Equal plans stay equal, whichever was read
+        val fresh = plan.copy()
+        assertEquals(plan, fresh)
+        assertEquals(plan.hashCode(), fresh.hashCode())
+        assertTrue(fresh.route !== plan.route)
+    }
+
+    @Test
     fun aTripStartsAtTheBoardingStopOnTheEstimate() {
         val progress = trip.progress(NOW)
         assertEquals(0.0, progress.along, 0.0)

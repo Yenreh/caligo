@@ -50,6 +50,17 @@ data class TripPlan(
     /** The stops after the boarding one, where the rider may get off */
     val ahead: IntRange get() = board + 1..stops.lastIndex
 
+    /**
+     * The route along [stops], built once for the plan, not for every
+     * reading of the ride; outside the plan's equality
+     */
+    val route: TripRoute by lazy(LazyThreadSafetyMode.PUBLICATION) { TripRoute(stops) }
+
+    /** Estimated seconds from the first stop to each, with the line's factor, built once for the plan */
+    internal val seconds: DoubleArray by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        TransitNetwork.routeSeconds(line, stops).also { s -> for (i in s.indices) s[i] *= factor }
+    }
+
     companion object {
         /**
          * The plan for [took] on [route], both directions of its line, or
@@ -218,12 +229,10 @@ data class Trip(
     /** The stops passed so far, as the rider's progress was confirmed past each */
     val passes: List<StopPass> = emptyList(),
 ) {
-    val route: TripRoute by lazy(LazyThreadSafetyMode.NONE) { TripRoute(plan.stops) }
+    /** The plan's route, kept with the plan as the ride is copied fix by fix */
+    val route: TripRoute get() = plan.route
 
-    /** Estimated seconds from the first stop to each, with the line's factor */
-    private val seconds: DoubleArray by lazy(LazyThreadSafetyMode.NONE) {
-        TransitNetwork.routeSeconds(plan.line, plan.stops).also { s -> for (i in s.indices) s[i] *= plan.factor }
-    }
+    private val seconds: DoubleArray get() = plan.seconds
 
     private val targetAlong: Double get() = route.at[plan.target]
 
