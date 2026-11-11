@@ -267,4 +267,71 @@ class TripNoticeTest {
         val follow = Trip.start(plan.copy(alight = null), NOW).fixed(fix(3200.0, NOW + 9 * MINUTE))
         assertEquals("1 stop · next: Universidades", notice(follow, NOW + 9 * MINUTE).text)
     }
+
+    // The last word of a trip that ended by itself
+
+    private fun ended(journey: Journey, ending: com.yenreh.caligo.domain.TripEnding, warningOn: Boolean = true) =
+        EndedNotice.of(journey, ending, Alerts(vibrate = true), words, warningOn)
+
+    @Test
+    fun onlyEndingsTheRiderDidNotAskForSayAWord() {
+        val single = Journey.single(plan, NOW)
+        for (ending in com.yenreh.caligo.domain.TripEnding.entries) {
+            assertEquals(ending.name, ending in EndedNotice.NOTICED, ended(single, ending) != null)
+        }
+        assertEquals(
+            setOf("OFF_ROUTE", "NO_LOCATION", "TIME_LIMIT", "LEFT_STOP", "NO_BUS"),
+            EndedNotice.NOTICED.map { it.name }.toSet(),
+        )
+    }
+
+    @Test
+    fun withAStopToGetOffAtAheadItPeeksAsTheAlertsAreSet() {
+        val n = checkNotNull(ended(Journey.single(plan, NOW), com.yenreh.caligo.domain.TripEnding.OFF_ROUTE))
+        assertEquals("Trip ended: watch for your stop", n.title)
+        assertEquals("You left the route, so the trip ended.", n.text)
+        assertEquals(TripChannel.WARNING_VIBRATE, n.channel)
+        assertTrue(n.alerting)
+        // A planner trip with a ride ahead, on foot to its stop
+        assertEquals(TripChannel.WARNING_VIBRATE, ended(planned, com.yenreh.caligo.domain.TripEnding.TIME_LIMIT)?.channel)
+    }
+
+    @Test
+    fun withNoStopAheadItIsSilent() {
+        // Following the line, no stop chosen
+        val following = checkNotNull(ended(Journey.single(plan.copy(alight = null), NOW), com.yenreh.caligo.domain.TripEnding.TIME_LIMIT))
+        assertEquals("Trip ended", following.title)
+        assertEquals("The trip ended: it ran too long.", following.text)
+        assertEquals(TripChannel.TRIPS, following.channel)
+        assertFalse(following.alerting)
+        // On the final walk
+        val walking = planned.copy(index = 4, legStartedAt = NOW)
+        assertEquals(TripChannel.TRIPS, ended(walking, com.yenreh.caligo.domain.TripEnding.TIME_LIMIT)?.channel)
+        // Gone from the stop: on no bus of the trip
+        val gone = checkNotNull(ended(planned.copy(index = 1), com.yenreh.caligo.domain.TripEnding.LEFT_STOP))
+        assertEquals("Trip ended", gone.title)
+        assertEquals("The trip ended: you left the stop.", gone.text)
+        assertEquals(TripChannel.TRIPS, gone.channel)
+    }
+
+    @Test
+    fun withTheWarningChannelOffItIsSilentYetSaysTheStop() {
+        val n = checkNotNull(ended(Journey.single(plan, NOW), com.yenreh.caligo.domain.TripEnding.NO_LOCATION, warningOn = false))
+        assertEquals("Trip ended: watch for your stop", n.title)
+        assertEquals(TripChannel.TRIPS, n.channel)
+        assertFalse(n.alerting)
+    }
+
+    @Test
+    @Config(qualifiers = "es")
+    fun theLastWordInSpanish() {
+        val esWords = TripWords(context.resources)
+        val watch = checkNotNull(EndedNotice.of(planned.copy(index = 1), com.yenreh.caligo.domain.TripEnding.NO_BUS, Alerts(), esWords))
+        assertEquals("Viaje terminado: pendiente de tu parada", watch.title)
+        assertEquals("El viaje terminó: no tomaste ningún bus en 45${NBSP}min.", watch.text)
+        val gone = checkNotNull(EndedNotice.of(planned.copy(index = 1), com.yenreh.caligo.domain.TripEnding.LEFT_STOP, Alerts(), esWords))
+        assertEquals("Viaje terminado", gone.title)
+        assertEquals("El viaje terminó: te alejaste de la parada.", gone.text)
+        assertEquals("El viaje terminó: duró demasiado.", esWords.endedReason(com.yenreh.caligo.domain.TripEnding.TIME_LIMIT))
+    }
 }

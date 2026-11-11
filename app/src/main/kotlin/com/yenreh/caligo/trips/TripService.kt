@@ -40,7 +40,8 @@ import kotlinx.coroutines.cancel
  * It never runs without its notification: it starts as the trip is shown
  * and stops as it ends. Not sticky: killed, it does not come back, and
  * what it showed goes with the notification's timeout, or at the next
- * process start.
+ * process start. A trip that ends by itself leaves a last word, not
+ * ongoing, that goes by its own timeout, a tap or the next start.
  *
  * Apart from the wait service, with ids and channels of its own: the
  * rider's own waits keep their notifications and foreground state there,
@@ -67,6 +68,9 @@ class TripService : Service(), TripHost {
     private val endWaitFromDesk: (WaitKey, WaitEnding) -> Unit = { key, ending -> endWait(key, ending) }
 
     private var lastStartId = 0
+
+    /** The trip last shown, by when it started: one that ends before it ever was says nothing */
+    private var shownStartedAt: Long? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -181,13 +185,24 @@ class TripService : Service(), TripHost {
     // allowed() holds before every post: the app's notifications are on
     @SuppressLint("MissingPermission")
     override fun show(journey: Journey, now: Long, nextPostIn: Long) {
+        shownStartedAt = journey.startedAt
         NotificationManagerCompat.from(this).notify(TripNotifications.TRIP_ID, notification(journey, now, nextPostIn))
         holdWakeLock(nextPostIn + WAKE_MARGIN_MS)
     }
 
+    // allowed() holds before the last word: the app's notifications are on
+    @SuppressLint("MissingPermission")
     override fun ended(journey: Journey, ending: TripEnding) {
         desk.endedAs(journey, ending)
-        NotificationManagerCompat.from(this).cancel(TripNotifications.TRIP_ID)
+        val manager = NotificationManagerCompat.from(this)
+        manager.cancel(TripNotifications.TRIP_ID)
+        // Ended by itself once under way, the screen likely off: the rider
+        // hears it. Not one that ends as it starts, the screen on show.
+        if (journey.startedAt != shownStartedAt || !allowed()) return
+        val alerts = desk.alerts()
+        val warningOn = TripNotifications.channelOn(this, TripChannel.warning(alerts))
+        val notice = EndedNotice.of(journey, ending, alerts, words, warningOn) ?: return
+        manager.notify(TripNotifications.ENDED_ID, TripNotifications.ended(this, notice, alerts))
     }
 
     override fun idle() {

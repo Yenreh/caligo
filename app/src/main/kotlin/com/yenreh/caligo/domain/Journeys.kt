@@ -90,6 +90,9 @@ data class Journey(
             else -> null
         }
 
+    /** A stop to get off at is set and not reached: on a ride to a chosen stop, or a planner trip with a ride ahead */
+    val stopPending: Boolean get() = ride?.plan?.alight != null || (planned && pendingRide != null)
+
     /** The legs still to come after the one on now */
     val ahead: List<JourneyLeg> get() = legs.drop(index + 1)
 

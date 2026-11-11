@@ -56,7 +56,8 @@ class TripStartImmediateTest {
         shadowOf(h.app).denyPermissions(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
         h.location.usable = false
         h.start(plan)
-        h.assertEnded(TripEnding.NO_LOCATION)
+        // Ended as it starts, the screen on show: no last word
+        h.assertEnded(TripEnding.NO_LOCATION, noticed = false)
     }
 
     @Test

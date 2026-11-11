@@ -166,12 +166,28 @@ class TripHarness(private val immediate: Boolean = false) {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
-    /** The trip ended as [ending], and nothing of it is left: no notification, service, request, fix asked or wake lock */
-    fun assertEnded(ending: TripEnding) {
+    /** The last word of a trip that ended by itself, if on show */
+    val endedNotice: Notification?
+        get() = shadowOf(manager).activeNotifications.firstOrNull { it.id == TripNotifications.ENDED_ID }?.notification
+
+    /**
+     * The trip ended as [ending], and nothing of it is left: no
+     * notification, service, request, fix asked or wake lock. Only its
+     * last word when [noticed]: not ongoing, gone by itself soon.
+     */
+    fun assertEnded(ending: TripEnding, noticed: Boolean = ending in EndedNotice.NOTICED) {
         assertEquals(ending, desk.ended.value?.ending)
         assertNull("no trip", desk.running.value)
         assertNull("its notification gone", shown)
-        assertTrue(posted.none { it.channelId?.startsWith("trip") == true })
+        val last = endedNotice
+        if (noticed) {
+            checkNotNull(last) { "no last word" }
+            assertEquals(0, last.flags and Notification.FLAG_ONGOING_EVENT)
+            assertEquals(TripNotifications.ENDED_TIMEOUT_MS, last.timeoutAfter)
+        } else {
+            assertNull("no last word", last)
+        }
+        assertTrue(shadowOf(manager).activeNotifications.none { it.id != TripNotifications.ENDED_ID && it.notification.channelId?.startsWith("trip") == true })
         assertTrue("no wait of the trip's left: $waitTitles", desk.ended.value?.journey?.awaited.orEmpty().none { key -> app.container.waits.running.value.any { it.key == key } })
         assertTrue("its wait engine idle", service.tripWaitEngine.isIdle && service.tripWaitEngine.waits.isEmpty())
         val shadow = shadowOf(service)

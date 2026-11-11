@@ -121,6 +121,7 @@ class TripServiceTest {
         h.assertRunning()
         h.ride(2 * MINUTE) { 10.0 }
         h.assertEnded(TripEnding.TIME_LIMIT)
+        assertEquals("The trip ended: it ran too long.", with(h) { checkNotNull(h.endedNotice).text() })
     }
 
     // Off the route for good
@@ -135,6 +136,64 @@ class TripServiceTest {
         assertEquals("E21 · Away from the route", with(h) { checkNotNull(shown).text() })
         h.ride(MINUTE, north = 500.0) { 900.0 }
         h.assertEnded(TripEnding.OFF_ROUTE)
+        // Its last word peeks as the alerts are set: the stop to get off at is still ahead
+        val last = checkNotNull(h.endedNotice)
+        assertEquals(TripChannel.WARNING_SILENT.id, last.channelId)
+        assertEquals("Trip ended: watch for your stop", with(h) { last.title() })
+        assertEquals("You left the route, so the trip ended.", with(h) { last.text() })
+        assertTrue(last.flags and Notification.FLAG_AUTO_CANCEL != 0)
+        val intent = shadowOf(last.contentIntent).savedIntent
+        assertEquals(TripNotifications.ACTION_OPEN_TRIP, intent.action)
+        assertEquals(MainActivity::class.java.name, intent.component?.className)
+    }
+
+    @Test
+    fun followingTheLineOnlyItsLastWordIsSilent() {
+        h.start(plan.copy(alight = null))
+        h.ride(2 * MINUTE) { along(it) }
+        h.ride(Trip.OFF_ROUTE_FOR.inWholeMilliseconds + MINUTE, north = 500.0) { 900.0 }
+        h.assertEnded(TripEnding.OFF_ROUTE)
+        val last = checkNotNull(h.endedNotice)
+        assertEquals(TripChannel.TRIPS.id, last.channelId)
+        assertEquals("Trip ended", with(h) { last.title() })
+    }
+
+    @Test
+    fun withTheWarningChannelOffTheLastWordIsSilent() {
+        TripNotifications.createChannels(h.app)
+        h.manager.getNotificationChannel(TripChannel.WARNING_SILENT.id).importance = NotificationManager.IMPORTANCE_NONE
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        h.location.lose()
+        h.advance(1)
+        h.assertEnded(TripEnding.NO_LOCATION)
+        val last = checkNotNull(h.endedNotice)
+        assertEquals(TripChannel.TRIPS.id, last.channelId)
+        assertEquals("Without your location the ride cannot be followed.", with(h) { last.text() })
+    }
+
+    @Test
+    fun withAlertsThatSoundTheLastWordGoesOnTheirChannel() {
+        h.desk.alerts = { com.yenreh.caligo.waits.Alerts(sound = true, vibrate = true) }
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        h.location.lose()
+        h.advance(1)
+        h.assertEnded(TripEnding.NO_LOCATION)
+        assertEquals(TripChannel.WARNING_SOUND_VIBRATE.id, checkNotNull(h.endedNotice).channelId)
+    }
+
+    @Test
+    fun theNextStartTakesTheLastWordAway() {
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        h.location.lose()
+        h.advance(1)
+        h.assertEnded(TripEnding.NO_LOCATION)
+        h.location.usable = true
+        h.start(plan)
+        assertNull(h.endedNotice)
+        h.assertRunning()
     }
 
     // Notifications or location turned off
@@ -194,7 +253,8 @@ class TripServiceTest {
         h.location.usable = false
         h.start(plan)
         h.advance(1)
-        h.assertEnded(TripEnding.NO_LOCATION)
+        // Ended as it starts, the screen on show: no last word
+        h.assertEnded(TripEnding.NO_LOCATION, noticed = false)
     }
 
     // The process going away
@@ -202,7 +262,7 @@ class TripServiceTest {
     @Test
     fun aNewProcessLeavesNoTripNorNotification() {
         TripNotifications.createChannels(h.app)
-        for (id in listOf(TripNotifications.TRIP_ID, TripNotifications.PLACEHOLDER_ID)) {
+        for (id in listOf(TripNotifications.TRIP_ID, TripNotifications.PLACEHOLDER_ID, TripNotifications.ENDED_ID)) {
             h.manager.notify(id, Notification.Builder(h.app, TripChannel.TRIPS.id).setSmallIcon(android.R.drawable.ic_dialog_info).build())
         }
         TripNotifications.cancelLeftovers(h.app)
@@ -385,6 +445,6 @@ class TripServiceTest {
         assertEquals(NotificationManager.IMPORTANCE_LOW, h.manager.getNotificationChannel(TripChannel.WARNING_SOUND.id).importance)
         // Apart from the waits'
         assertEquals(TripChannel.entries.size, h.manager.notificationChannels.count { it.id.startsWith("trip") })
-        assertTrue(TripNotifications.TRIP_ID !in WaitNotifications.ids && TripNotifications.PLACEHOLDER_ID !in WaitNotifications.ids)
+        for (id in listOf(TripNotifications.TRIP_ID, TripNotifications.PLACEHOLDER_ID, TripNotifications.ENDED_ID)) assertTrue(id !in WaitNotifications.ids)
     }
 }

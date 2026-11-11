@@ -2,6 +2,7 @@ package com.yenreh.caligo.trips
 
 import android.content.Context
 import android.content.Intent
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.yenreh.caligo.data.location.LocationUpdates
 import com.yenreh.caligo.domain.Journey
@@ -105,6 +106,8 @@ class TripDesk(
 
     override fun start(start: TripStart) {
         TripNotifications.createChannels(context)
+        // The last word of the trip before goes as the next one starts
+        NotificationManagerCompat.from(context).cancel(TripNotifications.ENDED_ID)
         last.value = null
         service?.let { return it.start(start) }
         pending = start

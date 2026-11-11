@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.captureNotification
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.Journey
+import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.trips.JourneyFixtures.DESTINATION
 import com.yenreh.caligo.trips.JourneyFixtures.between
 import com.yenreh.caligo.trips.JourneyFixtures.busOn
@@ -54,11 +55,20 @@ class TripNoticeScreenshotTest {
     private fun capture(name: String, journey: Journey, near: Boolean, dark: Boolean) =
         captureNotification(context, notification(journey, near), "trip_notice_$name", 411 * 3, dark)
 
+    /** The last word of [journey] ended as [ending] */
+    private fun captureEnded(name: String, journey: Journey, ending: TripEnding, dark: Boolean) {
+        TripNotifications.createChannels(context)
+        val notice = checkNotNull(EndedNotice.of(journey, ending, Alerts(), TripWords(context.resources)))
+        captureNotification(context, TripNotifications.ended(context, notice, Alerts()), "trip_notice_$name", 411 * 3, dark)
+    }
+
     private fun all(language: String, dark: Boolean) {
         val tone = if (dark) "dark" else "light"
         capture("walk_${language}_$tone", walking, near = true, dark = dark)
         capture("wait_${language}_$tone", waiting, near = true, dark = dark)
         capture("ride_${language}_$tone", riding, near = false, dark = dark)
+        captureEnded("ended_watch_${language}_$tone", riding, TripEnding.OFF_ROUTE, dark)
+        captureEnded("ended_${language}_$tone", waiting, TripEnding.LEFT_STOP, dark)
     }
 
     @Test
@@ -81,5 +91,6 @@ class TripNoticeScreenshotTest {
     fun englishLargeText() {
         capture("walk_en_font2", walking, near = true, dark = false)
         capture("ride_en_font2", riding, near = false, dark = false)
+        captureEnded("ended_watch_en_font2", waiting, TripEnding.NO_BUS, dark = false)
     }
 }

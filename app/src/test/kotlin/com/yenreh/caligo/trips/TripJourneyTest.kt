@@ -357,6 +357,7 @@ class TripJourneyTest {
         // Never at the stop, never gone from it: only the limit ends it
         h.move(com.yenreh.caligo.domain.Journey.TIME_LIMIT.inWholeMilliseconds + MINUTE) { origin }
         h.assertEnded(TripEnding.TIME_LIMIT)
+        assertEquals("Trip ended: watch for your stop", checkNotNull(h.endedNotice).title())
         assertTrue(waits.running.value.isEmpty())
     }
 
@@ -426,6 +427,11 @@ class TripJourneyTest {
         h.move(5 * MINUTE) { at -> GeoPoint(stop.latitude + (at - leftAt) * 5.0 / 1000 / 111320.0, stop.longitude) }
         h.assertEnded(TripEnding.LEFT_STOP)
         assertTrue(waits.running.value.isEmpty())
+        // Gone elsewhere, on no bus of the trip: its last word is silent
+        val last = checkNotNull(h.endedNotice)
+        assertEquals(TripChannel.TRIPS.id, last.channelId)
+        assertEquals("Trip ended", last.title())
+        assertEquals("The trip ended: you left the stop.", last.text())
         // Asked while near, not once gone 300 m
         assertTrue(h.source.askedLines.toString(), h.source.askedLines.size - asked <= 6)
     }
@@ -440,6 +446,11 @@ class TripJourneyTest {
         h.move(2 * MINUTE) { stop }
         h.assertEnded(TripEnding.NO_BUS)
         assertTrue(waits.running.value.isEmpty())
+        // Maybe on a bus the trip never told: the stop to get off at is still ahead
+        val last = checkNotNull(h.endedNotice)
+        assertEquals(TripChannel.WARNING_SILENT.id, last.channelId)
+        assertEquals("Trip ended: watch for your stop", last.title())
+        assertEquals("The trip ended: no bus taken in 45${NBSP}min.", last.text())
     }
 
     @Test

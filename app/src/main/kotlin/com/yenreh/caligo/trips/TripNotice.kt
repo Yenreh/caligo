@@ -8,6 +8,7 @@ import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.domain.Wait
 import com.yenreh.caligo.waits.WaitChannel
+import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.TripSource
 import com.yenreh.caligo.waits.Alerts
 
@@ -62,6 +63,38 @@ enum class TripTracker {
 
     /** On foot */
     WALKER,
+}
+
+/**
+ * The last word of a trip that ended by itself, the screen likely off:
+ * on the warning channel, so it peeks as the alerts are set, while the
+ * rider may still count on a warning for a stop to get off at; otherwise
+ * silent. A pure function of the trip and how it ended, built into a
+ * notification by [TripNotifications].
+ */
+data class EndedNotice(val title: String, val text: String, val channel: TripChannel, val alerting: Boolean) {
+    companion object {
+        /** The endings the rider did not ask for nor see coming: the rest say nothing */
+        val NOTICED = setOf(TripEnding.OFF_ROUTE, TripEnding.NO_LOCATION, TripEnding.TIME_LIMIT, TripEnding.LEFT_STOP, TripEnding.NO_BUS)
+
+        /**
+         * The notice of [journey] ended as [ending], or null for an ending
+         * that says nothing. With the warning channel off, [warningOn]
+         * false, it stays silent. A rider gone from the stop took no bus
+         * of the trip: nothing to warn of.
+         */
+        fun of(journey: Journey, ending: TripEnding, alerts: Alerts, words: TripWords, warningOn: Boolean = true): EndedNotice? {
+            if (ending !in NOTICED) return null
+            val pending = journey.stopPending && ending != TripEnding.LEFT_STOP
+            val alerting = pending && warningOn
+            return EndedNotice(
+                title = if (pending) words.endedWatch else words.ended,
+                text = words.endedReason(ending),
+                channel = if (alerting) TripChannel.warning(alerts) else TripChannel.TRIPS,
+                alerting = alerting,
+            )
+        }
+    }
 }
 
 /**
@@ -336,6 +369,23 @@ class TripWords(private val resources: Resources) {
     val chipHere: String get() = resources.getString(R.string.trip_chip_here)
 
     val finish: String get() = resources.getString(R.string.trip_finish)
+
+    val ended: String get() = resources.getString(R.string.trip_ended_title)
+
+    val endedWatch: String get() = resources.getString(R.string.trip_ended_title_watch)
+
+    /** Why a trip ended by itself, as the trip screen says it */
+    fun endedReason(ending: TripEnding): String = when (ending) {
+        TripEnding.TIME_LIMIT -> resources.getString(R.string.trip_ended_time_limit)
+        TripEnding.OFF_ROUTE -> resources.getString(R.string.trip_ended_off_route)
+        TripEnding.NO_LOCATION -> resources.getString(R.string.trip_ended_no_location)
+        TripEnding.LEFT_STOP -> resources.getString(R.string.trip_ended_left_stop)
+        TripEnding.NO_BUS -> resources.getString(R.string.trip_ended_no_bus, Journey.WAITING_LIMIT.inWholeMinutes.toInt())
+        TripEnding.BLOCKED -> resources.getString(R.string.trip_ended_blocked)
+        TripEnding.DISMISSED -> resources.getString(R.string.trip_ended_dismissed)
+        TripEnding.REPLACED -> resources.getString(R.string.trip_ended_replaced)
+        TripEnding.REACHED, TripEnding.FINISHED -> resources.getString(R.string.trip_ended_finished)
+    }
 
     fun walkToStop(minutes: Int, estimated: Boolean) = resources.getString(R.string.trip_walk_to_stop, about(estimated) + minutes)
 

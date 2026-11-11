@@ -30,6 +30,12 @@ object TripNotifications {
     /** Shown only when a start finds no trip to carry the service */
     const val PLACEHOLDER_ID = 4200
 
+    /** The last word of a trip that ended by itself: gone by its timeout, a tap, the next start or the next process */
+    const val ENDED_ID = 4202
+
+    /** How long the last word of a trip stays */
+    const val ENDED_TIMEOUT_MS = 3 * 60_000L
+
 
     const val ACTION_FINISH = "com.yenreh.caligo.trip.FINISH"
     const val ACTION_DISMISSED = "com.yenreh.caligo.trip.DISMISSED"
@@ -130,6 +136,34 @@ object TripNotifications {
         val manager = NotificationManagerCompat.from(context)
         manager.cancel(PLACEHOLDER_ID)
         manager.cancel(TRIP_ID)
+        manager.cancel(ENDED_ID)
+    }
+
+    /** [notice] as the last word of a trip: not ongoing, a tap opens the trip screen's ending */
+    fun ended(context: Context, notice: EndedNotice, alerts: Alerts): Notification {
+        val builder = NotificationCompat.Builder(context, notice.channel.id)
+            .setSmallIcon(R.drawable.ic_directions_bus)
+            .setContentTitle(notice.title)
+            .setContentText(notice.text)
+            // Whole once expanded, at any text size
+            .setStyle(NotificationCompat.BigTextStyle().setBigContentTitle(notice.title).bigText(notice.text))
+            .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            .setAutoCancel(true)
+            .setTimeoutAfter(ENDED_TIMEOUT_MS)
+            // Gone within minutes: a clock would say little
+            .setShowWhen(false)
+            .setContentIntent(openTrip(context))
+        // No channels before Android 8: the notification carries what its channel would
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            if (notice.alerting) {
+                builder.priority = NotificationCompat.PRIORITY_HIGH
+                if (alerts.sound) builder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
+                if (alerts.vibrate) builder.setVibrate(VIBRATION)
+            } else {
+                builder.priority = NotificationCompat.PRIORITY_DEFAULT
+            }
+        }
+        return builder.build()
     }
 
     /** [notice] of the trip started at [startedAt] as its notification */
