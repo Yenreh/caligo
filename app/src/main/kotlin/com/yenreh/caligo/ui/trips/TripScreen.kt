@@ -481,7 +481,7 @@ private fun Running(
                             AwaitedTimes(awaited, at, words)
                             DidYouTake(awaited, lines, words, onTookLine, onNotTaken)
                             // Near the stop, as the notification's buttons show: the bus may come before the rider is there
-                            if (journey.nearBoarding(at)) TookButtons(ordered, onTookLine)
+                            if (journey.nearBoarding(at)) TookButtons(ordered.filter { it != askingLine(awaited, lines) }, onTookLine)
                         }
                     }
                     is JourneyPhase.Waiting -> {
@@ -492,7 +492,8 @@ private fun Running(
                         Detail(words.atStop(phase.leg.ride.board.name))
                         AwaitedTimes(awaited, at, words)
                         DidYouTake(awaited, lines, words, onTookLine, onNotTaken)
-                        TookButtons(ordered, onTookLine)
+                        // Its Yes already says it of the line asked about
+                        TookButtons(ordered.filter { it != askingLine(awaited, lines) }, onTookLine)
                     }
                 }
                 if (from != null) {
@@ -547,9 +548,10 @@ private fun Detail(text: String) {
     )
 }
 
-/** "As you board, tap the line you took", then an "I took the E21" button for each of [lines] */
+/** "As you board, tap the line you took", then an "I took the E21" button for each of [lines]; nothing with none */
 @Composable
 private fun TookButtons(lines: List<String>, onTookLine: (String) -> Unit) {
+    if (lines.isEmpty()) return
     Spacer(Modifier.height(4.dp))
     Text(stringResource(R.string.trip_took_it_hint), style = LabText.statusLine(LabTheme.palette))
     for (line in lines) {
@@ -663,10 +665,13 @@ private fun LineRow(row: LineTimes, words: TripWords, onClick: (() -> Unit)?) {
     }
 }
 
+/** The line of [lines] whose awaited bus just left the stop, which the trip asks about; none when it asks nothing */
+private fun askingLine(awaited: List<AwaitedLine>, lines: List<String>): String? = awaited.firstOrNull { it.asking && it.line in lines }?.line
+
 /** "Did you take the T31?" with Yes and No, while a bus of [lines] awaited has just left the stop */
 @Composable
 private fun DidYouTake(awaited: List<AwaitedLine>, lines: List<String>, words: TripWords, onYes: (String) -> Unit, onNo: (String) -> Unit) {
-    val line = awaited.firstOrNull { it.asking && it.line in lines }?.line ?: return
+    val line = askingLine(awaited, lines) ?: return
     Spacer(Modifier.height(8.dp))
     Text(
         words.didYouTake(line),

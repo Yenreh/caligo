@@ -564,11 +564,31 @@ class TripScreenTest {
         compose.onNode(hasText("Did you take the E21?")).assertExists()
         // Only the bus still coming has its time
         compose.onNode(hasText("T31 4${NBSP}min")).assertExists()
+        // Yes says "I took the E21": only the other line keeps its button, under the hint
+        assertTrue(!exists("trip_took_E21"))
+        assertTrue(exists("trip_took_T31"))
+        compose.onNode(hasText("As you board, tap the line you took")).assertExists()
         compose.assertControlsAccessible()
         compose.onNodeWithTag("trip_asking_no").performClick()
         compose.waitUntil(WAIT_TIMEOUT_MS) { trips.notTaken.isNotEmpty() }
         assertEquals(listOf("E21"), trips.notTaken)
         compose.waitUntil(WAIT_TIMEOUT_MS) { !exists("trip_asking") }
+    }
+
+    @Test
+    fun askingOnTheOnlyLineLeavesNoButtonNorHint() {
+        // On foot near the A47's stop, a ride of one line, its bus just gone
+        val journey = com.yenreh.caligo.domain.Journey.planned(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro", NOW - 10 * 60_000)
+            .took("T31", NOW - 8 * 60_000).copy(index = 2, ride = null, legStartedAt = NOW - 60_000)
+        val board = (journey.legs[3] as com.yenreh.caligo.domain.JourneyLeg.Ride).ride.board
+        val near = com.yenreh.caligo.trips.JourneyFixtures.east(com.yenreh.caligo.domain.GeoPoint(board.latitude, board.longitude), -100.0)
+        trips.running.value = journey.fixed(com.yenreh.caligo.trips.JourneyFixtures.fixAt(near, NOW))
+        trips.awaited.value = listOf(com.yenreh.caligo.trips.AwaitedLine("A47", NOW - 60_000, asking = true))
+        show(took = null)
+        waitFor("trip_asking")
+        compose.onNode(hasText("Did you take the A47?")).assertExists()
+        assertTrue(!exists("trip_took_A47"))
+        compose.onNode(hasText("As you board, tap the line you took")).assertDoesNotExist()
     }
 
     @Test
