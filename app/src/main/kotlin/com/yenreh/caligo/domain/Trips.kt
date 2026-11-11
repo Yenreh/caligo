@@ -185,11 +185,12 @@ sealed interface TripStep {
 
 /**
  * A ride followed: what is known of it, read at a moment. Fed fixes and
- * the line's buses; what it says depends on those alone, never on the
- * clock running.
+ * the line's buses; what it says depends on those and the moment it is
+ * read at alone, never on the clock running.
  *
- * [confirmed] only moves on, by fixes and by the bus, so GPS noise and
- * stops close together never take the rider back. Between them, and
+ * Fixes and the bus move [confirmed] on, so GPS noise and stops close
+ * together never take the rider back; only a fix of the rider's own puts
+ * them behind where the bus or the estimate had them. Between them, and
  * without either, the route's estimate moves the rider on from there.
  */
 data class Trip(

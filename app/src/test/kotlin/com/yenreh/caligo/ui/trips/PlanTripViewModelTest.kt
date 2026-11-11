@@ -473,7 +473,6 @@ class PlanTripViewModelTest {
         )
     }
 
-    /** Runs on [delegate], keeping the threads it ran on */
     // Saved places
 
     private val home = FavoritePlace(7, "Casa", PlaceKind.ADDRESS, "Destination", null, to.latitude, to.longitude, null, 0)
@@ -598,6 +597,7 @@ class PlanTripViewModelTest {
         assertTrue(model.screen.value.places.isEmpty())
     }
 
+    /** Runs on [delegate], keeping the threads it ran on */
     private class RecordingDispatcher(private val delegate: CoroutineDispatcher) : CoroutineDispatcher() {
         /** Every thread a block handed to it ran on */
         val threads: MutableList<Thread> = java.util.concurrent.CopyOnWriteArrayList()

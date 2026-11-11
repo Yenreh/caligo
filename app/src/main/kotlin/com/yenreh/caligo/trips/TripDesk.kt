@@ -68,8 +68,9 @@ interface TripControl {
  *
  * Apart from the waits' desk and service: a trip may run while waits do,
  * and each service carries its own notifications and foreground state.
- * The waits a planner trip starts for its rides are ordinary waits, which
- * the trip service starts and ends through the waits' desk.
+ * The waits a planner trip starts for its rides run in the trip service,
+ * on a wait engine of its own; the waits' desk only shows them on the
+ * bells, and ends one tapped there through the trip service.
  */
 class TripDesk(
     private val context: Context,

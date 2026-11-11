@@ -60,7 +60,7 @@ data class AwaitedLine(val line: String, val arrivalTime: Long, val atStop: Bool
     fun dueAt(now: Long): Long = if (atStop) now else arrivalTime
 }
 
-/** A point of the notification's bar: a stop ahead, at [position] of the bar's length */
+/** A point of the notification's bar: one of the last stops before where the ride ends, at [position] of the bar's length */
 data class TripPoint(val position: Int)
 
 /** What moves along the notification's bar */
@@ -123,13 +123,13 @@ data class TripNotice(
     val points: List<TripPoint>,
     val tracker: TripTracker,
     val channel: TripChannel,
-    /** This post is the warning: it may sound, vibrate and peek */
+    /** This post is the warning, or the alert of an awaited bus: it may sound, vibrate and peek */
     val alerting: Boolean,
     /** Cancelled by the system after this many milliseconds unless posted again */
     val timeoutAfter: Long,
     /** Lines to take with a button each, "I took the A47", soonest first */
     val takeLines: List<String> = emptyList(),
-    /** The channel of the alert for an awaited bus, once due, in place of [channel] */
+    /** The waits' alert channel, in place of [channel], from the alert of an awaited bus on for the rest of its ride */
     val busChannel: WaitChannel? = null,
 ) {
     /** The channel it posts on */
@@ -141,9 +141,10 @@ data class TripNotice(
          * a ride; on foot, the walk left and what comes after it; at the
          * stop, the lines to take. The buses the trip awaits for the ride
          * ahead, [awaited], go in it soonest first, with a button for each
-         * of the first [MAX_LINE_ACTIONS] once near the stop; the alert as
-         * the soonest comes within [BUS_ALERT_WITHIN], once a ride, when
-         * [busAlertDue].
+         * of the first [MAX_LINE_ACTIONS] once [near] the stop; the alert as
+         * the soonest comes within [BUS_ALERT_WITHIN], once a ride, on the
+         * waits' alert channel as the settings ask, none with that channel
+         * turned off, [busAlertOn] false.
          */
         fun of(
             journey: Journey,

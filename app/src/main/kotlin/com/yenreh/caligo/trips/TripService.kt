@@ -43,14 +43,15 @@ import kotlinx.coroutines.cancel
  * process start. A trip that ends by itself leaves a last word, not
  * ongoing, that goes by its own timeout, a tap or the next start.
  *
- * Apart from the wait service, with ids and channels of its own: the
+ * Apart from the wait service, with ids and channels of its own, but for
+ * the alert of an awaited bus, on the waits' alert channel as a wait's: the
  * rider's own waits keep their notifications and foreground state there,
  * and a trip that ends leaves them running, as they leave it. The waits a
- * planner trip starts for its rides run here instead, with a wait engine
- * of their own and ids apart: already in the foreground, the trip posts
- * them from the background too, as after a change with the screen off,
- * where a second foreground service would not be let start. They end with
- * the trip.
+ * planner trip starts for its rides run here instead, on a wait engine of
+ * their own, with no notification of their own: the trip's carries them,
+ * already in the foreground, so it shows them from the background too, as
+ * after a change with the screen off, where a second foreground service
+ * would not be let start. They end with the trip.
  *
  * A partial wake lock keeps the bus rounds and the beat on time with the
  * screen off, as the wait service's does: re-armed at every post, it lets
