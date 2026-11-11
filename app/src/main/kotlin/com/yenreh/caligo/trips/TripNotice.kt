@@ -58,9 +58,16 @@ enum class TripChannel(
 /**
  * A bus the trip awaits for the ride ahead, as its wait reads it: due at
  * [arrivalTime], or [atStop]; [asking] once it left the stop, while the
- * trip asks whether the rider took it
+ * trip asks whether the rider took it. [vehicleId] is empty when the
+ * arrivals did not name the bus.
  */
-data class AwaitedLine(val line: String, val arrivalTime: Long, val atStop: Boolean = false, val asking: Boolean = false) {
+data class AwaitedLine(
+    val line: String,
+    val arrivalTime: Long,
+    val atStop: Boolean = false,
+    val asking: Boolean = false,
+    val vehicleId: String = "",
+) {
     fun dueAt(now: Long): Long = if (atStop) now else arrivalTime
 }
 

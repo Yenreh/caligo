@@ -52,4 +52,33 @@ class RideBusesTest {
         // The awaited T31 shows as its time, not "no bus coming"; the one the other way does not
         assertEquals(listOf(4), lines.single { it.line == "T31" }.times.map { it.minutes })
     }
+
+    private val ride get() = RideBuses(checkNotNull(waiting.pendingRide))
+
+    @Test
+    fun theBusAwaitedAtItsOwnPlatformShowsWithNoAnswerHeard() {
+        // The trip awaits the T31 at A1, its line's own platform, yet no answer reached these rows
+        val lines = ride.lines(waiting, NOW, listOf(AwaitedLine("T31", NOW + 4 * MINUTE, vehicleId = "t1")))
+        val t31 = lines.single { it.line == "T31" }
+        assertEquals(listOf(4), t31.times.map { it.minutes })
+        assertEquals(true, t31.heard)
+        // A line with nothing awaited and nothing heard says nothing yet
+        assertEquals(LineTimes("E21", emptyList(), heard = false), lines.single { it.line == "E21" })
+    }
+
+    @Test
+    fun theBusAwaitedAndHeardIsOneTimeByItsVehicleOrItsMinute() {
+        val heard = ride.heard(
+            LiveArrivals(NOW, listOf(NearbyStop(out[0].stopId, out[0].name, 20.0, listOf(bus("T31", "t1", 4), bus("T31", "", 9), bus("T31", "t3", 15)))), answeredAt = mapOf(out[0].stopId to NOW)),
+            waiting.pendingCandidates,
+        )
+        fun t31(awaited: AwaitedLine) = heard.lines(waiting, NOW, listOf(awaited)).single { it.line == "T31" }.times.map { it.minutes }
+        assertEquals(listOf(4, 9, 15), t31(AwaitedLine("T31", NOW + 4 * MINUTE, vehicleId = "t1")))
+        // No vehicle named: the same minute is the same bus
+        assertEquals(listOf(4, 9, 15), t31(AwaitedLine("T31", NOW + 9 * MINUTE + 20_000)))
+        // Another bus the rows missed: it takes the latest's place, never cut
+        assertEquals(listOf(4, 7, 9), t31(AwaitedLine("T31", NOW + 7 * MINUTE, vehicleId = "t7")))
+        // Once it left and the trip asks, the rows go on as heard
+        assertEquals(listOf(4, 9, 15), t31(AwaitedLine("T31", NOW - MINUTE, asking = true, vehicleId = "t0")))
+    }
 }

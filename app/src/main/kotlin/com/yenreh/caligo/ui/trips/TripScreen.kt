@@ -505,7 +505,7 @@ private fun Running(
         val toRide = phase is JourneyPhase.Waiting || (phase is JourneyPhase.Walking && phase.leg.toStop && journey.pendingRide != null)
         if (journey.planned && toRide) {
             item(key = "lines") {
-                RideLines(journey, (rideBuses ?: RideBuses(journey.pendingRide ?: -1)).lines(journey, at), words, onChooseLine)
+                RideLines(journey, (rideBuses ?: RideBuses(journey.pendingRide ?: -1)).lines(journey, at, awaited), words, onChooseLine)
             }
         }
         if (phase is JourneyPhase.Riding) {

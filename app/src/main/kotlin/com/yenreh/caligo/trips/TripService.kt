@@ -218,8 +218,8 @@ class TripService : Service(), TripHost {
         val coming = waits
             .mapNotNull { wait ->
                 when (val status = wait.status(now)) {
-                    is WaitStatus.Coming -> AwaitedLine(wait.last.line, status.arrivalTime)
-                    WaitStatus.AtStop -> AwaitedLine(wait.last.line, wait.last.arrivalTime, atStop = true)
+                    is WaitStatus.Coming -> AwaitedLine(wait.last.line, status.arrivalTime, vehicleId = wait.last.vehicleId)
+                    WaitStatus.AtStop -> AwaitedLine(wait.last.line, wait.last.arrivalTime, atStop = true, vehicleId = wait.last.vehicleId)
                     else -> null
                 }
             }
@@ -228,7 +228,7 @@ class TripService : Service(), TripHost {
             .sortedBy { it.dueAt(now) }
         val asking = waits
             .filter { it.status(now) == WaitStatus.Asking }
-            .map { AwaitedLine(it.last.line, departureOf(it), asking = true) }
+            .map { AwaitedLine(it.last.line, departureOf(it), asking = true, vehicleId = it.last.vehicleId) }
             .distinctBy { it.line }
         return coming + asking
     }

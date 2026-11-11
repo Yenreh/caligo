@@ -12,6 +12,7 @@ import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.domain.WaitAnswer
 import com.yenreh.caligo.domain.entities.RideLeg
 import com.yenreh.caligo.waits.WaitEngine
+import kotlin.math.abs
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -76,9 +77,11 @@ data class RideBuses(
      * Each line of [journey]'s ride waited for, with its next [MAX_TIMES]
      * buses at its stop at [now]: those it can no longer make greyed, by
      * the rule the trip awaits a bus by, a bus due before the rider is at
-     * the stop on foot, or there and gone by then
+     * the stop on foot, or there and gone by then. The bus the trip
+     * [awaited] for a line is always one of them, at whatever platform,
+     * whatever these arrivals heard or missed of it.
      */
-    fun lines(journey: Journey, now: Long): List<LineTimes> {
+    fun lines(journey: Journey, now: Long, awaited: List<AwaitedLine> = emptyList()): List<LineTimes> {
         if (journey.pendingRide != ride) return emptyList()
         val walk = (journey.phase(now) as? JourneyPhase.Walking)?.millis ?: 0
         val from = now + walk
@@ -89,23 +92,42 @@ data class RideBuses(
             val estimated = answered != null && now - answered > STALE_MS
             // The awaited bus of the line, wherever the trip awaits it, is one of its times
             val others = elsewhere.filter { it.line == candidate.line }
-            val times = rows
+            val heard = rows
                 .filter { row ->
                     row.bus.line == candidate.line && row.phase !is ArrivalPhase.Passed &&
                         (row.stopId == stop || others.any { it.stop.id == row.stopId && it.vehicleId == row.bus.vehicleId })
                 }
                 .distinctBy { it.bus.vehicleId.ifEmpty { "${it.stopId}:${it.bus.arrivalTime}" } }
-                .take(MAX_TIMES)
-                .map { row ->
-                    val atStop = row.phase == ArrivalPhase.AtStop
-                    val reachable = if (atStop) from < row.bus.arrivalTime + AT_STOP_FOR_MS else row.bus.arrivalTime >= from
-                    LineTime(Trip.minutesOf(row.bus.arrivalTime - now), atStop, reachable, estimated)
-                }
-            LineTimes(candidate.line, times, heard = answered != null)
+                .map { row -> Due(row.bus.arrivalTime, row.phase == ArrivalPhase.AtStop, estimated, row.bus.vehicleId) }
+            val mine = awaited.firstOrNull { it.line == candidate.line && !it.asking }
+                ?.let { Due(it.arrivalTime, it.atStop, estimated = false, it.vehicleId) }
+            val shown = when {
+                mine == null || heard.any { it.isBus(mine) } -> heard.take(MAX_TIMES)
+                // Never cut: it takes the place of the latest
+                else -> (heard.take(MAX_TIMES - 1) + mine).sortedBy { it.arrivalTime }
+            }
+            val times = shown.map { due ->
+                val reachable = if (due.atStop) from < due.arrivalTime + AT_STOP_FOR_MS else due.arrivalTime >= from
+                LineTime(Trip.minutesOf(due.arrivalTime - now), due.atStop, reachable, due.estimated)
+            }
+            LineTimes(candidate.line, times, heard = answered != null || mine != null)
+        }
+    }
+
+    /** A bus of a row, by when it is due and, when the arrivals name it, its vehicle */
+    private data class Due(val arrivalTime: Long, val atStop: Boolean, val estimated: Boolean, val vehicleId: String) {
+        /** The same bus: by its vehicle, or with none named, due in the same minute */
+        fun isBus(other: Due): Boolean = if (vehicleId.isNotEmpty() && other.vehicleId.isNotEmpty()) {
+            vehicleId == other.vehicleId
+        } else {
+            abs(arrivalTime - other.arrivalTime) < SAME_TIME_MS
         }
     }
 
     companion object {
+        /** Two buses of a line due this close, with no vehicle named, are taken as one */
+        private const val SAME_TIME_MS = 60_000L
+
         /** Buses shown per line */
         const val MAX_TIMES = 3
 

@@ -295,10 +295,21 @@ class TripScreenshotTest {
             .took("T31", NOW - 8 * MINUTE).copy(index = 2, ride = null, legStartedAt = NOW - MINUTE),
     )
 
-    /** At the stop as the E21 left: did the rider take it? */
+    /**
+     * At the stop as the E21 left: did the rider take it? As a trip holds
+     * it, the stop's answer lists the T31 awaited and the buses after, the
+     * E21 gone
+     */
     private fun asking(name: String) {
         val journey = toTheStop.fixed(
             com.yenreh.caligo.trips.JourneyFixtures.fixAt(com.yenreh.caligo.domain.GeoPoint(TripFixtures.out[0].latitude, TripFixtures.out[0].longitude), NOW),
+        )
+        val heard = com.yenreh.caligo.trips.JourneyFixtures.heard(
+            journey,
+            NOW,
+            com.yenreh.caligo.trips.JourneyFixtures.bus("T31", "t1", NOW, 4.0),
+            com.yenreh.caligo.trips.JourneyFixtures.bus("E21", "e2", NOW, 16.0),
+            com.yenreh.caligo.trips.JourneyFixtures.bus("T31", "t2", NOW, 19.0),
         )
         compose.setContentAt(NOW) {
             CaliGoTheme {
@@ -306,9 +317,10 @@ class TripScreenshotTest {
                     content = TripContent.Running(journey),
                     title = "Viaje a Unicentro",
                     awaited = listOf(
-                        com.yenreh.caligo.trips.AwaitedLine("E21", NOW - MINUTE, asking = true),
-                        com.yenreh.caligo.trips.AwaitedLine("T31", NOW + 4 * MINUTE),
+                        com.yenreh.caligo.trips.AwaitedLine("T31", NOW + 4 * MINUTE, vehicleId = "t1"),
+                        com.yenreh.caligo.trips.AwaitedLine("E21", NOW - MINUTE, asking = true, vehicleId = "e1"),
                     ),
+                    rideBuses = heard,
                 )
             }
         }
