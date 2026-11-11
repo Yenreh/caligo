@@ -2,7 +2,9 @@ package com.yenreh.caligo.trips
 
 import com.yenreh.caligo.domain.ArrivalPhase
 import com.yenreh.caligo.domain.AskPoint
+import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.FadingArrivals
+import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.domain.LiveArrivals
@@ -19,13 +21,27 @@ import kotlin.time.Duration.Companion.minutes
  * bus at their stop, not only the one awaited. They fade as a list of
  * arrivals does, so the rows count down between answers.
  */
-data class RideBuses(val ride: Int, val fading: FadingArrivals = FadingArrivals.EMPTY) {
+data class RideBuses(
+    val ride: Int,
+    val fading: FadingArrivals = FadingArrivals.EMPTY,
+    /**
+     * Buses the trip awaits at another platform of a line's station, as
+     * the arrivals saw them reach where the ride gets off: shown in their
+     * line's row, they alone of that platform, whose other buses may run
+     * the other way
+     */
+    val elsewhere: Set<AwaitedElsewhere> = emptySet(),
+) {
+    /** The stops whose buses count: where each line boards, and the platforms of the buses awaited elsewhere */
+    private fun stops(candidates: List<RideLeg>): List<GeoStop> =
+        (candidates.map { GeoStop(it.board.stopId, it.board.latitude, it.board.longitude) } + elsewhere.map { it.stop }).distinctBy { it.id }
+
     /** With [live], the arrivals asked for the ride, at the stops of [candidates] they answered */
     fun heard(live: LiveArrivals, candidates: List<RideLeg>): RideBuses {
         var next = fading
-        for (board in candidates.map { it.board }.distinctBy { it.stopId }) {
-            val at = live.answeredAt[board.stopId] ?: continue
-            next = next.fed(board.stopId, live.stops.firstOrNull { it.id == board.stopId }?.arrivals.orEmpty(), at)
+        for (stop in stops(candidates)) {
+            val at = live.answeredAt[stop.id] ?: continue
+            next = next.fed(stop.id, live.stops.firstOrNull { it.id == stop.id }?.arrivals.orEmpty(), at)
         }
         return copy(fading = next)
     }
@@ -36,12 +52,24 @@ data class RideBuses(val ride: Int, val fading: FadingArrivals = FadingArrivals.
      */
     fun heard(point: AskPoint, answer: WaitAnswer, candidates: List<RideLeg>): RideBuses {
         var next = fading
-        for (board in candidates.map { it.board }.distinctBy { it.stopId }) {
-            val listed = answer.stops.firstOrNull { it.id == board.stopId }
-            if (listed == null && !WaitEngine.covers(point, AskPoint(board.latitude, board.longitude, placed = true))) continue
-            next = next.fed(board.stopId, listed?.arrivals.orEmpty(), answer.fetchedAt)
+        for (stop in stops(candidates)) {
+            val listed = answer.stops.firstOrNull { it.id == stop.id }
+            if (listed == null && !WaitEngine.covers(point, AskPoint(stop.latitude, stop.longitude, placed = true))) continue
+            next = next.fed(stop.id, listed?.arrivals.orEmpty(), answer.fetchedAt)
         }
         return copy(fading = next)
+    }
+
+    /** With [awaited], the buses the trip awaits for the ride: those at another platform than their line's go in its row */
+    fun awaiting(awaited: List<AwaitedBus>, candidates: List<RideLeg>, live: LiveArrivals): RideBuses {
+        val boards = candidates.associate { it.line to it.board.stopId }
+        val others = awaited.mapNotNull { bus ->
+            if (boards[bus.bus.line] == bus.stopId) return@mapNotNull null
+            val seen = live.stops.firstOrNull { it.id == bus.stopId }
+            val place = bus.place ?: seen?.let { s -> s.latitude?.let { lat -> s.longitude?.let { GeoPoint(lat, it) } } } ?: bus.anchor
+            AwaitedElsewhere(bus.bus.line, GeoStop(bus.stopId, place.latitude, place.longitude), bus.bus.vehicleId)
+        }
+        return copy(elsewhere = elsewhere + others).heard(live, candidates)
     }
 
     /**
@@ -59,8 +87,14 @@ data class RideBuses(val ride: Int, val fading: FadingArrivals = FadingArrivals.
             val stop = candidate.board.stopId
             val answered = fading.lastAnswerFor(stop)
             val estimated = answered != null && now - answered > STALE_MS
+            // The awaited bus of the line, wherever the trip awaits it, is one of its times
+            val others = elsewhere.filter { it.line == candidate.line }
             val times = rows
-                .filter { it.stopId == stop && it.bus.line == candidate.line && it.phase !is ArrivalPhase.Passed }
+                .filter { row ->
+                    row.bus.line == candidate.line && row.phase !is ArrivalPhase.Passed &&
+                        (row.stopId == stop || others.any { it.stop.id == row.stopId && it.vehicleId == row.bus.vehicleId })
+                }
+                .distinctBy { it.bus.vehicleId.ifEmpty { "${it.stopId}:${it.bus.arrivalTime}" } }
                 .take(MAX_TIMES)
                 .map { row ->
                     val atStop = row.phase == ArrivalPhase.AtStop
@@ -82,6 +116,12 @@ data class RideBuses(val ride: Int, val fading: FadingArrivals = FadingArrivals.
         private val AT_STOP_FOR_MS = FadingArrivals.AT_STOP_FOR.inWholeMilliseconds
     }
 }
+
+/** A stop with where it is */
+data class GeoStop(val id: String, val latitude: Double, val longitude: Double)
+
+/** A bus of [line] the trip awaits at [stop], another platform of its station than the one its line boards at */
+data class AwaitedElsewhere(val line: String, val stop: GeoStop, val vehicleId: String)
 
 /** A bus of a line at its stop: in [minutes], or [atStop]; greyed when not [reachable]; "~" when [estimated] */
 data class LineTime(val minutes: Int, val atStop: Boolean, val reachable: Boolean, val estimated: Boolean)

@@ -448,9 +448,9 @@ class TripEngine(
             var found: Boolean? = null
             try {
                 val live = source.arrivals(stopsToAsk(candidates))
-                // What it lists of every line, the one chosen or not, for the screen
-                journey?.takeIf { it.pendingRide == pending }?.let { heardOf(pending).heard(live, it.pendingCandidates) }?.let { rideBuses = it }
                 val buses = awaitedBuses(live, candidates, now + walk)
+                // What it lists of every line, the one chosen or not, for the screen, the buses awaited among them
+                journey?.takeIf { it.pendingRide == pending }?.let { heardOf(pending).awaiting(buses, it.pendingCandidates, live) }?.let { rideBuses = it }
                 // None, as an area that could not be asked leaves it: a failure, not an answer
                 found = if (buses.isEmpty() && live.failed) null else buses.isNotEmpty()
                 keys = host.startWaits(buses.filter { it.bus.line !in waited })
