@@ -75,6 +75,9 @@ class WaitServiceTest {
     private val e21 = bus("E21", "e21", NOW + 4 * MINUTE, destination = "Terminal Paso del Comercio")
     private val a47Elsewhere = awaited(a47, stopId = OTHER_STOP, placed = false)
 
+    /** [bus] at another stop than the first, as another card names it */
+    private fun atAnotherStop(bus: BusArrival) = awaited(bus, stopId = OTHER_STOP).copy(stopName = "Calle 5 con Kr 15", anchor = com.yenreh.caligo.domain.GeoPoint(3.44, -76.54))
+
     @Before
     fun setUp() {
         desk.source = source
@@ -122,10 +125,13 @@ class WaitServiceTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
-    /** Only [lines] are left waited for, each with its notification, and nothing else runs */
-    private fun assertLeft(vararg lines: String) {
+    /** Only [lines] are left waited for, each in its stop's notification, and nothing else runs */
+    private fun assertLeft(vararg lines: String) = assertLeftIn(lines.size, *lines)
+
+    private fun assertLeftIn(notifications: Int, vararg lines: String) {
+        // A line twice is a wait at each of two stops
         val titles = posted.map { it.title() }
-        assertEquals(titles.toString(), lines.size, titles.size)
+        assertEquals(titles.toString(), notifications, titles.size)
         for (line in lines) assertTrue("$line in $titles", titles.any { line in it })
         val shadow = shadowOf(service)
         assertEquals(lines.size, service.waitEngine.waits.size)
@@ -159,7 +165,7 @@ class WaitServiceTest {
 
     @Test
     fun stopWaitingOneOfSeveral() {
-        start(awaited(t31), awaited(a47))
+        start(awaited(t31), atAnotherStop(a47))
         val carrier = shadowOf(service).lastForegroundNotificationId
         press("T31", 1)
         assertLeft("A47")
@@ -178,7 +184,7 @@ class WaitServiceTest {
 
     @Test
     fun swipedAwayOneOfSeveral() {
-        start(awaited(t31), awaited(a47))
+        start(awaited(t31), atAnotherStop(a47))
         swipe("A47")
         assertLeft("T31")
     }
@@ -202,13 +208,13 @@ class WaitServiceTest {
     // 4. I took it
 
     /** "I took it" opens the trip screen in the one activity, with the ride; the screen ends the wait */
-    private fun tookIt(line: String) {
+    private fun tookIt(line: String, stop: String = WaitFixtures.STOP) {
         val intent = shadowOf(notificationOf(line).actions[0].actionIntent).savedIntent
         assertEquals(WaitNotifications.ACTION_TOOK, intent.action)
         assertEquals(com.yenreh.caligo.MainActivity::class.java.name, intent.component?.className)
         val took = checkNotNull(WaitNotifications.tookOf(intent))
         assertEquals(line, took.line)
-        assertEquals(WaitFixtures.STOP, took.stopId)
+        assertEquals(stop, took.stopId)
         desk.took(took.waitKey)
         shadowOf(Looper.getMainLooper()).idle()
     }
@@ -222,8 +228,8 @@ class WaitServiceTest {
 
     @Test
     fun tookItOneOfSeveral() {
-        start(awaited(t31), awaited(a47))
-        tookIt("A47")
+        start(awaited(t31), atAnotherStop(a47))
+        tookIt("A47", stop = OTHER_STOP)
         assertLeft("T31")
     }
 
@@ -275,6 +281,202 @@ class WaitServiceTest {
         assertLeft("T31")
     }
 
+    // Waits at one stop: one notification
+
+    private val group get() = posted.single()
+
+    @Test
+    fun waitsAtOneStopShareOneNotificationSoonestFirst() {
+        start(awaited(t31), awaited(e21))
+        assertEquals("E21 4${NBSP}min · T31 10${NBSP}min", group.title())
+        assertEquals(WaitFixtures.STOP_NAME, group.extras.getCharSequence(Notification.EXTRA_TEXT).toString())
+        assertEquals(listOf("E21: I took it", "T31: I took it", "Stop waiting"), group.actions.map { it.title.toString() })
+        // The soonest's chip and bar, still a Live Update
+        assertEquals("4${NBSP}min", NotificationCompat.getShortCriticalText(group))
+        assertTrue(NotificationCompat.isRequestPromotedOngoing(group))
+        assertEquals(2, desk.running.value.size)
+    }
+
+    @Test
+    fun iTookItOnOneBusOfAStopEndsTheOthersThere() {
+        start(awaited(t31), awaited(e21), atAnotherStop(a47))
+        assertEquals(2, posted.size)
+        val intent = shadowOf(group("E21").actions[0].actionIntent).savedIntent
+        val took = checkNotNull(WaitNotifications.tookOf(intent))
+        assertEquals("E21", took.line)
+        desk.took(took.waitKey)
+        shadowOf(Looper.getMainLooper()).idle()
+        // The rider is gone from that stop; the other stop's wait goes on
+        assertLeft("A47")
+    }
+
+    private fun group(line: String) = posted.single { line in it.title() }
+
+    @Test
+    fun stopWaitingOnAStopEndsEveryWaitThere() {
+        start(awaited(t31), awaited(e21), atAnotherStop(a47))
+        group("E21").actions.last().actionIntent.send()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertLeft("A47")
+    }
+
+    @Test
+    fun aStopsSwipeEndsEveryWaitThere() {
+        start(awaited(t31), awaited(e21))
+        val carrier = shadowOf(service).lastForegroundNotificationId
+        val posts = service.posts
+        group.deleteIntent.send()
+        shadowOf(Looper.getMainLooper()).idle()
+        // Never shown again on the way out
+        assertEquals(posts, service.posts)
+        assertLeft()
+        assertTrue(carrier in WaitNotifications.ids)
+    }
+
+    @Test
+    fun theCarrierMovesToAnotherStopAsItsGroupEnds() {
+        start(awaited(t31), awaited(e21), atAnotherStop(a47))
+        val carrier = shadowOf(service).lastForegroundNotificationId
+        group("E21").actions.last().actionIntent.send()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertNotEquals(carrier, shadowOf(service).lastForegroundNotificationId)
+        assertLeft("A47")
+    }
+
+    // The orphan matrix for groups: one stop with two waits, and two such stops
+
+    @Test
+    fun theBellOnOneWaitOfAStopLeavesTheOtherAsAWaitAlone() {
+        start(awaited(t31), awaited(e21))
+        desk.stop(awaited(e21).key)
+        assertLeft("T31")
+        assertEquals("T31 to Universidades, 10${NBSP}min", group.title())
+        assertEquals(listOf("I took it", "Stop waiting"), group.actions.map { it.title.toString() })
+    }
+
+    @Test
+    fun twoStopsOfTwoWaitsEndOneStopAtATime() {
+        start(awaited(t31), awaited(e21), atAnotherStop(a47), atAnotherStop(t31))
+        assertLeftIn(2, "T31", "E21", "A47", "T31")
+        assertEquals(4, desk.running.value.size)
+        group("E21").actions.last().actionIntent.send()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertLeftIn(1, "A47", "T31")
+        group("A47").deleteIntent.send()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertLeft()
+    }
+
+    @Test
+    fun twoStopsOfTwoWaitsEndAsTheirBusesPass() {
+        e21Passes()
+        // The other stop answered as itself, near the first
+        otherAnswer = { at -> answer(at, *listed(at).toTypedArray(), stopId = OTHER_STOP) }
+        fun other(bus: BusArrival) = atAnotherStop(bus).copy(place = null)
+        start(awaited(t31), awaited(e21), other(t31), other(e21))
+        // Each E21 passes, unanswered; each stop goes on with its T31
+        advance(e21.arrivalTime + 2 * MINUTE + 15_000 - now())
+        assertLeft("T31", "T31")
+    }
+
+    @Test
+    fun twoStopsOfTwoWaitsEndAsDataStops() {
+        failing = true
+        start(awaited(t31), awaited(e21), atAnotherStop(a47), atAnotherStop(t31))
+        advance(Wait.NO_DATA_FOR.inWholeMilliseconds + Wait.TELL_FOR.inWholeMilliseconds + 2 * MINUTE)
+        assertLeft()
+    }
+
+    @Test
+    fun twoStopsOfTwoWaitsEndWhenNotificationsAreTurnedOff() {
+        start(awaited(t31), awaited(e21), atAnotherStop(a47), atAnotherStop(t31))
+        shadowOf(manager).setNotificationsEnabled(false)
+        advance(WaitEngine.BEAT.inWholeMilliseconds)
+        assertLeft()
+    }
+
+    @Test
+    fun twoStopsOfTwoWaitsEndAtTheTimeLimit() {
+        listed = { listOf(far, farther) }
+        start(awaited(far), awaited(farther), atAnotherStop(far), atAnotherStop(farther))
+        advance(Wait.TIME_LIMIT.inWholeMilliseconds + 15_000)
+        assertLeft()
+    }
+
+    @Test
+    fun aBusThatPassesAsksInsideItsStopsNotificationThenTheGroupComesBack() {
+        e21Passes()
+        start(awaited(t31), awaited(e21))
+        advance(e21.arrivalTime + MINUTE + 15_000 - now())
+        assertEquals("Did you take the E21?", group.title())
+        assertEquals(listOf("Yes", "No", "Stop waiting"), group.actions.map { it.title.toString() })
+        // No: that bus no longer waited for; the T31 alone, as one wait shows
+        group.actions[1].actionIntent.send()
+        shadowOf(Looper.getMainLooper()).idle()
+        advance(1)
+        assertLeft("T31")
+        assertTrue(group.title(), group.title().startsWith("T31 to Universidades, "))
+    }
+
+    @Test
+    fun yesOnTheGroupsAskIsIToolItForThatBus() {
+        e21Passes()
+        start(awaited(t31), awaited(e21))
+        advance(e21.arrivalTime + MINUTE + 15_000 - now())
+        val intent = shadowOf(group.actions[0].actionIntent).savedIntent
+        assertEquals(WaitNotifications.ACTION_TOOK, intent.action)
+        assertEquals("E21", WaitNotifications.tookOf(intent)?.line)
+    }
+
+    @Test
+    fun unansweredTheGroupComesBackAfterTheMinute() {
+        e21Passes()
+        start(awaited(t31), awaited(e21))
+        advance(e21.arrivalTime + 2 * MINUTE + 15_000 - now())
+        assertLeft("T31")
+        assertTrue(group.title(), group.title().startsWith("T31 to Universidades"))
+    }
+
+    @Test
+    fun eachBusOfAStopAlertsOnceOnTheAlertChannel() {
+        listed = { listOf(e21, t31) }
+        start(awaited(t31), awaited(e21))
+        assertEquals(WaitChannel.WAITS.id, group.channelId)
+        advance(e21.arrivalTime - 2 * MINUTE - now() + 1_000)
+        // The E21's alert has gone out, on the alert channel, silent by default
+        assertEquals(WaitChannel.ALERT_SILENT.id, group.channelId)
+        assertTrue(service.waitEngine.waits.single { it.last.line == "E21" }.alerted)
+        assertFalse(service.waitEngine.waits.single { it.last.line == "T31" }.alerted)
+        advance(WaitEngine.BEAT.inWholeMilliseconds)
+        assertTrue("once", group.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+        // The T31's own alert, in its turn
+        advance(t31.arrivalTime - 2 * MINUTE - now() + 1_000)
+        assertTrue(service.waitEngine.waits.single { it.last.line == "T31" }.alerted)
+    }
+
+    @Test
+    fun theSameContentIsNotPostedAgainForAWhileYetNeverTimesOut() {
+        // A bus far off, every answer the same
+        start(awaited(a47), awaited(bus("A48", "a48", NOW + 30 * MINUTE)))
+        var shown = group
+        var postedAt = now()
+        val posts = service.posts
+        val end = now() + 10 * MINUTE
+        while (now() < end) {
+            advance(1_000)
+            val current = group
+            if (current !== shown) {
+                assertTrue(now() - postedAt < shown.timeoutAfter)
+                shown = current
+                postedAt = now()
+            }
+            assertTrue(now() - postedAt < shown.timeoutAfter)
+        }
+        // As the minutes and the bar move together, and again after 20 s: not one at every beat, 40 in 10 min
+        assertTrue("${service.posts - posts} posts", service.posts - posts <= 22)
+        assertTrue(service.holdsWakeLock)
+    }
+
     // A vehicle's next trip, as the phone sampled it at stop 514208
 
     /** The phone's answers, moved to start at [NOW] */
@@ -322,8 +524,8 @@ class WaitServiceTest {
         assertEquals(awaitedKeyOf(first), desk.running.value.waitFor(PhoneSamples.STOP, first.copy(arrivalTime = sampled("14:46:39"))))
         assertEquals(WaitStart.STARTED, desk.start(AwaitedBus(PhoneSamples.STOP, "Calimio-Sanin", next, WaitFixtures.anchor, place = WaitFixtures.place), null))
         advance(1)
-        val titles = posted.map { it.title() }.sorted()
-        assertEquals(listOf("A47 to Valle Grande, 46${NBSP}min", "A47 to Valle Grande, at the stop"), titles)
+        // One stop: one notification, the bus at the stop first
+        assertEquals(listOf("A47 at the stop · A47 46${NBSP}min"), posted.map { it.title() })
     }
 
     private fun awaitedKeyOf(bus: BusArrival) = com.yenreh.caligo.domain.WaitKey(PhoneSamples.STOP, bus.vehicleId, bus.arrivalTime)
@@ -541,8 +743,8 @@ class WaitServiceTest {
     fun eachNotificationGoesByItselfSoonAfterItsNextUpdateIsDue() {
         start(awaited(t31))
         val timeout = posted.single().timeoutAfter
-        assertTrue(timeout > WaitEngine.BEAT.inWholeMilliseconds)
-        assertTrue(timeout <= WaitEngine.BEAT.inWholeMilliseconds + WaitNotice.TIMEOUT_MARGIN_MS)
+        // Past the latest post to come: the same left out for 20 s, then the next beat
+        assertEquals(WaitNotice.REPOST_AFTER_MS + WaitEngine.BEAT.inWholeMilliseconds + WaitNotice.TIMEOUT_MARGIN_MS, timeout)
     }
 
     // Requests
@@ -647,7 +849,9 @@ class WaitServiceTest {
         start(*buses.toTypedArray())
         assertEquals(WaitStart.CAP_REACHED, desk.start(awaited(bus("T9", "v9", NOW + 30 * MINUTE)), null))
         assertEquals(WaitStart.ALREADY_WAITING, desk.start(buses.first(), null))
-        assertEquals(Wait.CAP, posted.size)
+        // One stop: one notification for the five
+        assertEquals(1, posted.size)
+        assertEquals(Wait.CAP, service.waitEngine.waits.size)
     }
 
     @Test

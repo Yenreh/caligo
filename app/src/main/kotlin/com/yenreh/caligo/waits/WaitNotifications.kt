@@ -35,6 +35,10 @@ object WaitNotifications {
     const val ACTION_STOP = "com.yenreh.caligo.wait.STOP"
     const val ACTION_DISMISSED = "com.yenreh.caligo.wait.DISMISSED"
 
+    /** "Stop waiting" and the swipe of a stop's group: every wait of the group the wait named is in ends */
+    const val ACTION_STOP_GROUP = "com.yenreh.caligo.wait.STOP_GROUP"
+    const val ACTION_DISMISSED_GROUP = "com.yenreh.caligo.wait.DISMISSED_GROUP"
+
     /** Opens the stop's details in the app */
     const val ACTION_OPEN_STOP = "com.yenreh.caligo.OPEN_STOP"
 
@@ -74,7 +78,17 @@ object WaitNotifications {
     }
 
     /** [notice] of [wait] as the notification with [id] */
-    fun build(context: Context, id: Int, wait: Wait, notice: WaitNotice, alerts: Alerts, words: WaitWords): Notification {
+    fun build(context: Context, id: Int, wait: Wait, notice: WaitNotice, alerts: Alerts, words: WaitWords): Notification =
+        build(context, id, listOf(wait), notice, alerts, words)
+
+    /**
+     * [notice] of [waits], one alone or a stop's group in the order they
+     * started, as the notification with [id]: a tap opens their stop, a
+     * swipe ends them all
+     */
+    fun build(context: Context, id: Int, waits: List<Wait>, notice: WaitNotice, alerts: Alerts, words: WaitWords): Notification {
+        val wait = waits.first()
+        val grouped = waits.size > 1
         val builder = NotificationCompat.Builder(context, notice.channel.id)
             .setSmallIcon(R.drawable.ic_directions_bus)
             .setContentTitle(notice.title)
@@ -87,7 +101,7 @@ object WaitNotifications {
             .setTimeoutAfter(notice.timeoutAfter)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(openStop(context, id, wait))
-            .setDeleteIntent(action(context, id, wait, ACTION_DISMISSED))
+            .setDeleteIntent(action(context, id, wait, if (grouped) ACTION_DISMISSED_GROUP else ACTION_DISMISSED))
             // Older versions draw this bar; Android 16 and later the style's
             .setProgress(notice.progressMax, notice.progress, false)
             // A Live Update on Android 16 and later: promoted while ongoing,
@@ -102,10 +116,22 @@ object WaitNotifications {
             )
         for (action in notice.actions) {
             val intent = when (action) {
-                WaitAction.TOOK -> tookIt(context, id, wait)
+                WaitAction.TOOK, WaitAction.YES -> tookIt(context, id, wait)
                 WaitAction.STOP, WaitAction.NOT_TAKEN -> action(context, id, wait, ACTION_STOP)
+                WaitAction.STOP_ALL -> action(context, id, wait, ACTION_STOP_GROUP)
             }
             builder.addAction(0, words.action(action), intent)
+        }
+        // A stop's group: each button for its own wait
+        for ((slot, button) in notice.buttons.withIndex()) {
+            val own = waits.firstOrNull { it.key == button.key } ?: continue
+            val intent = when (button.action) {
+                WaitAction.TOOK, WaitAction.YES -> tookIt(context, id, own, slot)
+                WaitAction.STOP, WaitAction.NOT_TAKEN -> action(context, id, own, ACTION_STOP)
+                WaitAction.STOP_ALL -> action(context, id, own, ACTION_STOP_GROUP)
+            }
+            val label = if (button.action == WaitAction.TOOK && button.line != null) words.tookLine(button.line) else words.action(button.action)
+            builder.addAction(0, label, intent)
         }
         val countdownTo = notice.countdownTo
         if (countdownTo != null) {
@@ -122,7 +148,7 @@ object WaitNotifications {
             .putExtra(EXTRA_STOP_ID, wait.bus.stopId)
             .putExtra(EXTRA_VEHICLE_ID, wait.bus.bus.vehicleId)
             .putExtra(EXTRA_TRIP, wait.key.trip)
-        val code = (id - PLACEHOLDER_ID) * 4 + listOf(ACTION_STOP, ACTION_DISMISSED).indexOf(name)
+        val code = (id - PLACEHOLDER_ID) * 4 + listOf(ACTION_STOP, ACTION_DISMISSED, ACTION_STOP_GROUP, ACTION_DISMISSED_GROUP).indexOf(name)
         return PendingIntent.getBroadcast(
             context,
             code,
@@ -137,7 +163,7 @@ object WaitNotifications {
      * the app. With the app on show the trip may follow the location with
      * the while-in-use permission alone.
      */
-    private fun tookIt(context: Context, id: Int, wait: Wait): PendingIntent {
+    private fun tookIt(context: Context, id: Int, wait: Wait, slot: Int = 0): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
             .setAction(ACTION_TOOK)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -149,7 +175,7 @@ object WaitNotifications {
             .putExtra(EXTRA_DESTINATION, wait.bus.bus.destination)
         return PendingIntent.getActivity(
             context,
-            id + TOOK_REQUEST_OFFSET,
+            id + TOOK_REQUEST_OFFSET + slot * TOOK_SLOT_STEP,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -171,6 +197,9 @@ object WaitNotifications {
 
     /** Apart from the stop each notification opens, by its id */
     private const val TOOK_REQUEST_OFFSET = 1000
+
+    /** Apart from one another, the "I took it" buttons of a stop's group */
+    private const val TOOK_SLOT_STEP = 100
 
     private fun openStop(context: Context, id: Int, wait: Wait): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)

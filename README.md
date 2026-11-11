@@ -28,9 +28,9 @@ look for a newer release from Settings > About, on request only.
   saved or by proximity; a bus that reaches the stop stays on its row,
   at the stop and then passed, for a few minutes
 - **The bus you are waiting for**: a bell on each arrival follows that bus
-  in a notification until it comes, a Live Update on Android 16 and
-  later, with an alert as it nears, silent unless the settings add sound
-  or vibration
+  until it comes, in one notification per stop with its buses soonest
+  first, a Live Update on Android 16 and later, with an alert as each
+  nears, silent unless the settings add sound or vibration
 - **Map**: look up stops anywhere in the city, on CARTO maps, light or dark
 - **Lines**: each line's route, its live buses going each way, and its
   hours

@@ -36,6 +36,51 @@ class WaitNotificationScreenshotTest {
     private fun capture(name: String, dark: Boolean) =
         captureNotification(context, notification(), "wait_notification_$name", 411 * 3, dark)
 
+    /** The T31 and the E21 at one stop, three minutes in and coming, the E21 passed and asking, or six and a half minutes in with the E21 alerting */
+    private fun group(name: String, dark: Boolean, phase: String) {
+        WaitNotifications.createChannels(context)
+        val words = WaitWords(context.resources)
+        val e21 = WaitFixtures.bus("E21", "e21", NOW + 8 * MINUTE)
+        val t31 = Wait.start(awaited(WaitFixtures.t31), NOW)
+        var e21Wait = Wait.start(awaited(e21), NOW)
+        var at = NOW + 6 * MINUTE + 30_000
+        if (phase == "coming") at = NOW + 3 * MINUTE
+        if (phase == "asking") {
+            // Listed until a minute before its time, then gone: at the stop, then passed
+            e21Wait = e21Wait.fed(WaitFixtures.answer(NOW + 6 * MINUTE, e21)).fed(WaitFixtures.answer(NOW + 7 * MINUTE + 30_000))
+            at = NOW + 9 * MINUTE + 15_000
+        }
+        val waits = listOf(t31, e21Wait)
+        val notice = WaitNotice.ofGroup(waits, at, Alerts(), words, 15_000)
+        if (phase == "alerting") check(notice.alerting)
+        captureNotification(context, WaitNotifications.build(context, WaitNotifications.FIRST_ID, waits, notice, Alerts(), words), "wait_group_${phase}_$name", 411 * 3, dark)
+    }
+
+    private fun groups(name: String, dark: Boolean) {
+        group(name, dark, "coming")
+        group(name, dark, "asking")
+        group(name, dark, "alerting")
+    }
+
+    @Test
+    fun groupLight() = groups("es_light", dark = false)
+
+    @Test
+    @Config(qualifiers = "+night")
+    fun groupDark() = groups("es_dark", dark = true)
+
+    @Test
+    @Config(qualifiers = "+en")
+    fun groupEnglish() = groups("en_light", dark = false)
+
+    @Test
+    @Config(qualifiers = "+en-night")
+    fun groupEnglishDark() = groups("en_dark", dark = true)
+
+    @Test
+    @Config(fontScale = 2f)
+    fun groupFontScale2() = groups("es_font2", dark = false)
+
     @Test
     fun light() = capture("light", dark = false)
 

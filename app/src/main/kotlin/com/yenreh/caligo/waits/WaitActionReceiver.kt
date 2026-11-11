@@ -15,11 +15,12 @@ import com.yenreh.caligo.domain.WaitEnding
 class WaitActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val key = WaitNotifications.keyOf(intent) ?: return
-        val ending = when (intent.action) {
-            WaitNotifications.ACTION_STOP -> WaitEnding.STOPPED
-            WaitNotifications.ACTION_DISMISSED -> WaitEnding.DISMISSED
-            else -> return
+        val waits = (context.applicationContext as CaliGoApp).container.waits
+        when (intent.action) {
+            WaitNotifications.ACTION_STOP -> waits.act(key, WaitEnding.STOPPED)
+            WaitNotifications.ACTION_DISMISSED -> waits.act(key, WaitEnding.DISMISSED)
+            WaitNotifications.ACTION_STOP_GROUP -> waits.actGroup(key, WaitEnding.STOPPED)
+            WaitNotifications.ACTION_DISMISSED_GROUP -> waits.actGroup(key, WaitEnding.DISMISSED)
         }
-        (context.applicationContext as CaliGoApp).container.waits.act(key, ending)
     }
 }

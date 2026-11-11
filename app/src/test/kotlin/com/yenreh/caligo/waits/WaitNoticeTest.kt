@@ -39,10 +39,10 @@ class WaitNoticeTest {
         assertEquals(listOf(WaitAction.TOOK, WaitAction.STOP), notice.actions)
         assertEquals(WaitChannel.WAITS, notice.channel)
         assertFalse(notice.alerting)
-        // Six of ten minutes gone
-        assertEquals(600, notice.progressMax)
-        assertEquals(360, notice.progress)
-        assertEquals(15_000 + WaitNotice.TIMEOUT_MARGIN_MS, notice.timeoutAfter)
+        // Six of ten minutes gone, counted as the title counts them
+        assertEquals(10, notice.progressMax)
+        assertEquals(6, notice.progress)
+        assertEquals(WaitNotice.timeoutAfter(15_000), notice.timeoutAfter)
     }
 
     @Test

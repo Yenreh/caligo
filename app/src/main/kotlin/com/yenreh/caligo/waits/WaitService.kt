@@ -24,10 +24,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 
 /**
- * The one owner of every wait the rider starts from a bell, and of each
- * one's notification (a trip's waits run in the trip service): it posts
- * them, moves its own foreground notification to another wait when the
- * wait carrying it ends, and cancels them.
+ * The one owner of every wait the rider starts from a bell, and of their
+ * notifications (a trip's waits run in the trip service): one for each
+ * stop as the rider saw it, its waits together, a wait alone as it
+ * always was. It posts them, leaves out a post the same as the last one
+ * within [WaitNotice.REPOST_AFTER_MS], moves its own foreground
+ * notification to another stop's when the group carrying it ends, and
+ * cancels them.
  *
  * It never runs without a notification of its own: it starts as the
  * first wait is shown and stops as the last one ends. Not sticky: killed,
@@ -46,14 +49,17 @@ class WaitService : Service(), WaitHost {
     private lateinit var words: WaitWords
     private val wakeLock = ServiceWakeLock(this, WAKE_LOCK_TAG)
 
-    /** Each wait's notification id, in the order they started */
-    private val slots = LinkedHashMap<WaitKey, Int>()
+    /** Each stop's notification id, in the order their first wait started */
+    private val slots = LinkedHashMap<WaitGroup, Int>()
 
     /** Waits whose alert has gone out: posts the engine has not counted yet stay silent */
     private val alerted = HashSet<WaitKey>()
 
-    /** The wait whose notification is the service's own */
-    private var carrier: WaitKey? = null
+    /** The stop whose notification is the service's own */
+    private var carrier: WaitGroup? = null
+
+    /** What each stop's notification last showed, its waits and where their stops are asked about included, and when it was posted */
+    private val posted = HashMap<WaitGroup, Pair<Any, Long>>()
 
     private var lastStartId = 0
 
@@ -100,7 +106,35 @@ class WaitService : Service(), WaitHost {
     /** Wait for [bus] as well */
     internal fun add(bus: AwaitedBus, seed: FadingArrivals?): WaitStart = engine.start(bus, seed)
 
-    internal fun end(key: WaitKey, ending: WaitEnding) = engine.end(key, ending)
+    /** End [key]'s wait as [ending]; taken, the other waits at its stop end too: the rider is gone */
+    internal fun end(key: WaitKey, ending: WaitEnding) {
+        val group = engine.waits.firstOrNull { it.key == key }?.group ?: return
+        if (ending != WaitEnding.TOOK) return engine.end(key, ending)
+        closing(group) {
+            engine.end(key, ending)
+            for (other in engine.waits.filter { it.group == group }) engine.end(other.key, WaitEnding.STOPPED)
+        }
+    }
+
+    /** The stop whose waits all end at once: its notification is not shown again on the way */
+    private var closing: WaitGroup? = null
+
+    private inline fun closing(group: WaitGroup, block: () -> Unit) {
+        closing = group
+        try {
+            block()
+        } finally {
+            closing = null
+        }
+    }
+
+    /** End every wait at the stop [key]'s wait is at as [ending]: "Stop waiting" or the swipe of its notification */
+    internal fun endGroup(key: WaitKey, ending: WaitEnding) {
+        val group = engine.waits.firstOrNull { it.key == key }?.group ?: return
+        closing(group) {
+            for (wait in engine.waits.filter { it.group == group }) engine.end(wait.key, ending)
+        }
+    }
 
     /** The engine, for tests to see that nothing runs */
     internal val waitEngine: WaitEngine get() = engine
@@ -115,32 +149,53 @@ class WaitService : Service(), WaitHost {
         val alerts = desk.alerts()
         val alertOn = channelOn(this, WaitChannel.alert(alerts))
         val manager = NotificationManagerCompat.from(this)
-        for (wait in waits) {
-            val id = slots.getOrPut(wait.key) { WaitNotifications.ids.first { it !in slots.values } }
-            val notice = WaitNotice.of(wait, now, alerts, words, nextPostIn, alertOn).let {
-                // One alert per wait, whoever posts first
-                if (it.alerting && !alerted.add(wait.key)) it.copy(alerting = false) else it
-            }
-            val notification = WaitNotifications.build(this, id, wait, notice, alerts, words)
+        for ((group, members) in waits.groupBy { it.group }) {
+            val id = slots.getOrPut(group) { WaitNotifications.ids.first { it !in slots.values } }
+            val notice = WaitNotice.ofGroup(members, now, alerts, words, nextPostIn, alertOn, alerted)
+            // One alert per wait, whoever posts first
+            if (notice.alerting) members.firstOrNull { it.alertDue(now) && it.key !in alerted }?.let { alerted.add(it.key) }
+            // What its buttons and its tap carry too
+            val shown = notice.copy(timeoutAfter = 0) to members.map { it.key to it.point }
+            val last = posted[group]
+            // The same as on show: not posted again for a while, the beat still kept awake
+            if (carrier != null && last != null && last.first == shown && now - last.second < WaitNotice.REPOST_AFTER_MS) continue
+            posted[group] = shown to now
+            val notification = WaitNotifications.build(this, id, members, notice, alerts, words)
             if (carrier == null) {
                 foreground(id, notification)
-                carrier = wait.key
+                carrier = group
                 // The placeholder that carried the service until now
                 manager.cancel(WaitNotifications.PLACEHOLDER_ID)
             } else {
+                posts++
                 manager.notify(id, notification)
             }
         }
         wakeLock.hold(nextPostIn + WAKE_MARGIN_MS)
     }
 
+    /** How many times a wait's notification was posted, past the first, for tests to count */
+    internal var posts = 0
+        private set
+
     override fun ended(wait: Wait, ending: WaitEnding) {
         alerted.remove(wait.key)
-        val id = slots.remove(wait.key) ?: return
-        if (carrier == wait.key) {
+        val group = wait.group
+        // Its stop's notification lives on while any of its waits does, shown again as they are
+        val left = engine.waits.filter { it.group == group }
+        if (left.isNotEmpty()) {
+            posted.remove(group)
+            if (group != closing) show(left, desk.now(), WaitEngine.BEAT.inWholeMilliseconds)
+            return
+        }
+        posted.remove(group)
+        val id = slots.remove(group) ?: return
+        if (carrier == group) {
             carrier = null
             // Moved before the old one goes, so the service always shows one
-            engine.waits.firstOrNull()?.let { next -> show(listOf(next), desk.now(), WaitEngine.BEAT.inWholeMilliseconds) }
+            engine.waits.firstOrNull()?.group?.let { next ->
+                show(engine.waits.filter { it.group == next }, desk.now(), WaitEngine.BEAT.inWholeMilliseconds)
+            }
         }
         NotificationManagerCompat.from(this).cancel(id)
     }
@@ -152,6 +207,7 @@ class WaitService : Service(), WaitHost {
         manager.cancel(WaitNotifications.PLACEHOLDER_ID)
         slots.clear()
         alerted.clear()
+        posted.clear()
         carrier = null
         wakeLock.release()
         desk.detach(this)

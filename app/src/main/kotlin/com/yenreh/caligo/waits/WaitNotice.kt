@@ -3,7 +3,9 @@ package com.yenreh.caligo.waits
 import android.content.res.Resources
 import com.yenreh.caligo.AppChannel
 import com.yenreh.caligo.R
+import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.Wait
+import com.yenreh.caligo.domain.WaitKey
 import com.yenreh.caligo.domain.WaitStatus
 
 /** How the alert near the stop sounds, as the settings' "Alerts" ask */
@@ -51,7 +53,26 @@ enum class WaitAction {
 
     /** "No", the answer to "Did you take it?": stops waiting, as [STOP] */
     NOT_TAKEN,
+
+    /** "Yes" to "Did you take the T31?" in a stop's group: that bus taken, as [TOOK] */
+    YES,
+
+    /** "Stop waiting" in a stop's group: every wait of it ends */
+    STOP_ALL,
 }
+
+/** A button of a notification, for the wait [key] */
+data class WaitButton(val action: WaitAction, val key: WaitKey, val line: String? = null)
+
+/**
+ * The stop a wait was started at as the rider saw it: the card or the
+ * sheet whose bell started it, by the name it titles the stop with and
+ * where it found it. A station card's platforms are one. Waits at one
+ * share a notification.
+ */
+data class WaitGroup(val stopName: String, val anchor: GeoPoint)
+
+val Wait.group: WaitGroup get() = WaitGroup(bus.stopName, bus.anchor)
 
 /**
  * A wait's notification as it reads at a moment: a pure function of the
@@ -76,8 +97,82 @@ data class WaitNotice(
     val alerting: Boolean,
     /** Cancelled by the system after this many milliseconds unless posted again */
     val timeoutAfter: Long,
+    /** The buttons of a stop's group, each for its wait; empty for one wait alone, whose [actions] are its own */
+    val buttons: List<WaitButton> = emptyList(),
 ) {
     companion object {
+        /**
+         * The notice of [waits], those at one stop as the rider saw it,
+         * started in that order: one alone as [of] says; several as one
+         * notification, their buses soonest first in its title, the stop
+         * below, the chip and the bar the soonest's, an "I took it" for the
+         * two soonest and "Stop waiting" for all. A bus that passed asks
+         * "Did you take the T31?" for its minute, the earliest first, with
+         * Yes, No and "Stop waiting". [alerted] are the waits whose alert
+         * has gone out: one more alerts at most, once.
+         */
+        fun ofGroup(
+            waits: List<Wait>,
+            now: Long,
+            alerts: Alerts,
+            words: WaitWords,
+            nextPostIn: Long,
+            alertOn: Boolean = true,
+            alerted: Set<WaitKey> = emptySet(),
+        ): WaitNotice {
+            if (waits.size == 1) {
+                val wait = waits.single()
+                return of(wait, now, alerts, words, nextPostIn, alertOn).let { if (it.alerting && wait.key in alerted) it.copy(alerting = false) else it }
+            }
+            val sorted = waits.sortedBy { it.last.arrivalTime }
+            val stop = sorted.first().bus.stopName
+            val asking = sorted.firstOrNull { it.status(now) == WaitStatus.Asking }
+            // The soonest still to come shows its chip and bar, as one wait's notice does
+            val soonest = sorted.firstOrNull { it.status(now) is WaitStatus.Coming || it.status(now) == WaitStatus.AtStop } ?: sorted.first()
+            val own = of(soonest, now, alerts, words, nextPostIn, alertOn)
+            val alertingWait = if (alertOn) sorted.firstOrNull { it.alertDue(now) && it.key !in alerted } else null
+            val title = asking?.let { words.titleAsking(it.last.line) } ?: sorted.joinToString(" · ") { words.short(it, now) }
+            val buttons = if (asking != null) {
+                listOf(
+                    WaitButton(WaitAction.YES, asking.key, asking.last.line),
+                    WaitButton(WaitAction.NOT_TAKEN, asking.key, asking.last.line),
+                    WaitButton(WaitAction.STOP_ALL, sorted.first().key),
+                )
+            } else {
+                sorted.filter { it.asks(now) }.take(MAX_TOOK).map { WaitButton(WaitAction.TOOK, it.key, it.last.line) } +
+                    WaitButton(WaitAction.STOP_ALL, sorted.first().key)
+            }
+            return WaitNotice(
+                title = title,
+                text = stop,
+                summary = "$title, $stop",
+                chip = own.chip,
+                countdownTo = own.countdownTo,
+                progress = own.progress,
+                progressMax = own.progressMax,
+                actions = emptyList(),
+                channel = if (alertOn && (alertingWait != null || sorted.any { it.alerted })) WaitChannel.alert(alerts) else WaitChannel.WAITS,
+                alerting = alertingWait != null,
+                timeoutAfter = timeoutAfter(nextPostIn),
+                buttons = buttons,
+            )
+        }
+
+        /** "I took it" buttons of a stop's group, the soonest first: Android shows three actions, "Stop waiting" one */
+        const val MAX_TOOK = 2
+
+        /** A post the same as the last one is left out within this of it, as the trip's */
+        const val REPOST_AFTER_MS = 20_000L
+
+        /**
+         * Gone by itself this long after it is posted: past the next post due
+         * in [nextPostIn] milliseconds, or the latest should those be the
+         * same and left out, the first beat past [REPOST_AFTER_MS], and
+         * [TIMEOUT_MARGIN_MS] more
+         */
+        fun timeoutAfter(nextPostIn: Long): Long =
+            maxOf(nextPostIn, REPOST_AFTER_MS + WaitEngine.BEAT.inWholeMilliseconds) + TIMEOUT_MARGIN_MS
+
         /**
          * The notice of [wait] at [now], with [alerts] for the alert. Once
          * alerted, it stays on the alert channel, silent from then on; the
@@ -134,11 +229,11 @@ data class WaitNotice(
                     text = words.busAt(bus.line, bus.destination, wait.bus.stopName)
                 }
             }
-            // From the start to the bus at the stop
-            val total = ((bus.arrivalTime - wait.startedAt) / 1000).coerceAtLeast(MIN_PROGRESS_SECONDS).toInt()
+            // From the start to the bus at the stop, in whole minutes as the title counts them, so the two move together
+            val total = bus.minutesUntilArrival(wait.startedAt).coerceAtLeast(1)
             val done = when (status) {
                 WaitStatus.AtStop, WaitStatus.Asking -> total
-                else -> ((now - wait.startedAt) / 1000).coerceIn(0, total.toLong()).toInt()
+                else -> (total - bus.minutesUntilArrival(now)).coerceIn(0, total)
             }
             return WaitNotice(
                 title = title,
@@ -154,12 +249,10 @@ data class WaitNotice(
                 ),
                 channel = if (alertOn && (alerting || wait.alerted)) WaitChannel.alert(alerts) else WaitChannel.WAITS,
                 alerting = alerting,
-                timeoutAfter = nextPostIn + TIMEOUT_MARGIN_MS,
+                timeoutAfter = timeoutAfter(nextPostIn),
             )
         }
 
-        /** A wait due within the minute still shows a bar worth reading */
-        private const val MIN_PROGRESS_SECONDS = 60L
 
         /**
          * Beyond the gap to the next post: a process killed without warning
@@ -185,6 +278,24 @@ class WaitWords(private val resources: Resources) {
 
     fun titleAsking(line: String) = resources.getString(R.string.wait_title_asking, line)
 
+    /** A wait in a stop's group, in short: "T31 4 min", "T31 at the stop", "T31 passed" */
+    fun short(wait: Wait, now: Long): String {
+        val line = wait.last.line
+        return when (val status = wait.status(now)) {
+            is WaitStatus.Coming -> {
+                val minutes = wait.last.minutesUntilArrival(now)
+                if (minutes == 0) resources.getString(R.string.wait_short_now, line) else resources.getString(R.string.wait_short_minutes, line, minutes)
+            }
+            WaitStatus.AtStop -> resources.getString(R.string.wait_short_at_stop, line)
+            WaitStatus.Asking -> resources.getString(R.string.wait_short_passed, line)
+            WaitStatus.NoData, WaitStatus.NoDataEnded -> resources.getString(R.string.wait_short_no_data, line)
+            WaitStatus.NotSeen -> resources.getString(R.string.wait_short_not_seen, line)
+        }
+    }
+
+    /** "T31: I took it" */
+    fun tookLine(line: String) = resources.getString(R.string.wait_took_line, line)
+
     val titleNotSeen: String get() = resources.getString(R.string.wait_title_not_seen)
 
     val titleNoDataEnded: String get() = resources.getString(R.string.wait_title_no_data_ended)
@@ -205,6 +316,8 @@ class WaitWords(private val resources: Resources) {
             WaitAction.TOOK -> R.string.wait_took_it
             WaitAction.STOP -> R.string.wait_stop_waiting
             WaitAction.NOT_TAKEN -> R.string.wait_not_taken
+            WaitAction.YES -> R.string.wait_yes
+            WaitAction.STOP_ALL -> R.string.wait_stop_waiting
         },
     )
 }

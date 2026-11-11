@@ -81,6 +81,7 @@ class WaitDesk(
 
     override fun stop(key: WaitKey) = end(key, WaitEnding.BELL)
 
+    /** The other waits at [key]'s stop end too, as the rider is gone */
     override fun took(key: WaitKey) = end(key, WaitEnding.TOOK)
 
     /** End [key] as [ending], wherever it runs: a trip's in the trip service */
@@ -118,6 +119,11 @@ class WaitDesk(
     /** A button of [key]'s notification, or its swipe */
     fun act(key: WaitKey, ending: WaitEnding) {
         service?.end(key, ending)
+    }
+
+    /** "Stop waiting" of a stop's group, or its swipe: every wait of [key]'s stop ends */
+    fun actGroup(key: WaitKey, ending: WaitEnding) {
+        service?.endGroup(key, ending)
     }
 
     internal fun attach(service: WaitService) {

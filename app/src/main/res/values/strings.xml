@@ -310,6 +310,14 @@
     <string name="wait_chip_here">Here</string>
     <string name="wait_took_it">I took it</string>
     <string name="wait_stop_waiting">Stop waiting</string>
+    <string name="wait_yes">Yes</string>
+    <string name="wait_took_line">%1$s: I took it</string>
+    <string name="wait_short_minutes">%1$s %2$d\u00A0min</string>
+    <string name="wait_short_now">%1$s now</string>
+    <string name="wait_short_at_stop">%1$s at the stop</string>
+    <string name="wait_short_passed">%1$s passed</string>
+    <string name="wait_short_no_data">%1$s, no data</string>
+    <string name="wait_short_not_seen">%1$s not seen</string>
     <string name="wait_not_taken">No</string>
     <string name="wait_channel">Awaited buses</string>
     <string name="wait_channel_description">The countdown of each bus you wait for</string>
