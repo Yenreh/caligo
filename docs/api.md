@@ -157,8 +157,9 @@ gets the stops.
   bus to catch, it asks again after 1, 2 and then every 4 minutes, and
   after a minute once the waits it found end with none taken. A ride the
   rider takes on one of its lines alone, on the trip screen or tapped in
-  the planner, awaits and asks about that line alone; back to any line,
-  it asks its arrivals once more. The trip screen's rows of each line's
+  the planner, awaits and alerts for that line alone, while near the stop
+  it still follows every line's buses, to tell the one the rider leaves
+  on; back to any line, it asks its arrivals once more. The trip screen's rows of each line's
   next buses ask nothing of their own: they read what those arrivals and
   the waits' answers already list. It also
   asks, from 300 m before its stop until a bus is taken, those lines'

@@ -223,7 +223,9 @@ class TripEngine(
 
     /**
      * Take the ride waited for on [line] alone, or on any of its lines when
-     * null: awaited, alerted for and asked about as chosen. Chosen, the
+     * null: awaited, alerted for and told as chosen, while the rounds near
+     * the stop still follow every line, to tell the bus the rider leaves
+     * on whichever it is. Chosen, the
      * waits of the other lines stop, not as declined, and the line is asked
      * for at once when no wait of it runs; any line again, each is awaited
      * again, asked for at once.
@@ -564,11 +566,13 @@ class TripEngine(
      * The lines whose buses to follow: the one ridden; for a ride waited
      * for, each of its lines once the rider is near its stop, to tell
      * which one they leave on. Waiting, not once a fresh fix has them
-     * gone elsewhere, away from the stop and its lines' routes.
+     * gone elsewhere, away from the stop and its lines' routes. Every line
+     * of it, one chosen or not: these rounds tell the bus the rider leaves
+     * on, which may be another after all.
      */
     private fun linesToAsk(running: Journey, now: Long): List<String> {
         running.ride?.let { return listOf(it.plan.line) }
-        val candidates = running.awaitedCandidates
+        val candidates = running.pendingCandidates
         val fix = running.fix
         if (running.phase(now) is JourneyPhase.Waiting) {
             val fresh = fix?.takeIf { now - it.at <= FIX_FRESH_MS }

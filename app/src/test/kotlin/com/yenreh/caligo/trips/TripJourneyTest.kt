@@ -332,10 +332,10 @@ class TripJourneyTest {
         assertEquals("Take the T31", shown.title())
         assertEquals(listOf("T31: I took it", "Finish"), shown.actions.map { it.title.toString() })
         assertTrue(shown.text(), "E21" !in shown.text())
-        // Its buses alone near the stop
+        // Near the stop every line's buses still, to tell the one the rider leaves on
         val rounds = h.source.askedLines.size
         h.move(MINUTE) { stop }
-        assertEquals(setOf("T31"), h.source.askedLines.drop(rounds).toSet())
+        assertEquals(setOf("E21", "T31"), h.source.askedLines.drop(rounds).toSet())
         assertOne()
 
         // Any again: each line awaited again, after one ask
@@ -357,6 +357,20 @@ class TripJourneyTest {
         h.desk.finish()
         h.advance(window)
         h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun aRiderWhoChoseALineYetLeavesOnAnotherIsFollowedOnIt() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.desk.chooseLine("T31")
+        h.advance(1)
+        // Away on an E21 after all, beside it
+        val leftAt = h.now()
+        h.source.byLine = { line, at -> if (line == "E21") listOf(busOn(calle5Route, "11002", 20 + (at - leftAt) * 8.0 / 1000)) else emptyList() }
+        h.move(MINUTE) { at -> calle5Route.pointAt((at - leftAt) * 8.0 / 1000) }
+        assertEquals("E21", h.desk.running.value?.ride?.plan?.line)
+        assertTrue(h.awaitedLines.isEmpty())
     }
 
     @Test
