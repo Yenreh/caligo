@@ -225,6 +225,9 @@ class TripNoticeTest {
         val shown = TripNotice.of(walking, NOW, Alerts(), es, 15_000, awaited = buses, near = true)
         assertEquals("Plaza de Cayzedo A1 · E21 2${NBSP}min · T31 5${NBSP}min", shown.text)
         assertEquals("Plaza de Cayzedo A1 · luego el E21 o T31", TripNotice.of(walking, NOW, Alerts(), es, 15_000).text)
+        // Each line's button names it first, so a narrow one keeps it
+        val built = TripNotifications.build(context, walking.startedAt, shown, Alerts(), es)
+        assertEquals(listOf("E21: lo tomé", "T31: lo tomé", "Terminar"), built.actions.map { it.title.toString() })
     }
 
     @Test

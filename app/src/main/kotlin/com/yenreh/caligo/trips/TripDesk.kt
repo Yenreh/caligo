@@ -154,7 +154,7 @@ class TripDesk(
         service?.end(TripEnding.FINISHED)
     }
 
-    /** "I took the A47" on the notification of the trip started at [startedAt] */
+    /** "A47: I took it" on the notification of the trip started at [startedAt] */
     fun takeLine(startedAt: Long, line: String) {
         val running = serviceJourney ?: return
         if (running.startedAt == startedAt) service?.takeLine(line)

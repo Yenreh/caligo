@@ -152,7 +152,7 @@ class TripEngine(
     /** "I took it" on a wait for [took]'s line at the ride waited for; whether the trip took it */
     fun took(took: TookRide): Boolean = take(journey?.tookIt(took, now()))
 
-    /** "I took the [line]" on the notification: the ride awaited taken on that line, every wait of it ending */
+    /** "I took the [line]" on the screen, or "[line]: I took it" on the notification: the ride awaited taken on that line, every wait of it ending */
     fun takeLine(line: String) {
         take(journey?.tookLine(line, now()))
     }

@@ -38,7 +38,7 @@ import org.robolectric.Shadows.shadowOf
 /**
  * A planner trip on virtual time, with scripted fixes, buses and arrivals:
  * the walk to the stop, the buses awaited for each line that makes the
- * first ride, "I took the T31" on the trip's notification, the change on
+ * first ride, "T31: I took it" on the trip's notification, the change on
  * foot, the next ride's bus awaited, taken by position, the walk to the
  * end; one notification of the trip's own all along, the rider's own
  * waits apart; and the ways such a trip ends, with nothing of it left.
@@ -97,9 +97,9 @@ class TripJourneyTest {
         assertEquals("Take the E21 or T31", shown.title())
         assertEquals("At Plaza de Cayzedo A1 · E21 3${NBSP}min · T31 5${NBSP}min", shown.text())
         assertEquals("3${NBSP}min", androidx.core.app.NotificationCompat.getShortCriticalText(shown))
-        assertEquals(listOf("I took the E21", "I took the T31", "Finish"), shown.actions.map { it.title.toString() })
+        assertEquals(listOf("E21: I took it", "T31: I took it", "Finish"), shown.actions.map { it.title.toString() })
         // The T31 taken: every wait of the ride ends
-        h.pressTitled("I took the T31")
+        h.pressTitled("T31: I took it")
         h.advance(1)
         assertEquals("T31", h.desk.running.value?.ride?.plan?.line)
         assertTrue(h.awaitedLines.toString(), h.awaitedLines.isEmpty())
@@ -137,7 +137,7 @@ class TripJourneyTest {
     fun theNextRidesBusIsAwaitedInTheTripServiceWithNoScreenOnShow() {
         startJourney()
         h.move(5 * MINUTE) { toTheStop(it) }
-        h.pressTitled("I took the T31")
+        h.pressTitled("T31: I took it")
         val t31At = h.now()
         // The screen off and the app away: no activity anywhere, only the trip's foreground service
         h.move(7 * MINUTE) { at -> if (h.desk.running.value?.ride != null) calle5Route.pointAt((at - t31At) * 7.0 / 1000) else null }
@@ -156,7 +156,7 @@ class TripJourneyTest {
     fun theButtonsTakeTheLineTappedAndEndTheRest() {
         startJourney()
         h.move(5 * MINUTE) { toTheStop(it) }
-        h.pressTitled("I took the E21")
+        h.pressTitled("E21: I took it")
         h.advance(1)
         assertEquals("E21", h.desk.running.value?.ride?.plan?.line)
         assertTrue(h.awaitedLines.isEmpty())
@@ -169,7 +169,7 @@ class TripJourneyTest {
     fun aPlannerRideWarnsBeforeItsStopAsASingleRideDoes() {
         startJourney()
         h.move(5 * MINUTE) { toTheStop(it) }
-        h.pressTitled("I took the T31")
+        h.pressTitled("T31: I took it")
         val t31At = h.now()
         // At 7 m/s, two stops before the change after 4 min
         h.move(4 * MINUTE) { at -> calle5Route.pointAt((at - t31At) * 7.0 / 1000) }
@@ -350,7 +350,7 @@ class TripJourneyTest {
     fun swipedAwayMidRide() {
         startJourney()
         h.move(5 * MINUTE) { toTheStop(it) }
-        h.pressTitled("I took the T31")
+        h.pressTitled("T31: I took it")
         h.advance(1)
         h.swipe()
         h.advance(1)

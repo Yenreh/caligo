@@ -40,7 +40,7 @@ object TripNotifications {
     const val ACTION_FINISH = "com.yenreh.caligo.trip.FINISH"
     const val ACTION_DISMISSED = "com.yenreh.caligo.trip.DISMISSED"
 
-    /** "I took the A47": the trip takes that line for the ride it awaits */
+    /** "A47: I took it": the trip takes that line for the ride it awaits */
     const val ACTION_TAKE_LINE = "com.yenreh.caligo.trip.TAKE_LINE"
     const val EXTRA_LINE = "line"
 
@@ -134,7 +134,7 @@ object TripNotifications {
                     .setProgressTrackerIcon(IconCompat.createWithResource(context, trackerIcon(notice.tracker))),
             )
         // The lines to take first, soonest first, then Finish: three at most, as Android shows
-        for ((i, line) in notice.takeLines.withIndex()) builder.addAction(0, words.tookLine(line), takeLine(context, startedAt, i, line))
+        for ((i, line) in notice.takeLines.withIndex()) builder.addAction(0, words.tookLineAction(line), takeLine(context, startedAt, i, line))
         builder.addAction(0, words.finish, action(context, startedAt, ACTION_FINISH))
         return builder.asChannelBeforeO(notice.alerting, alerts, VIBRATION).build()
     }
@@ -156,7 +156,7 @@ object TripNotifications {
         )
     }
 
-    /** "I took the [line]", the [slot]-th button: straight to the trip service, which runs already */
+    /** "[line]: I took it", the [slot]-th button: straight to the trip service, which runs already */
     private fun takeLine(context: Context, startedAt: Long, slot: Int, line: String): PendingIntent {
         val intent = Intent(context, TripActionReceiver::class.java)
             .setAction(ACTION_TAKE_LINE)

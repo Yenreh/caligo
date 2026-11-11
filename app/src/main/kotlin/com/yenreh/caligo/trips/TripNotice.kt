@@ -127,7 +127,7 @@ data class TripNotice(
     val alerting: Boolean,
     /** Cancelled by the system after this many milliseconds unless posted again */
     val timeoutAfter: Long,
-    /** Lines to take with a button each, "I took the A47", soonest first */
+    /** Lines to take with a button each, "A47: I took it", soonest first */
     val takeLines: List<String> = emptyList(),
     /** The waits' alert channel, in place of [channel], from the alert of an awaited bus on for the rest of its ride */
     val busChannel: WaitChannel? = null,
@@ -437,6 +437,9 @@ class TripWords(private val resources: Resources) {
     }
 
     fun tookLine(line: String) = resources.getString(R.string.trip_took_line, line)
+
+    /** "A47: I took it", a notification button: the line first, so a narrow button keeps it */
+    fun tookLineAction(line: String) = resources.getString(R.string.trip_took_line_action, line)
 
     val tookItHint: String get() = resources.getString(R.string.trip_took_it_hint)
 

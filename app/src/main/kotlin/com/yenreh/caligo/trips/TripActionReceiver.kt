@@ -7,7 +7,7 @@ import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.domain.TripEnding
 
 /**
- * The trip notification's Finish, its "I took the A47" and its swipe, handed to the service
+ * The trip notification's Finish, its "A47: I took it" and its swipe, handed to the service
  * through the desk. With no service running, as in a process started
  * anew, there is no trip to end, and the process start has cancelled what
  * was left.
