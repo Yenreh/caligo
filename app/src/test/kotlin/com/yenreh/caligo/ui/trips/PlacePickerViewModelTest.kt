@@ -265,6 +265,18 @@ class PlacePickerViewModelTest {
     }
 
     @Test
+    fun aPlaceDeletedIsHandedBackForItsUndoAndComesBackAsItWas() = test {
+        places = FakePlacesRepository(saved)
+        val model = viewModel()
+
+        model.deletePlace(1)
+
+        assertEquals(PlacePickerEvent.PlaceDeleted(saved[0]), model.events.first())
+        model.restorePlace(saved[0])
+        assertEquals(saved, model.places.value)
+    }
+
+    @Test
     fun aPlaceThatCannotChangeSaysSo() = test {
         places = FakePlacesRepository(saved).apply { failure = IllegalStateException("disk") }
         val model = viewModel()

@@ -125,6 +125,33 @@ class SavedPlacesScreenshotTest {
     @Config(fontScale = 2f)
     fun chipsFontScale2() = chips("saved_places_chips_font2")
 
+    // A chip deleted: the snackbar that brings it back
+
+    private fun deleted(name: String) {
+        trips.places = FakePlacesRepository(saved)
+        val model = trips.planner(repository(), destination = null)
+        planner(model)
+        waitFor(hasTestTag("quick_plans"))
+        model.deletePlace(saved[3].id)
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasText(saved[3].name, substring = true)).fetchSemanticsNodes().size == 1 }
+        compose.captureWindow(name)
+    }
+
+    @Test
+    fun deletedLight() = deleted("saved_places_deleted_light")
+
+    @Test
+    @Config(qualifiers = "+night")
+    fun deletedDark() = deleted("saved_places_deleted_dark")
+
+    @Test
+    @Config(qualifiers = "+en")
+    fun deletedEnglish() = deleted("saved_places_deleted_en")
+
+    @Test
+    @Config(fontScale = 2f)
+    fun deletedFontScale2() = deleted("saved_places_deleted_font2")
+
     // The stars: the origin saved, filled; the destination not, empty
 
     private fun stars(name: String) {

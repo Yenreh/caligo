@@ -80,6 +80,9 @@ sealed interface PlacePickerEvent {
 
     /** A saved place could not be changed: a snackbar */
     data object CouldNotSavePlace : PlacePickerEvent
+
+    /** A saved place deleted, as it was: a snackbar with Undo */
+    data class PlaceDeleted(val place: FavoritePlace) : PlacePickerEvent
 }
 
 /** Three letters typed at least before an address is looked up */
@@ -189,7 +192,10 @@ class PlacePickerViewModel(
 
     fun renamePlace(id: Long, name: String) = placeEdits.rename(id, name)
 
-    fun deletePlace(id: Long) = placeEdits.delete(id)
+    fun deletePlace(id: Long) = placeEdits.delete(id) { reports.trySend(PlacePickerEvent.PlaceDeleted(it)) }
+
+    /** Undo the deletion of [place]: it comes back as it was */
+    fun restorePlace(place: FavoritePlace) = placeEdits.restore(place)
 
     fun setQuery(query: String) = state.update { it.copy(query = query) }
 

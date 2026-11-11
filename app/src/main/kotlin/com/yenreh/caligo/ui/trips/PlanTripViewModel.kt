@@ -214,6 +214,18 @@ class PlanTripViewModel(
         reports.trySend(PlanTripMessage.COULD_NOT_SAVE_PLACE)
     }
 
+    private val deleted = Channel<FavoritePlace>(Channel.BUFFERED)
+
+    /** A saved place just deleted, as it was, for the snackbar's Undo */
+    val deletedPlaces: Flow<FavoritePlace> = deleted.receiveAsFlow()
+
+    /**
+     * The fields a deletion left showing what their place was called where
+     * picked, by what they show now, with the place they showed: should it
+     * come back as it was, by Undo, they show it again
+     */
+    private var unlinked: Map<TripPlace, FavoritePlace> = emptyMap()
+
     private val started = Channel<Unit>(Channel.CONFLATED)
 
     /** A trip started from here, for the screen to open it */
@@ -315,7 +327,7 @@ class PlanTripViewModel(
         viewModelScope.launch {
             savedPlaces.places.collect { places ->
                 state.update {
-                    it.copy(places = places, from = it.from.following(it.places, places), to = it.to.following(it.places, places))
+                    it.copy(places = places, from = follow(it.from, it.places, places), to = follow(it.to, it.places, places))
                 }
             }
         }
@@ -336,7 +348,21 @@ class PlanTripViewModel(
     /** Rename a saved place; a field showing it follows, as with a rename in the picker */
     fun renamePlace(id: Long, name: String) = placeEdits.rename(id, name)
 
-    fun deletePlace(id: Long) = placeEdits.delete(id)
+    fun deletePlace(id: Long) = placeEdits.delete(id) { deleted.trySend(it) }
+
+    /** Undo the deletion of [place]: it comes back as it was, and a field that showed it shows it again */
+    fun restorePlace(place: FavoritePlace) = placeEdits.restore(place)
+
+    /** [field] as the saved places change from [before] to [now], put back as it was when its place comes back */
+    private fun follow(field: TripPlace?, before: List<FavoritePlace>, now: List<FavoritePlace>): TripPlace? {
+        unlinked[field]?.let { gone -> now.firstOrNull { it.copy(id = gone.id) == gone }?.let { return it.tripPlace } }
+        val followed = field.following(before, now)
+        val id = field?.savedId
+        if (followed != null && id != null && followed.savedId == null) {
+            before.firstOrNull { it.id == id }?.let { unlinked = unlinked + (followed to it) }
+        }
+        return followed
+    }
 
     private fun tick() {
         val current = state.value

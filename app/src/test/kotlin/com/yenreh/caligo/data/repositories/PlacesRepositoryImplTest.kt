@@ -78,6 +78,41 @@ class PlacesRepositoryImplTest {
     }
 
     @Test
+    fun aPlaceDeletedComesBackAsItWas() = runTest {
+        val places = repository()
+        places.add("Casa", home)
+        val u = places.add("U", university)
+        places.add("Centro comercial", mall)
+        places.delete(u.id)
+
+        assertEquals(u, places.restore(u))
+        // Its name, place, stop and id, between the same two
+        assertEquals(listOf("Casa", "U", "Centro comercial"), places.places.value.map { it.name })
+        assertEquals(u, places.places.value[1])
+        val again = repository()
+        again.load()
+        assertEquals(places.places.value, again.places.value)
+    }
+
+    @Test
+    fun aPlaceDeletedComesBackBeforeOneSavedMeanwhileInItsPlace() = runTest {
+        val places = repository()
+        places.add("Casa", home)
+        val u = places.add("U", university)
+        places.delete(u.id)
+        // The last one gone, the next takes its position, and its id too
+        val mallSaved = places.add("Centro comercial", mall)
+        assertEquals(u.id, mallSaved.id)
+
+        val back = places.restore(u)
+
+        assertEquals(listOf("Casa", "U", "Centro comercial"), places.places.value.map { it.name })
+        assertEquals(u.copy(id = back.id), back)
+        assertTrue(back.id != mallSaved.id)
+        assertEquals(listOf(0, 1, 2), places.places.value.map { it.position })
+    }
+
+    @Test
     fun aNameMustHoldSomething() = runTest {
         val places = repository()
         assertThrowsSuspend<IllegalArgumentException> { places.add("   ", home) }

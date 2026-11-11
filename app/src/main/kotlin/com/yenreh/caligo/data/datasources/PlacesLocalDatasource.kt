@@ -2,6 +2,7 @@ package com.yenreh.caligo.data.datasources
 
 import android.content.ContentValues
 import android.database.Cursor
+import android.database.DatabaseUtils
 import android.database.sqlite.SQLiteDatabase
 import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.PlaceKind
@@ -34,6 +35,26 @@ class PlacesLocalDatasource(
 
     suspend fun delete(id: Long) {
         db { delete(TABLE, "id = ?", arrayOf(id.toString())) }
+    }
+
+    /**
+     * [place] as it was, at its position, the places from there on one
+     * further should one hold it now; under its id unless another took it
+     */
+    suspend fun restore(place: FavoritePlace): FavoritePlace = db {
+        beginTransaction()
+        try {
+            if (DatabaseUtils.queryNumEntries(this, TABLE, "position = ?", arrayOf(place.position.toString())) > 0) {
+                execSQL("UPDATE $TABLE SET position = position + 1 WHERE position >= ?", arrayOf(place.position))
+            }
+            val values = place.toValues()
+            if (DatabaseUtils.queryNumEntries(this, TABLE, "id = ?", arrayOf(place.id.toString())) == 0L) values.put("id", place.id)
+            val id = insertOrThrow(TABLE, null, values)
+            setTransactionSuccessful()
+            place.copy(id = id)
+        } finally {
+            endTransaction()
+        }
     }
 
     private fun Cursor.toPlaces(): List<FavoritePlace> {

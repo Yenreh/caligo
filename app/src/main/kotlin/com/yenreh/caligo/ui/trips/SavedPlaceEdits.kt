@@ -41,7 +41,17 @@ internal class SavedPlaceEdits(
         change { places.rename(id, clean) }
     }
 
-    fun delete(id: Long) = change { places.delete(id) }
+    /** Delete the place [id], then hand it to [onDeleted] as it was, for an Undo */
+    fun delete(id: Long, onDeleted: (FavoritePlace) -> Unit) {
+        val place = places.places.value.firstOrNull { it.id == id } ?: return
+        change {
+            places.delete(id)
+            onDeleted(place)
+        }
+    }
+
+    /** Put [place] back as it was before it was deleted */
+    fun restore(place: FavoritePlace) = change { places.restore(place) }
 
     private fun change(block: suspend () -> Unit) {
         scope.launch {

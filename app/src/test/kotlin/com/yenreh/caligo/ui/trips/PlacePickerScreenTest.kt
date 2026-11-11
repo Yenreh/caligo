@@ -419,6 +419,12 @@ class PlacePickerScreenTest {
         compose.waitUntil(WAIT_TIMEOUT_MS) { !savedExists("Mamá") }
         savedTile("U").assertExists()
         assertFalse(exists(hasTestTag("place_sheet")))
+
+        // Undo puts it back where it was, first
+        compose.onNodeWithText("Mamá deleted").assertExists()
+        compose.onNodeWithText("Undo").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { savedExists("Mamá") }
+        assertTrue(savedTile("Mamá").fetchSemanticsNode().boundsInRoot.top < savedTile("U").fetchSemanticsNode().boundsInRoot.top)
     }
 
     @Test

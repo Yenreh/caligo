@@ -31,6 +31,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -55,6 +56,7 @@ import com.yenreh.caligo.ui.lab.LabTopBar
 import com.yenreh.caligo.ui.lab.labBottomInset
 import com.yenreh.caligo.ui.lab.labSideInsets
 import com.yenreh.caligo.ui.lab.rememberLabSnackbars
+import com.yenreh.caligo.ui.lab.rememberUndoTime
 import com.yenreh.caligo.ui.stops.Chevron
 import com.yenreh.caligo.ui.stops.StopsViewModel
 import com.yenreh.caligo.ui.theme.LabText
@@ -129,12 +131,19 @@ fun PlacePickerScreen(
 
     val couldNotLocate = stringResource(R.string.could_not_locate)
     val couldNotSave = stringResource(R.string.could_not_save_place)
+    val resources = LocalResources.current
+    val undoTime = rememberUndoTime()
     LaunchedEffect(viewModel) {
         viewModel.events.collect {
             when (it) {
                 is PlacePickerEvent.Picked -> picked(it.place)
                 PlacePickerEvent.CouldNotLocate -> snackbars.show(couldNotLocate, LabTone.WARN)
                 PlacePickerEvent.CouldNotSavePlace -> snackbars.show(couldNotSave, LabTone.CRIT)
+                is PlacePickerEvent.PlaceDeleted -> snackbars.showTimed(
+                    resources.getString(R.string.place_deleted, it.place.name),
+                    resources.getString(R.string.undo),
+                    undoTime,
+                ) { viewModel.restorePlace(it.place) }
             }
         }
     }

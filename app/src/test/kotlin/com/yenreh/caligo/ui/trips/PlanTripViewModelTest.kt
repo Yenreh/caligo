@@ -574,6 +574,41 @@ class PlanTripViewModelTest {
     }
 
     @Test
+    fun undoingADeletionPutsTheFieldShowingThePlaceBackAsItWas() = test {
+        places = FakePlacesRepository(listOf(home))
+        val model = viewModel(repository(), destination = null)
+        model.planTo(home)
+        val shown = model.screen.value.to
+
+        model.deletePlace(home.id)
+        val deleted = withTimeoutOrNull(1_000) { model.deletedPlaces.first() }
+        assertEquals(home, deleted)
+        assertNull(model.screen.value.savedTo)
+
+        model.restorePlace(home)
+        assertEquals(listOf(home), model.screen.value.places)
+        assertEquals(shown, model.screen.value.to)
+        assertEquals(home, model.screen.value.savedTo)
+        // Followed again: a rename reaches it
+        model.renamePlace(home.id, "Mi casa")
+        assertEquals("Mi casa", model.screen.value.to?.name)
+    }
+
+    @Test
+    fun aFieldChangedSinceADeletionStaysAsItIsOnUndo() = test {
+        places = FakePlacesRepository(listOf(home))
+        val model = viewModel(repository(), destination = null)
+        model.planTo(home)
+        model.deletePlace(home.id)
+        val other = to.copy(latitude = to.latitude + 0.01, name = "Elsewhere")
+        model.choose(origin = false, place = other)
+
+        model.restorePlace(home)
+
+        assertEquals(other, model.screen.value.to)
+    }
+
+    @Test
     fun deletingAPlaceEmptiesItsStarAndKeepsTheField() = test {
         places = FakePlacesRepository(listOf(home))
         val model = viewModel(repository())

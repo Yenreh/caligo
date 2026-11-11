@@ -28,4 +28,11 @@ interface PlacesRepository {
     suspend fun rename(id: Long, name: String)
 
     suspend fun delete(id: Long)
+
+    /**
+     * Put [place] back as it was before it was deleted, as Undo does: its
+     * name, where it is, its stop and its place in the order, under its
+     * own id unless another place took it meanwhile
+     */
+    suspend fun restore(place: FavoritePlace): FavoritePlace
 }

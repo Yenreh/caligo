@@ -47,5 +47,11 @@ class PlacesRepositoryImpl(private val local: PlacesLocalDatasource) : PlacesRep
         load()
     }
 
+    override suspend fun restore(place: FavoritePlace): FavoritePlace {
+        val restored = local.restore(place)
+        load()
+        return restored
+    }
+
     private fun cleaned(name: String) = requireNotNull(FavoritePlace.cleanName(name)) { "A place needs a name" }
 }

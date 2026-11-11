@@ -55,6 +55,20 @@ class FakePlacesRepository(private val stored: List<FavoritePlace> = emptyList()
         load()
     }
 
+    /** As storage does: at its position, the rest from there on one further, under its id while free */
+    override suspend fun restore(place: FavoritePlace): FavoritePlace {
+        failure?.let { throw it }
+        val shifted = if (all.any { it.position == place.position }) {
+            all.map { if (it.position >= place.position) it.copy(position = it.position + 1) else it }
+        } else {
+            all
+        }
+        val restored = if (all.any { it.id == place.id }) place.copy(id = all.maxOf { it.id } + 1) else place
+        all = (shifted + restored).sortedWith(compareBy({ it.position }, { it.id }))
+        load()
+        return restored
+    }
+
     private fun cleaned(name: String): String {
         names.add(name)
         return requireNotNull(FavoritePlace.cleanName(name)) { "A place needs a name" }

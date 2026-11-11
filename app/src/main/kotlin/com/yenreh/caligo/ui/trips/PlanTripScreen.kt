@@ -67,6 +67,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
@@ -106,6 +107,7 @@ import com.yenreh.caligo.ui.lab.labBottomInset
 import com.yenreh.caligo.ui.lab.labLargeText
 import com.yenreh.caligo.ui.lab.labSideInsets
 import com.yenreh.caligo.ui.lab.rememberLabSnackbars
+import com.yenreh.caligo.ui.lab.rememberUndoTime
 import com.yenreh.caligo.ui.map.LabMap
 import com.yenreh.caligo.ui.map.LabMapMarker
 import com.yenreh.caligo.ui.map.LabMapPolyline
@@ -228,6 +230,17 @@ fun PlanTripScreen(
                 PlanTripMessage.COULD_NOT_PLAN -> snackbars.show(couldNotPlan, LabTone.CRIT)
                 PlanTripMessage.COULD_NOT_SAVE_PLACE -> snackbars.show(couldNotSavePlace, LabTone.CRIT)
             }
+        }
+    }
+    val resources = LocalResources.current
+    val undoTime = rememberUndoTime()
+    LaunchedEffect(viewModel) {
+        viewModel.deletedPlaces.collect { place ->
+            snackbars.showTimed(
+                resources.getString(R.string.place_deleted, place.name),
+                resources.getString(R.string.undo),
+                undoTime,
+            ) { viewModel.restorePlace(place) }
         }
     }
 

@@ -567,6 +567,33 @@ class PlanTripScreenTest {
         compose.onNodeWithTag("place_delete").performClick()
         compose.waitUntil(WAIT_TIMEOUT_MS) { model.screen.value.places.isEmpty() }
         compose.onNodeWithContentDescription("Save Destination as a place").assertExists()
+
+        // Undo puts it back under its name, its star filled again
+        compose.onNodeWithText("Mi casa deleted").assertExists()
+        compose.onNodeWithText("Undo").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { model.screen.value.places.map { it.name } == listOf("Mi casa") }
+        compose.onNodeWithContentDescription("Edit the saved place Mi casa").assertExists()
+        compose.onNodeWithTag("destination_field").assert(hasText("Destination"))
+    }
+
+    @Test
+    fun undoingTheDeletionOfAChipPlannedToShowsItInTheFieldAgain() {
+        trips.places = FakePlacesRepository(listOf(home, work))
+        val model = trips.planner(destination = null)
+        show(model)
+        chip("Casa").performClick()
+        waitFor(hasTestTag("option_0"))
+
+        compose.onNodeWithContentDescription("Edit the saved place Casa").performClick()
+        compose.onNodeWithTag("place_delete").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { model.screen.value.places == listOf(work) }
+        compose.onNodeWithTag("destination_field").assert(hasText(home.label))
+        compose.onNodeWithText("Casa deleted").assertExists()
+        compose.onNodeWithText("Undo").performClick()
+
+        compose.waitUntil(WAIT_TIMEOUT_MS) { model.screen.value.places == listOf(home, work) }
+        compose.onNodeWithTag("destination_field").assert(hasText("Casa"))
+        compose.onNodeWithContentDescription("Edit the saved place Casa").assertExists()
     }
 
     @Test

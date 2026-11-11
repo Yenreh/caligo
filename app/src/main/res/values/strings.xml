@@ -280,6 +280,7 @@
     <string name="delete_place">Delete place</string>
     <string name="save_place_action">Save %1$s as a place</string>
     <string name="edit_place_action">Edit the saved place %1$s</string>
+    <string name="place_deleted">%1$s deleted</string>
     <string name="plan_to_place">Plan a trip to %1$s</string>
     <string name="could_not_save_place">Could not save the place</string>
     <string name="use_point">Use this point</string>

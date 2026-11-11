@@ -276,6 +276,7 @@
     <string name="delete_place">Eliminar lugar</string>
     <string name="save_place_action">Guardar %1$s como lugar</string>
     <string name="edit_place_action">Editar el lugar guardado %1$s</string>
+    <string name="place_deleted">Se eliminó %1$s</string>
     <string name="plan_to_place">Planear un viaje a %1$s</string>
     <string name="could_not_save_place">No se pudo guardar el lugar</string>
     <string name="use_point">Usar este punto</string>
