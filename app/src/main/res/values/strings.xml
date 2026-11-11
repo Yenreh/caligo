@@ -333,7 +333,7 @@
     <string name="trip_title">%1$s to %2$s</string>
     <string name="trip_from">From %1$s</string>
     <string name="trip_where_off">Where do you get off?</string>
-    <string name="trip_skip">Just follow the ride</string>
+    <string name="trip_skip">Follow without a warning</string>
     <string name="trip_not_on_route">The routes of the %1$s do not show this stop, so there is no ride to follow.</string>
     <string name="trip_minutes">%1$s min</string>
     <string name="trip_you_get_off">You get off here</string>

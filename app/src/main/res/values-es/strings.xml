@@ -329,7 +329,7 @@
     <string name="trip_title">%1$s a %2$s</string>
     <string name="trip_from">Desde %1$s</string>
     <string name="trip_where_off">¿Dónde te bajas?</string>
-    <string name="trip_skip">Solo seguir el viaje</string>
+    <string name="trip_skip">Seguir sin aviso</string>
     <string name="trip_not_on_route">Las rutas del %1$s no muestran esta parada, así que no hay viaje que seguir.</string>
     <string name="trip_minutes">%1$s min</string>
     <string name="trip_you_get_off">Te bajas aquí</string>
