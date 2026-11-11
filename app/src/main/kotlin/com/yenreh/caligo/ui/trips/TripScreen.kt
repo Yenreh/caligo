@@ -330,9 +330,12 @@ private fun FinishedSnackbar(finishing: FinishingTrip?, snackbars: LabSnackbars,
     val resources = LocalResources.current
     val now = LocalNow.current
     val undo by rememberUpdatedState(onUndo)
-    LaunchedEffect(finishing, snackbars) {
-        val shown = finishing ?: return@LaunchedEffect
-        val left = (shown.until - now()).coerceAtLeast(0).milliseconds
+    // By the Finish, not by the trip, which moves on underneath: one Finish, one snackbar
+    val started = finishing?.journey?.startedAt
+    val until = finishing?.until
+    LaunchedEffect(started, until, snackbars) {
+        if (until == null) return@LaunchedEffect
+        val left = (until - now()).coerceAtLeast(0).milliseconds
         val job = snackbars.showTimed(resources.getString(R.string.trip_finished_title), resources.getString(R.string.undo), left) { undo() }
         try {
             awaitCancellation()

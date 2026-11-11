@@ -192,6 +192,29 @@ class TripScreenTest {
     }
 
     @Test
+    fun oneFinishShowsOneUndoForItsWholeWindowThoughTheTripMovesUnderneath() {
+        show()
+        waitFor("trip_choose")
+        choose(TripFixtures.out[7].stopId)
+        waitFor("trip_finish")
+        compose.onNodeWithTag("trip_finish").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasText("Undo")).fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.waitForIdle()
+        val shown = compose.onAllNodes(hasText("Trip finished")).fetchSemanticsNodes().map { it.id }
+        // A fix, a bus round and a step change the trip under the Finish
+        for (along in listOf(400.0, 800.0, 1200.0)) {
+            val finishing = checkNotNull(trips.finishing.value)
+            trips.finishing.value = finishing.copy(journey = finishing.journey.fixed(TripFixtures.fix(along, NOW)))
+            compose.mainClock.advanceTimeBy(1_000)
+            compose.waitForIdle()
+        }
+        // The same snackbar all along, never taken away and shown again
+        assertEquals(1, shown.size)
+        assertEquals(shown, compose.onAllNodes(hasText("Trip finished")).fetchSemanticsNodes().map { it.id })
+    }
+
+    @Test
     fun theUndoGoesAsTheFinishTakesEffect() {
         show()
         waitFor("trip_choose")
