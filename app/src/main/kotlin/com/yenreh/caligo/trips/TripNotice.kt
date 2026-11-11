@@ -251,8 +251,7 @@ data class TripNotice(
             val progress = trip.progress(now)
             val estimated = progress.source == TripSource.ESTIMATE
             val target = plan.stops[plan.target]
-            val toTarget = trip.millisTo(plan.target, now)
-            val minutes = trip.minutes(toTarget)
+            val minutes = trip.minutesTo(plan.target, now)
             val left = progress.stopsLeft
             val next = (progress.stop + 1).coerceAtMost(plan.target)
             val title: String

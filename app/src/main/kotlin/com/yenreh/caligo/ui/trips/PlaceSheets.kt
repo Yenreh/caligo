@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.InputTransformation
-import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.maxLength
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
@@ -146,9 +145,9 @@ private fun PlaceNameContent(
     onDismiss: () -> Unit,
     onSave: (name: String) -> Unit,
     onDelete: (() -> Unit)? = null,
-    name: TextFieldState = rememberTextFieldState(initial, TextRange(0, initial.length)),
 ) {
     val p = LabTheme.palette
+    val name = rememberTextFieldState(initial, TextRange(0, initial.length))
     val focus = remember { FocusRequester() }
     val clean = FavoritePlace.cleanName(name.text.toString())
     val save = { clean?.let(onSave) }

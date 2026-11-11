@@ -39,13 +39,13 @@ interface TripControl {
     fun start(start: TripStart)
 
     /** "I took it" on a wait of the rider's own for a line the trip awaits: whether it took that bus as its ride */
-    fun took(took: TookRide): Boolean = false
+    fun took(took: TookRide): Boolean
 
     /** The buses the trip awaits for the ride ahead, soonest first */
     val awaited: StateFlow<List<AwaitedLine>>
 
     /** "I took the [line]" on the screen: the ride awaited taken on that line */
-    fun takeLine(line: String) {}
+    fun takeLine(line: String)
 
     /** Get off at [alight] instead, or just follow the ride when null */
     fun alightAt(alight: Int?)

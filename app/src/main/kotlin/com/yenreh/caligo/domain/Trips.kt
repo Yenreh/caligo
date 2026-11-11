@@ -252,8 +252,8 @@ data class Trip(
     /** Estimated milliseconds from where the rider is at [now] to stop [index] */
     fun millisTo(index: Int, now: Long): Long = (secondsTo(index, progress(now).along) * 1000).toLong()
 
-    /** Whole minutes to show for [millis], at least 1 while not there */
-    fun minutes(millis: Long): Int = minutesOf(millis)
+    /** Whole minutes to show from where the rider is at [now] to stop [index], at least 1 while not there */
+    fun minutesTo(index: Int, now: Long): Int = minutesOf(millisTo(index, now))
 
     // Both start at 0 at the first stop
     private fun secondsAt(along: Double): Double = interpolate(route.at, seconds, along)

@@ -354,7 +354,7 @@ private fun Choosing(plan: TripPlan, from: String?, onChoose: (Int?) -> Unit, mo
         }
         items(plan.ahead.toList(), key = { "stop:$it" }) { index ->
             val stop = plan.stops[index]
-            val minutes = estimate.minutes(estimate.millisTo(index, at))
+            val minutes = estimate.minutesTo(index, at)
             LabListTile(
                 title = stop.name,
                 subtitle = stringResource(R.string.trip_minutes, "~$minutes"),
@@ -488,7 +488,7 @@ private fun RideHeading(trip: Trip, at: Long) {
         },
     )
     if (progress.stopsLeft > 0) {
-        val minutes = trip.minutes(trip.millisTo(plan.target, at))
+        val minutes = trip.minutesTo(plan.target, at)
         Detail(
             pluralStringResource(
                 R.plurals.trip_heading_detail,
@@ -523,7 +523,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.rideStops(trip: Trip,
         val p = LabTheme.palette
         val stop = plan.stops[index]
         val alighting = index == plan.alight
-        val minutes = trip.minutes(trip.millisTo(index, at))
+        val minutes = trip.minutesTo(index, at)
         val time = stringResource(R.string.trip_minutes, (if (estimated) "~" else "") + minutes)
         LabListTile(
             title = stop.name,

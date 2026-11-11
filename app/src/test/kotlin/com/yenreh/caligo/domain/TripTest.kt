@@ -27,13 +27,13 @@ class TripTest {
         assertEquals(TripSource.ESTIMATE, progress.source)
         assertEquals(7, progress.stopsLeft)
         assertEquals(7 * stretch * 1000, trip.millisTo(7, NOW).toDouble(), 1000.0)
-        assertEquals(10, trip.minutes(trip.millisTo(7, NOW)))
+        assertEquals(10, trip.minutesTo(7, NOW))
     }
 
     @Test
     fun theLearnedRideFactorStretchesTheTimes() {
         val slow = Trip.start(plan.copy(factor = 1.5), NOW)
-        assertEquals(15, slow.minutes(slow.millisTo(7, NOW)))
+        assertEquals(15, slow.minutesTo(7, NOW))
     }
 
     @Test

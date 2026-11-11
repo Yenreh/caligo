@@ -36,10 +36,10 @@ interface TripSource {
     suspend fun buses(line: String): List<LineBus>
 
     /** Buses on their way to [stops], as the planner asks for them, reusing what it asked lately */
-    suspend fun arrivals(stops: List<LineStop>): LiveArrivals = LiveArrivals.NONE
+    suspend fun arrivals(stops: List<LineStop>): LiveArrivals
 
     /** Teach the planner how the rides just followed ran, by line */
-    suspend fun observeRides(readings: Map<String, Double>) {}
+    suspend fun observeRides(readings: Map<String, Double>)
 }
 
 /** How a trip starts: one ride taken, or a whole option from the planner */
@@ -70,16 +70,16 @@ interface TripHost {
     fun idle()
 
     /** The trip changed: the one running now, if any */
-    fun changed(journey: Journey?) {}
+    fun changed(journey: Journey?)
 
     /** Wait for each of [buses], as far as the cap of a trip's waits allows: the keys of those started */
-    fun startWaits(buses: List<AwaitedBus>): List<WaitKey> = emptyList()
+    fun startWaits(buses: List<AwaitedBus>): List<WaitKey>
 
     /** Stop the waits [keys], without asking */
-    fun stopWaits(keys: List<WaitKey>) {}
+    fun stopWaits(keys: List<WaitKey>)
 
     /** The waits running now */
-    fun runningWaits(): Set<WaitKey> = emptySet()
+    fun runningWaits(): Set<WaitKey>
 
     /** When the soonest bus the trip awaits is due, as its wait reads it at [now]; null with none */
     fun soonestAwaited(now: Long): Long?
@@ -276,14 +276,11 @@ class TripEngine(
         }
     }
 
-    /**
-     * Once a bus is taken the waits for its ride end, and so do those of a
-     * ride left behind; [keep] are ended already, as the one taken
-     */
-    private fun settleWaits(keep: Set<WaitKey> = emptySet()) {
+    /** Once a bus is taken the waits for its ride end, the one taken too, and so do those of a ride left behind */
+    private fun settleWaits() {
         val running = journey ?: return
         if (running.awaited.isEmpty() || running.pendingRide == running.awaitedFor) return
-        host.stopWaits(running.awaited.filter { it !in keep })
+        host.stopWaits(running.awaited)
         journey = running.copy(awaited = emptyList(), awaitedFor = null, awaitedAt = null)
     }
 

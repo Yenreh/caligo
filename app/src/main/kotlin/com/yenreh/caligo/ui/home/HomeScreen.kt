@@ -338,7 +338,7 @@ private fun TripBar(journey: Journey, onTrip: () -> Unit) {
             val plan = trip.plan
             val progress = trip.progress(now)
             val target = plan.stops[plan.target].name
-            val minutes = trip.minutes(trip.millisTo(plan.target, now)).let { if (progress.source == TripSource.ESTIMATE) "~$it" else "$it" }
+            val minutes = trip.minutesTo(plan.target, now).let { if (progress.source == TripSource.ESTIMATE) "~$it" else "$it" }
             val heading = when {
                 plan.alight != null && progress.stopsLeft == 0 -> stringResource(R.string.trip_heading_here)
                 plan.alight != null -> stringResource(R.string.trip_heading_get_off, target)

@@ -97,8 +97,8 @@ class TripRoute(val stops: List<LineStop>) {
      * were; a stop further on that the fix is as close to does not draw
      * them ahead.
      */
-    fun follow(previous: Double, point: GeoPoint, elapsed: Long, anchor: Double = previous, corridor: Double = CORRIDOR): Follow {
-        val snaps = snaps(point, corridor)
+    fun follow(previous: Double, point: GeoPoint, elapsed: Long, anchor: Double = previous): Follow {
+        val snaps = snaps(point)
         if (snaps.isEmpty()) return Follow.Off
         val from = maxOf(previous, anchor)
         val reach = from + MAX_SPEED * elapsed.coerceAtLeast(0) / 1000.0 + REACH_MARGIN_METERS
