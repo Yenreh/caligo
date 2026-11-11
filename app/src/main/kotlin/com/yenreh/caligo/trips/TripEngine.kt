@@ -69,8 +69,8 @@ interface TripHost {
     /** No trip is left: nothing may run any longer */
     fun idle()
 
-    /** The trip changed: the one running now, if any */
-    fun changed(journey: Journey?)
+    /** The trip changed: the one running now, if any, and when its Finish takes effect while it can be undone */
+    fun changed(journey: Journey?, finishingUntil: Long?)
 
     /** Wait for each of [buses], as far as the cap of a trip's waits allows: the keys of those started */
     fun startWaits(buses: List<AwaitedBus>): List<WaitKey>
@@ -109,8 +109,18 @@ class TripEngine(
     var journey: Journey? = null
         private set(value) {
             field = value
-            host.changed(value)
+            host.changed(value, finishingUntil)
         }
+
+    /**
+     * When a Finish takes effect, while it can still be undone; null with
+     * none. Meanwhile the trip runs on underneath as it was, its fixes,
+     * rounds and waits, so an Undo restarts nothing; it only says nothing:
+     * no warning, no bus alert, no last word, and however it would end, it
+     * ends as finished.
+     */
+    var finishingUntil: Long? = null
+        private set
 
     private var loop: Job? = null
     private var request: Job? = null
@@ -127,9 +137,9 @@ class TripEngine(
     /** Whether nothing runs: no beat, no request, no fixes asked */
     val isIdle: Boolean get() = loop?.isActive != true && request == null && asking == null && location.requested == null
 
-    /** Follow what [start] says from now; a trip running ends first, replaced */
+    /** Follow what [start] says from now; a trip running ends first, replaced, or finished if it was finishing */
     fun start(start: TripStart) {
-        journey?.let { finish(it, TripEnding.REPLACED) }
+        journey?.let { close(it, if (finishingUntil != null) TripEnding.FINISHED else TripEnding.REPLACED) }
         roundAt = null
         busNear = false
         journey = start.journey(now())
@@ -143,18 +153,19 @@ class TripEngine(
 
     /** Get off at [alight] instead, or just follow the ride */
     fun alightAt(alight: Int?) {
+        if (finishingUntil != null) return
         val running = journey ?: return
         val ride = running.ride ?: return
         journey = running.copy(ride = ride.alightAt(alight, now()))
         poke.trySend(Unit)
     }
 
-    /** "I took it" on a wait for [took]'s line at the ride waited for; whether the trip took it */
-    fun took(took: TookRide): Boolean = take(journey?.tookIt(took, now()))
+    /** "I took it" on a wait for [took]'s line at the ride waited for; whether the trip took it: never one finishing */
+    fun took(took: TookRide): Boolean = finishingUntil == null && take(journey?.tookIt(took, now()))
 
     /** "I took the [line]" on the screen, or "[line]: I took it" on the notification: the ride awaited taken on that line, every wait of it ending */
     fun takeLine(line: String) {
-        take(journey?.tookLine(line, now()))
+        if (finishingUntil == null) take(journey?.tookLine(line, now()))
     }
 
     /** The trip goes on as [taken], a bus taken, if any: every wait of the ride goes, the one taken too */
@@ -182,14 +193,33 @@ class TripEngine(
         journey = running.copy(declinedFor = running.pendingRide)
     }
 
-    /** End the trip, if one runs */
+    /** Finish: the trip ends as finished [UNDO_WINDOW] from now, unless undone; a Finish again changes nothing */
+    fun finish() {
+        val running = journey ?: return
+        if (finishingUntil != null) return
+        finishingUntil = now() + UNDO_WINDOW_MS
+        host.changed(running, finishingUntil)
+        poke.trySend(Unit)
+    }
+
+    /** Undo a Finish while it can be: the trip goes on as before, and shows so at once */
+    fun undo() {
+        val running = journey ?: return
+        if (finishingUntil == null) return
+        finishingUntil = null
+        host.changed(running, null)
+        poke.trySend(Unit)
+    }
+
+    /** End the trip, if one runs; while finishing, as finished whatever ends it */
     fun end(ending: TripEnding) {
         val running = journey ?: return
-        finish(running, ending)
+        close(running, if (finishingUntil != null) TripEnding.FINISHED else ending)
         stopAll()
     }
 
-    private fun finish(running: Journey, ending: TripEnding) {
+    private fun close(running: Journey, ending: TripEnding) {
+        finishingUntil = null
         journey = null
         request?.cancel()
         request = null
@@ -212,6 +242,8 @@ class TripEngine(
         while (true) {
             val current = journey ?: return
             val now = now()
+            val until = finishingUntil
+            if (until != null && now >= until) return end(TripEnding.FINISHED)
             if (!host.allowed()) return end(TripEnding.BLOCKED)
             if (!location.usable()) return end(TripEnding.NO_LOCATION)
             // Read at every round: the rider may make it precise, or not, meanwhile
@@ -236,9 +268,11 @@ class TripEngine(
             val quality = quality(running, now)
             if (location.requested != quality) location.request(quality, ::fixed, ::lost)
             val wake = rounds(now)
-            val gap = (wake - now).coerceIn(MIN_GAP_MS, BEAT_MS)
+            // Finishing, the beat wakes as the Finish takes effect
+            val gap = (wake - now).coerceIn(MIN_GAP_MS, BEAT_MS).let { g -> until?.let { minOf(g, (it - now).coerceAtLeast(1)) } ?: g }
             host.show(checkNotNull(journey), now, gap)
-            journey = journey?.let { j -> j.ride?.let { j.copy(ride = it.warnedAt(now)) } ?: j }
+            // Finishing, no warning goes out: an Undo still gives it
+            if (until == null) journey = journey?.let { j -> j.ride?.let { j.copy(ride = it.warnedAt(now)) } ?: j }
             withTimeoutOrNull(gap) { poke.receive() }
         }
     }
@@ -388,6 +422,9 @@ class TripEngine(
         /** How often the trip is read and shown between fixes */
         val BEAT = 15.seconds
 
+        /** How long a Finish can be undone, from the screen, the shade or the lock screen */
+        val UNDO_WINDOW = 8.seconds
+
         /** The line's buses, as often as the line screen asks for them */
         val BUS_INTERVAL = LineViewModel.LINE_BUSES_INTERVAL
 
@@ -407,6 +444,7 @@ class TripEngine(
         private val BUS_INTERVAL_MS = BUS_INTERVAL.inWholeMilliseconds
         private val AWAIT_AGAIN_MS = AWAIT_AGAIN.inWholeMilliseconds
         private val AWAITED_NEAR_MS = AWAITED_NEAR.inWholeMilliseconds
+        private val UNDO_WINDOW_MS = UNDO_WINDOW.inWholeMilliseconds
         private val FIX_FRESH_MS = Trip.FIX_FRESH.inWholeMilliseconds
         private const val MIN_GAP_MS = 1_000L
 

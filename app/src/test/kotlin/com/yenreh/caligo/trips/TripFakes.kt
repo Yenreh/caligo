@@ -92,13 +92,15 @@ class FakeTripSource(private val now: () -> Long) : TripSource {
 
 /**
  * The trip as the screens start, change and finish it, recorded: as
- * [TripDesk] with its service running, a start replaces the trip on and a
- * finish ends it, each as [ended] says, and a bus is taken by the trip's
- * own rules
+ * [TripDesk] with its service running, a start replaces the trip on, or
+ * finishes one finishing, a Finish shows it finished until Undo or
+ * [expireFinish], each as [ended] says, and a bus is taken by the trip's
+ * own rules, never by one finishing
  */
 class FakeTripControl(private val now: Long = TripFixtures.NOW) : TripControl {
     override val running = MutableStateFlow<Journey?>(null)
     override val ended = MutableStateFlow<EndedTrip?>(null)
+    override val finishing = MutableStateFlow<FinishingTrip?>(null)
     val starts = mutableListOf<TripStart>()
     val started: List<TripPlan> get() = starts.filterIsInstance<TripStart.Ride>().map { it.plan }
     val alights = mutableListOf<Int?>()
@@ -109,11 +111,14 @@ class FakeTripControl(private val now: Long = TripFixtures.NOW) : TripControl {
 
     override fun start(start: TripStart) {
         starts.add(start)
-        ended.value = running.value?.let { EndedTrip(it, TripEnding.REPLACED) }
+        ended.value = finishing.value?.let { EndedTrip(it.journey, TripEnding.FINISHED) }
+            ?: running.value?.let { EndedTrip(it, TripEnding.REPLACED) }
+        finishing.value = null
         running.value = start.journey(now)
     }
 
     override fun took(took: TookRide): Boolean {
+        if (finishing.value != null) return false
         val taken = running.value?.tookIt(took, now) ?: return false
         tookRides.add(took)
         running.value = taken
@@ -135,6 +140,22 @@ class FakeTripControl(private val now: Long = TripFixtures.NOW) : TripControl {
         val journey = running.value ?: return
         running.value = null
         ended.value = EndedTrip(journey, TripEnding.FINISHED)
+        finishing.value = FinishingTrip(journey, now + TripEngine.UNDO_WINDOW.inWholeMilliseconds)
+    }
+
+    var undone = 0
+
+    override fun undoFinish() {
+        undone++
+        val journey = finishing.value?.journey ?: return
+        finishing.value = null
+        ended.value = null
+        running.value = journey
+    }
+
+    /** The Finish's window runs out: the trip stays finished */
+    fun expireFinish() {
+        finishing.value = null
     }
 
     /** Whether a trip may post, as the trips' channel says */

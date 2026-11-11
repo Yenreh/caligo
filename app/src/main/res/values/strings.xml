@@ -330,6 +330,8 @@
     <string name="trip_chip_next">Next</string>
     <string name="trip_chip_here">Here</string>
     <string name="trip_finish">Finish</string>
+    <string name="trip_end">End trip</string>
+    <string name="trip_finished_title">Trip finished</string>
     <string name="trip_title">%1$s to %2$s</string>
     <string name="trip_from">From %1$s</string>
     <string name="trip_where_off">Where do you get off?</string>

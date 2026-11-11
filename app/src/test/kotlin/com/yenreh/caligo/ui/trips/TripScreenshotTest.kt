@@ -83,6 +83,33 @@ class TripScreenshotTest {
     @Config(fontScale = 2f)
     fun rideFontScale2() = running("trip_ride_font2")
 
+    /** The ride just finished: the screen tells it so, with Undo while it lasts */
+    private fun finished(name: String) {
+        val journey = com.yenreh.caligo.domain.Journey.single(TripFixtures.plan, NOW - 3 * MINUTE).copy(ride = riding)
+        compose.setContentAt(NOW) {
+            CaliGoTheme {
+                TripScreen(
+                    content = TripContent.Ended(com.yenreh.caligo.trips.EndedTrip(journey, com.yenreh.caligo.domain.TripEnding.FINISHED)),
+                    title = "E21 a Universidades",
+                    finishing = com.yenreh.caligo.trips.FinishingTrip(journey, NOW + 8_000),
+                )
+            }
+        }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasText("Deshacer")).fetchSemanticsNodes().isNotEmpty() }
+        compose.captureWindow(name)
+    }
+
+    @Test
+    fun finishedLight() = finished("trip_finished_light")
+
+    @Test
+    @Config(qualifiers = "+night")
+    fun finishedDark() = finished("trip_finished_dark")
+
+    @Test
+    @Config(fontScale = 2f)
+    fun finishedFontScale2() = finished("trip_finished_font2")
+
     /** On the ride with the approximate permission alone: no fix to go by, and why */
     private fun approximate(name: String) = shot(
         name,

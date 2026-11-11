@@ -76,6 +76,62 @@ class TripStartImmediateTest {
         assertEquals(TripEnding.REPLACED, h.desk.ended.value?.ending)
         h.assertRunning()
         h.desk.finish()
+        h.advance(window)
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    // Finish and its Undo, as the main thread runs them
+
+    private val window = TripEngine.UNDO_WINDOW.inWholeMilliseconds
+
+    @Test
+    fun finishThenUndoThenFinishRunningOut() {
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        h.pressTitled("Finish")
+        h.assertFinishing("E21 to Universidades")
+        h.pressTitled("Undo")
+        h.assertRunning()
+        h.desk.finish()
+        h.advance(window)
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun aSwipeWhileFinishing() {
+        h.start(plan)
+        h.desk.finish()
+        h.swipe()
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun anEndingByItselfWhileFinishing() {
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        h.desk.finish()
+        h.location.lose()
+        h.advance(1)
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun anotherRideWhileFinishing() {
+        h.start(plan)
+        h.desk.finish()
+        h.start(plan.copy(alight = 3))
+        assertEquals(TripEnding.FINISHED, h.desk.ended.value?.ending)
+        h.assertRunning()
+        h.desk.finish()
+        h.advance(window)
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun aFinishBeforeTheServiceTookTheStart() {
+        h.desk.start(plan)
+        h.desk.finish()
+        h.start(null)
         h.assertEnded(TripEnding.FINISHED)
     }
 }

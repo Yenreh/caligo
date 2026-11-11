@@ -62,8 +62,17 @@ class TripNoticeScreenshotTest {
         captureNotification(context, TripNotifications.ended(context, notice, Alerts()), "trip_notice_$name", 411 * 3, dark)
     }
 
+    /** [journey] just finished, Undo still able to take it back */
+    private fun captureFinishing(name: String, journey: Journey, dark: Boolean) {
+        TripNotifications.createChannels(context)
+        val words = TripWords(context.resources)
+        val notice = FinishingNotice.of(journey, NOW + 8_000, NOW, words)
+        captureNotification(context, TripNotifications.finishing(context, journey.startedAt, notice, words), "trip_notice_$name", 411 * 3, dark)
+    }
+
     private fun all(language: String, dark: Boolean) {
         val tone = if (dark) "dark" else "light"
+        captureFinishing("finishing_${language}_$tone", planned, dark)
         capture("walk_${language}_$tone", walking, near = true, dark = dark)
         capture("wait_${language}_$tone", waiting, near = true, dark = dark)
         capture("ride_${language}_$tone", riding, near = false, dark = dark)
@@ -92,5 +101,6 @@ class TripNoticeScreenshotTest {
         capture("walk_en_font2", walking, near = true, dark = false)
         capture("ride_en_font2", riding, near = false, dark = false)
         captureEnded("ended_watch_en_font2", waiting, TripEnding.NO_BUS, dark = false)
+        captureFinishing("finishing_en_font2", planned, dark = false)
     }
 }

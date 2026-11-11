@@ -87,7 +87,8 @@ class LabSnackbars(val host: SnackbarHostState, private val scope: CoroutineScop
 
     /**
      * Show [message] with [actionLabel] for [duration], then gone whether
-     * used or not, as an Undo that lapses; [onAction] when used in time
+     * used or not, as an Undo that lapses; [onAction] when used in time.
+     * Cancelling what it returns takes it away sooner.
      */
     fun showTimed(
         message: String,
@@ -95,18 +96,14 @@ class LabSnackbars(val host: SnackbarHostState, private val scope: CoroutineScop
         duration: Duration,
         tone: LabTone? = LabTone.NEUTRAL,
         onAction: () -> Unit,
-    ) {
+    ): Job {
         showing?.cancel()
-        showing = scope.launch {
+        val job = scope.launch {
             val result = withTimeoutOrNull(duration) { host.showSnackbar(LabSnackbarVisuals(message, tone, actionLabel)) }
             if (result == SnackbarResult.ActionPerformed) onAction()
         }
-    }
-
-    /** Take the one showing away */
-    fun dismiss() {
-        showing?.cancel()
-        showing = null
+        showing = job
+        return job
     }
 
     companion object {

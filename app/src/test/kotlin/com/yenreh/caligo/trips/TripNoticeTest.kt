@@ -230,6 +230,38 @@ class TripNoticeTest {
         assertEquals(listOf("E21: lo tomé", "T31: lo tomé", "Terminar"), built.actions.map { it.title.toString() })
     }
 
+    // A trip just finished, while Undo can take it back
+
+    @Test
+    fun aTripJustFinishedSaysSoUnderItsOwnTitleWithUndoAlone() {
+        val ride = Journey.single(plan, NOW)
+        val notice = FinishingNotice.of(ride, NOW + 8_000, NOW + 3_000, words)
+        assertEquals(FinishingNotice("Trip finished", "E21 to Universidades", 5_000 + FinishingNotice.MARGIN_MS), notice)
+        assertEquals("Trip to $DESTINATION", FinishingNotice.of(planned, NOW + 8_000, NOW, words).text)
+        // Past its time, still gone soon after
+        assertEquals(FinishingNotice.MARGIN_MS, FinishingNotice.of(ride, NOW, NOW + 1_000, words).timeoutAfter)
+
+        val shown = TripNotifications.finishing(context, ride.startedAt, notice, words)
+        assertEquals(listOf("Undo"), shown.actions.map { it.title.toString() })
+        assertEquals(TripNotifications.ACTION_UNDO, org.robolectric.Shadows.shadowOf(shown.actions.single().actionIntent).savedIntent.action)
+        assertEquals(TripNotifications.ACTION_DISMISSED, org.robolectric.Shadows.shadowOf(shown.deleteIntent).savedIntent.action)
+        assertEquals(TripChannel.TRIPS.id, shown.channelId)
+        assertEquals(0, shown.flags and android.app.Notification.FLAG_ONGOING_EVENT)
+        assertFalse(NotificationCompat.isRequestPromotedOngoing(shown))
+        assertEquals(null, NotificationCompat.getShortCriticalText(shown))
+        assertEquals(notice.timeoutAfter, shown.timeoutAfter)
+    }
+
+    @Test
+    @Config(qualifiers = "es")
+    fun aTripJustFinishedInSpanish() {
+        val es = TripWords(ApplicationProvider.getApplicationContext<Context>().resources)
+        val notice = FinishingNotice.of(Journey.single(plan, NOW), NOW + 8_000, NOW, es)
+        assertEquals("Viaje terminado", notice.title)
+        assertEquals("E21 a Universidades", notice.text)
+        assertEquals(listOf("Deshacer"), TripNotifications.finishing(context, NOW, notice, es).actions.map { it.title.toString() })
+    }
+
     @Test
     fun noPhaseShowsAClockButTheChipKeepsTheMinutes() {
         for (journey in listOf(walking, waiting, riding)) {

@@ -63,6 +63,8 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.awaitCancellation
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.Journey
@@ -75,6 +77,7 @@ import com.yenreh.caligo.domain.TripSource
 import com.yenreh.caligo.trips.AwaitedLine
 import com.yenreh.caligo.trips.TripWords
 import com.yenreh.caligo.trips.EndedTrip
+import com.yenreh.caligo.trips.FinishingTrip
 import com.yenreh.caligo.ui.common.LiveClock
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.common.LocalNow
@@ -132,6 +135,7 @@ fun TripRoute(viewModel: TripViewModel, onBack: () -> Unit, tiles: TripMapTiles?
     val running by viewModel.trips.running.collectAsStateWithLifecycle()
     val ended by viewModel.trips.ended.collectAsStateWithLifecycle()
     val awaited by viewModel.trips.awaited.collectAsStateWithLifecycle()
+    val finishing by viewModel.trips.finishing.collectAsStateWithLifecycle()
     val took = viewModel.took
     val content = when {
         !screen.started -> when (val plan = screen.plan) {
@@ -149,7 +153,7 @@ fun TripRoute(viewModel: TripViewModel, onBack: () -> Unit, tiles: TripMapTiles?
     LaunchedEffect(screen.stale) { if (screen.stale) onBack() }
     TripScreen(
         content = content,
-        title = shown?.let { journeyTitle(it) }
+        title = shown?.let { rememberTripWords().title(it) }
             ?: took?.let { stringResource(R.string.trip_title, it.line, it.destination) }
             ?: stringResource(R.string.trip_channel),
         subtitle = (shown?.takeIf { !it.planned }?.ride?.plan?.took ?: took?.takeIf { shown == null })
@@ -161,10 +165,10 @@ fun TripRoute(viewModel: TripViewModel, onBack: () -> Unit, tiles: TripMapTiles?
         onAlight = viewModel::alightAt,
         awaited = awaited,
         onTookLine = viewModel::takeLine,
-        onFinish = {
-            viewModel.finish()
-            onBack()
-        },
+        // The screen stays, the trip shown as finished, with Undo
+        onFinish = viewModel::finish,
+        finishing = finishing,
+        onUndoFinish = viewModel::undoFinish,
         message = screen.message,
         onMessageSettings = { message ->
             viewModel.dismissMessage()
@@ -172,14 +176,6 @@ fun TripRoute(viewModel: TripViewModel, onBack: () -> Unit, tiles: TripMapTiles?
         },
         onMessageDismiss = viewModel::dismissMessage,
     )
-}
-
-/** A planner trip by where it goes, a single ride by its line */
-@Composable
-private fun journeyTitle(journey: Journey): String {
-    if (journey.planned) return stringResource(R.string.trip_to_destination, journey.destinationName)
-    val took = journey.ride?.plan?.took ?: return stringResource(R.string.trip_channel)
-    return stringResource(R.string.trip_title, took.line, took.destination)
 }
 
 /** Opens the settings that fix what [TripMessage] says is missing */
@@ -228,12 +224,16 @@ fun TripScreen(
     /** "I took the A47", while waiting at the stop or near it on foot */
     onTookLine: (String) -> Unit = {},
     onFinish: () -> Unit = {},
+    /** The trip just finished, while Undo can take it back */
+    finishing: FinishingTrip? = null,
+    onUndoFinish: () -> Unit = {},
     message: TripMessage? = null,
     onMessageSettings: (TripMessage) -> Unit = {},
     onMessageDismiss: () -> Unit = {},
 ) {
     val p = LabTheme.palette
     val snackbars = rememberLabSnackbars()
+    FinishedSnackbar(finishing, snackbars, onUndoFinish)
     LiveClock {
         Scaffold(
             modifier = modifier.fillMaxSize(),
@@ -253,13 +253,14 @@ fun TripScreen(
                                 .testTag("trip_skip"),
                         ) { Text(stringResource(R.string.trip_skip)) }
                     }
+                    // Outlined, as a mistaken tap has Undo
                     is TripContent.Running -> BottomButton {
-                        LabFilledButton(
+                        LabOutlinedButton(
                             onClick = onFinish,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("trip_finish"),
-                        ) { Text(stringResource(R.string.trip_finish)) }
+                        ) { Text(stringResource(R.string.trip_end)) }
                     }
                     else -> {}
                 }
@@ -316,6 +317,29 @@ fun TripScreen(
         }
     }
     message?.let { TripMessageDialog(it, onSettings = { onMessageSettings(it) }, onDismiss = onMessageDismiss) }
+}
+
+/**
+ * "Trip finished" with Undo while [finishing] lasts: gone as it ends,
+ * undone, run out or taken by another trip, never before, so its Undo
+ * always works. It keeps to the service's window, not to the longer one
+ * a screen reader may ask for.
+ */
+@Composable
+private fun FinishedSnackbar(finishing: FinishingTrip?, snackbars: LabSnackbars, onUndo: () -> Unit) {
+    val resources = LocalResources.current
+    val now = LocalNow.current
+    val undo by rememberUpdatedState(onUndo)
+    LaunchedEffect(finishing, snackbars) {
+        val shown = finishing ?: return@LaunchedEffect
+        val left = (shown.until - now()).coerceAtLeast(0).milliseconds
+        val job = snackbars.showTimed(resources.getString(R.string.trip_finished_title), resources.getString(R.string.undo), left) { undo() }
+        try {
+            awaitCancellation()
+        } finally {
+            job.cancel()
+        }
+    }
 }
 
 /** The map's share of the window: enough to see the stretch ahead, the words below it at any text size */

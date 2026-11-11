@@ -43,6 +43,11 @@ import kotlinx.coroutines.cancel
  * process start. A trip that ends by itself leaves a last word, not
  * ongoing, that goes by its own timeout, a tap or the next start.
  *
+ * Finish leaves the trip running for [TripEngine.UNDO_WINDOW] under a
+ * notification of its own, "Trip finished" with Undo, silent and gone by
+ * itself soon after: a swipe of it, or the time running out, ends the
+ * trip as finished, and nothing of it is left after that.
+ *
  * Apart from the wait service, with ids and channels of its own, but for
  * the alert of an awaited bus, on the waits' alert channel as a wait's: the
  * rider's own waits keep their notifications and foreground state there,
@@ -137,6 +142,11 @@ class TripService : Service(), TripHost {
 
     internal fun end(ending: TripEnding) = engine.end(ending)
 
+    /** Finish, which can be undone for a while */
+    internal fun finish() = engine.finish()
+
+    internal fun undo() = engine.undo()
+
     internal fun takeLine(line: String) = engine.takeLine(line)
 
     /** A trip wait's bell tapped on a row: the rider stops awaiting that bus, and its ride is not asked for again */
@@ -154,6 +164,9 @@ class TripService : Service(), TripHost {
     override fun allowed(): Boolean = TripNotifications.allowed(this)
 
     private fun notification(journey: Journey, now: Long, nextPostIn: Long): Notification {
+        // Finishing: what Undo takes back, and nothing that alerts
+        val until = engine.finishingUntil.takeIf { journey.startedAt == engine.journey?.startedAt }
+        if (until != null) return TripNotifications.finishing(this, journey.startedAt, FinishingNotice.of(journey, until, now, words), words)
         val alerts = desk.alerts()
         val warningOn = channelOn(this, TripChannel.warning(alerts))
         val awaited = awaitedLines(journey, now)
@@ -216,8 +229,8 @@ class TripService : Service(), TripHost {
         stopSelfResult(lastStartId)
     }
 
-    override fun changed(journey: Journey?) {
-        desk.changed(journey)
+    override fun changed(journey: Journey?, finishingUntil: Long?) {
+        desk.changed(journey, finishingUntil)
     }
 
     // Waits as the rider's own, each with its notification and "I took it", run here

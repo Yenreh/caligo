@@ -105,6 +105,30 @@ data class EndedNotice(val title: String, val text: String, val channel: TripCha
 }
 
 /**
+ * A trip just finished, while its Finish can be undone: "Trip finished",
+ * the trip's own title below it, with Undo, until [until]. No chip and no
+ * bar, as nothing of it is under way any longer. A pure function of the
+ * trip and the time, built into a notification by [TripNotifications].
+ */
+data class FinishingNotice(
+    val title: String,
+    val text: String,
+    /** Gone by itself this long after it is posted: past the Finish taking effect */
+    val timeoutAfter: Long,
+) {
+    companion object {
+        fun of(journey: Journey, until: Long, now: Long, words: TripWords) = FinishingNotice(
+            title = words.finished,
+            text = words.title(journey),
+            timeoutAfter = (until - now).coerceAtLeast(0) + MARGIN_MS,
+        )
+
+        /** Past the Finish taking effect, should the service be late to end it */
+        const val MARGIN_MS = 5_000L
+    }
+}
+
+/**
  * A trip's notification as it reads at a moment: a pure function of the
  * trip, the time and the alert settings, built into a notification by
  * [TripNotifications].
@@ -376,6 +400,17 @@ class TripWords(private val resources: Resources) {
     val chipHere: String get() = resources.getString(R.string.trip_chip_here)
 
     val finish: String get() = resources.getString(R.string.trip_finish)
+
+    val finished: String get() = resources.getString(R.string.trip_finished_title)
+
+    val undo: String get() = resources.getString(R.string.undo)
+
+    /** "Trip to Unicentro" for a planner trip, "E21 to Universidades" for a single ride */
+    fun title(journey: Journey): String {
+        if (journey.planned) return resources.getString(R.string.trip_to_destination, journey.destinationName)
+        val took = journey.ride?.plan?.took ?: return resources.getString(R.string.trip_channel)
+        return resources.getString(R.string.trip_title, took.line, took.destination)
+    }
 
     val ended: String get() = resources.getString(R.string.trip_ended_title)
 

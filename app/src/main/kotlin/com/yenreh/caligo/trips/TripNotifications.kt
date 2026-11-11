@@ -40,6 +40,9 @@ object TripNotifications {
     const val ACTION_FINISH = "com.yenreh.caligo.trip.FINISH"
     const val ACTION_DISMISSED = "com.yenreh.caligo.trip.DISMISSED"
 
+    /** Undo on a trip just finished: it goes on as before */
+    const val ACTION_UNDO = "com.yenreh.caligo.trip.UNDO"
+
     /** "A47: I took it": the trip takes that line for the ride it awaits */
     const val ACTION_TAKE_LINE = "com.yenreh.caligo.trip.TAKE_LINE"
     const val EXTRA_LINE = "line"
@@ -102,6 +105,29 @@ object TripNotifications {
         return builder.asChannelBeforeO(notice.alerting, alerts, VIBRATION).build()
     }
 
+    /**
+     * [notice] of the trip started at [startedAt], just finished, as its
+     * notification: silent, neither ongoing nor a Live Update, its one
+     * action Undo, which works from the lock screen too; a swipe ends the
+     * trip at once
+     */
+    fun finishing(context: Context, startedAt: Long, notice: FinishingNotice, words: TripWords): Notification =
+        NotificationCompat.Builder(context, TripChannel.TRIPS.id)
+            .setSmallIcon(R.drawable.ic_directions_bus)
+            .setContentTitle(notice.title)
+            .setContentText(notice.text)
+            .setTicker("${notice.title}, ${notice.text}")
+            .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            .setSilent(true)
+            .setOnlyAlertOnce(true)
+            .setTimeoutAfter(notice.timeoutAfter)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .setShowWhen(false)
+            .setContentIntent(openTrip(context))
+            .setDeleteIntent(action(context, startedAt, ACTION_DISMISSED))
+            .addAction(0, words.undo, action(context, startedAt, ACTION_UNDO))
+            .build()
+
     /** [notice] of the trip started at [startedAt] as its notification */
     fun build(context: Context, startedAt: Long, notice: TripNotice, alerts: Alerts, words: TripWords): Notification {
         val builder = NotificationCompat.Builder(context, notice.channelId)
@@ -150,7 +176,11 @@ object TripNotifications {
             .putExtra(EXTRA_STARTED_AT, startedAt)
         return PendingIntent.getBroadcast(
             context,
-            if (name == ACTION_FINISH) 1 else 2,
+            when (name) {
+                ACTION_FINISH -> 1
+                ACTION_UNDO -> 3
+                else -> 2
+            },
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

@@ -327,6 +327,8 @@
     <string name="trip_chip_next">Próx.</string>
     <string name="trip_chip_here">Aquí</string>
     <string name="trip_finish">Terminar</string>
+    <string name="trip_end">Terminar viaje</string>
+    <string name="trip_finished_title">Viaje terminado</string>
     <string name="trip_title">%1$s a %2$s</string>
     <string name="trip_from">Desde %1$s</string>
     <string name="trip_where_off">¿Dónde te bajas?</string>

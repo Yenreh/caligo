@@ -130,10 +130,10 @@ class TripHarness(private val immediate: Boolean = false) {
         }
     }
 
-    /** [millis] of fixes every 15 s where [pointAt] puts the rider, none where it gives null */
+    /** [millis] of fixes every 15 s where [pointAt] puts the rider, none where it gives null, while a trip runs or finishes */
     fun move(millis: Long, pointAt: (Long) -> com.yenreh.caligo.domain.GeoPoint?) {
         val end = now() + millis
-        while (now() < end && desk.running.value != null) {
+        while (now() < end && (desk.running.value != null || desk.finishing.value != null)) {
             pointAt(now())?.let { location.emit(com.yenreh.caligo.domain.TripFix(it, 10.0, now())) }
             advance(minOf(FIX_EVERY, end - now()))
         }
@@ -212,8 +212,40 @@ class TripHarness(private val immediate: Boolean = false) {
         assertNull(shown)
     }
 
+    /**
+     * The trip just finished, Undo able to take it back: shown as finished,
+     * not as running, under one notification, "Trip finished" with the
+     * trip's title and Undo alone, silent, neither ongoing nor a Live Update
+     * and gone soon by itself; underneath, the service still in the
+     * foreground, its fixes asked and its waits running, as they were
+     */
+    fun assertFinishing(title: String) {
+        // Shown as the trip's beat next runs
+        scheduler.runCurrent()
+        val finishing = checkNotNull(desk.finishing.value) { "not finishing" }
+        assertNull("not shown as running", desk.running.value)
+        assertEquals(TripEnding.FINISHED, desk.ended.value?.ending)
+        val shown = checkNotNull(shown) { "no notification" }
+        assertEquals("Trip finished", shown.title())
+        assertEquals(title, shown.text())
+        assertEquals(listOf("Undo"), shown.actions.map { it.title.toString() })
+        assertEquals(TripChannel.TRIPS.id, shown.channelId)
+        assertEquals(0, shown.flags and Notification.FLAG_ONGOING_EVENT)
+        assertTrue("never alerts", shown.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+        assertNull("no chip", androidx.core.app.NotificationCompat.getShortCriticalText(shown))
+        assertFalse("no Live Update", androidx.core.app.NotificationCompat.isRequestPromotedOngoing(shown))
+        assertTrue(shown.timeoutAfter in 1..TripEngine.UNDO_WINDOW.inWholeMilliseconds + FinishingNotice.MARGIN_MS)
+        assertTrue("gone after the Finish takes effect", now() + shown.timeoutAfter >= finishing.until)
+        assertEquals("one notification of the trip's", 1, tripOwn.size)
+        val shadow = shadowOf(service)
+        assertFalse("in the foreground", shadow.isForegroundStopped)
+        assertTrue("fixes asked", location.requested != null)
+        assertTrue("wake lock held", service.holdsWakeLock)
+    }
+
     /** The trip runs, its notification the service's own */
     fun assertRunning() {
+        scheduler.runCurrent()
         val shown = checkNotNull(shown) { "no trip notification" }
         assertTrue(desk.running.value != null)
         val shadow = shadowOf(service)

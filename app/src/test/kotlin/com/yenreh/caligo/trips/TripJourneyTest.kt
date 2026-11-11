@@ -29,6 +29,7 @@ import com.yenreh.caligo.waits.WaitStart
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -148,7 +149,7 @@ class TripJourneyTest {
         // Shown as awaited on the rows' bells
         assertTrue(waits.running.value.any { it.key.vehicleId == "261001" })
         h.desk.finish()
-        h.advance(1)
+        h.advance(window)
         h.assertEnded(TripEnding.FINISHED)
     }
 
@@ -251,7 +252,7 @@ class TripJourneyTest {
         assertOne()
         assertEquals(listOf("X1"), h.waitTitles.map { it.substringBefore(" ") })
         h.desk.finish()
-        h.advance(1)
+        h.advance(window)
         // Their own wait goes on
         assertEquals(listOf("X1"), h.waitTitles.map { it.substringBefore(" ") })
         h.assertEnded(TripEnding.FINISHED)
@@ -291,6 +292,23 @@ class TripJourneyTest {
     }
 
     @Test
+    fun iTookItOnTheRidersOwnWaitIsNotTakenByATripFinishingSoANewOneStarts() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        val key = waits.running.value.first { it.key.vehicleId == "815001" }.key
+        h.desk.finish()
+        val took = TookRide("T31", "Universidades", key.stopId, out[0].name, key.vehicleId, key.trip)
+        assertFalse(h.desk.took(took))
+        h.assertFinishing("Trip to $DESTINATION")
+        // The trip screen it opens starts a ride of its own, which ends the finishing trip as finished
+        h.start(TripFixtures.plan.copy(took = took))
+        assertEquals(TripEnding.FINISHED, h.desk.ended.value?.ending)
+        assertTrue("the old trip's waits gone", h.awaitedLines.isEmpty())
+        h.assertRunning()
+        assertEquals(1, h.tripOwn.size)
+    }
+
+    @Test
     fun iTookItOnTheRidersOwnWaitForALineTheTripAwaitsTakesIt() {
         startJourney()
         h.move(5 * MINUTE) { toTheStop(it) }
@@ -315,13 +333,20 @@ class TripJourneyTest {
 
     // Endings
 
+    private val window = TripEngine.UNDO_WINDOW.inWholeMilliseconds
+
     @Test
     fun finishMidWalk() {
         startJourney()
         h.move(MINUTE) { walking(it) }
         assertEquals(2, h.awaitedLines.size)
         h.desk.finish()
-        h.advance(1)
+        // Its waits run on underneath, shown on the bells, until the Finish takes effect
+        h.move(window - 1_000) { walking(it) }
+        h.assertFinishing("Trip to $DESTINATION")
+        assertEquals(2, h.awaitedLines.size)
+        assertEquals(2, waits.running.value.size)
+        h.advance(1_000)
         assertTrue(waits.running.value.isEmpty())
         h.assertEnded(TripEnding.FINISHED)
     }
@@ -329,11 +354,36 @@ class TripJourneyTest {
     @Test
     fun finishOnTheNotificationWhileWaitingAtTheStop() {
         startJourney()
-        h.move(5 * MINUTE) { toTheStop(it) }
+        // The E21 due at 8 min: within 2 min of it from 6
+        h.move(5 * MINUTE + 55_000) { toTheStop(it) }
         h.pressTitled("Finish")
-        h.advance(1)
+        h.assertFinishing("Trip to $DESTINATION")
+        // No bus alert, though it is due meanwhile
+        h.move(window - 1_000) { stop }
+        assertTrue(h.tripOwn.none { it.channelId?.startsWith("alert") == true })
+        assertNull(h.desk.finishing.value?.journey?.busAlertedFor)
+        h.advance(1_000)
         assertTrue(waits.running.value.isEmpty())
         h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun undoWhileWaitingAtTheStopGivesTheTripBackWithItsWaitsAndButtons() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        val asked = h.source.arrivalsAsked.size
+        h.pressTitled("Finish")
+        h.move(window / 2) { stop }
+        h.pressTitled("Undo")
+        h.assertRunning()
+        // Nothing restarted: the same waits, not asked for again
+        assertEquals(listOf("E21", "T31"), h.awaitedLines)
+        assertEquals(asked, h.source.arrivalsAsked.size)
+        assertEquals("Take the E21 or T31", shown.title())
+        assertEquals(listOf("E21: I took it", "T31: I took it", "Finish"), shown.actions.map { it.title.toString() })
+        h.pressTitled("T31: I took it")
+        h.advance(1)
+        assertEquals("T31", h.desk.running.value?.ride?.plan?.line)
     }
 
     @Test

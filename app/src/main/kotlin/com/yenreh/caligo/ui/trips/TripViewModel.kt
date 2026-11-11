@@ -163,7 +163,10 @@ class TripViewModel(
     /** Get off at [alight] instead, while the trip runs */
     fun alightAt(alight: Int?) = trips.alightAt(alight)
 
+    /** End the trip: Undo takes it back for a while */
     fun finish() = trips.finish()
+
+    fun undoFinish() = trips.undoFinish()
 
     /** "I took the [line]" on the screen, while a planner trip waits at the stop */
     fun takeLine(line: String) = trips.takeLine(line)

@@ -1,5 +1,6 @@
 package com.yenreh.caligo.ui.trips
 
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsEnabled
@@ -168,14 +169,56 @@ class TripScreenTest {
     }
 
     @Test
-    fun finishEndsTheTripAndCloses() {
+    fun endTripShowsItFinishedWithUndoAndStays() {
+        show()
+        waitFor("trip_choose")
+        choose(TripFixtures.out[7].stopId)
+        waitFor("trip_finish")
+        compose.onNodeWithTag("trip_finish").assert(hasText("End trip"))
+        compose.onNodeWithTag("trip_finish").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.finished == 1 }
+        waitFor("trip_ended")
+        compose.onNode(hasText("The trip is finished.")).assertExists()
+        compose.onNode(hasText("Trip finished")).assertExists()
+        assertEquals(0, closed)
+        compose.assertControlsAccessible()
+
+        // Undo: the trip runs again, shown as it was
+        compose.onNode(hasText("Undo")).performClick()
+        waitFor("trip_running")
+        assertEquals(1, trips.undone)
+        compose.onNode(hasText("Get off at Pampalinda")).assertExists()
+        assertTrue(compose.onAllNodes(hasText("Trip finished")).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun theUndoGoesAsTheFinishTakesEffect() {
         show()
         waitFor("trip_choose")
         choose(TripFixtures.out[7].stopId)
         waitFor("trip_finish")
         compose.onNodeWithTag("trip_finish").performClick()
-        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.finished == 1 }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasText("Undo")).fetchSemanticsNodes().isNotEmpty() }
+        trips.expireFinish()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasText("Undo")).fetchSemanticsNodes().isEmpty() }
+        compose.onNode(hasText("The trip is finished.")).assertExists()
+        compose.onNode(hasText("Close")).performClick()
         assertEquals(1, closed)
+    }
+
+    @Test
+    fun iTookItWhileATripFinishesAsksWhereToGetOffForANewOne() {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        trips.finish()
+        val took = TookRide("T31", "Universidades", TripFixtures.out[0].stopId, TripFixtures.out[0].name, "815001", NOW + 600_000)
+        repository.routes = mapOf("T31" to TripFixtures.route)
+        show(took)
+        waitFor("trip_choose")
+        assertTrue(trips.tookRides.isEmpty())
+        choose(TripFixtures.out[7].stopId)
+        waitFor("trip_running")
+        assertEquals(com.yenreh.caligo.domain.TripEnding.FINISHED, trips.ended.value?.ending)
+        assertNull(trips.finishing.value)
     }
 
     @Test

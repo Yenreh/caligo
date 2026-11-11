@@ -85,24 +85,181 @@ class TripServiceTest {
         h.assertEnded(TripEnding.REACHED)
     }
 
-    // Finish
+    // Finish, and its Undo
+
+    private val window = TripEngine.UNDO_WINDOW.inWholeMilliseconds
+    private val title = "E21 to Universidades"
 
     @Test
-    fun finishOnTheNotification() {
+    fun finishOnTheNotificationEndsTheTripOnceItsUndoRunsOut() {
         h.start(plan)
         h.ride(MINUTE) { along(it) }
         val shown = checkNotNull(h.shown)
         assertEquals("Finish", shown.actions.single().title.toString())
         h.press(0)
+        h.assertFinishing(title)
+        h.ride(window - 1_000) { along(it) }
+        h.assertFinishing(title)
+        h.ride(1_000) { along(it) }
+        // As Finish ended it before: no last word
         h.assertEnded(TripEnding.FINISHED)
     }
 
     @Test
-    fun finishOnTheScreen() {
+    fun finishOnTheScreenEndsTheTripOnceItsUndoRunsOut() {
         h.start(plan)
         h.ride(MINUTE) { along(it) }
         h.desk.finish()
+        h.assertFinishing(title)
+        assertEquals(h.now() + window, h.desk.finishing.value?.until)
+        h.advance(window)
         h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun undoOnTheNotificationTakesTheTripBack() {
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        h.pressTitled("Finish")
+        h.assertFinishing(title)
+        // From the lock screen too: a broadcast, no activity
+        h.pressTitled("Undo")
+        h.assertRunning()
+        assertNull(h.desk.finishing.value)
+        assertNull(h.desk.ended.value)
+        assertTrue(with(h) { checkNotNull(h.shown).title() }.startsWith("Get off at Pampalinda, "))
+        assertEquals(listOf("Finish"), checkNotNull(h.shown).actions.map { it.title.toString() })
+        // Well past the window it still runs, then reaches its stop
+        h.ride(window * 2) { along(it) }
+        h.assertRunning()
+        h.ride(10 * MINUTE) { along(it) }
+        h.assertEnded(TripEnding.REACHED)
+    }
+
+    @Test
+    fun undoOnTheScreenTakesTheTripBack() {
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        h.desk.finish()
+        h.ride(window / 2) { along(it) }
+        h.desk.undoFinish()
+        h.advance(1)
+        h.assertRunning()
+        assertEquals(plan, h.desk.running.value?.ride?.plan)
+        h.ride(window) { along(it) }
+        h.assertRunning()
+        h.desk.finish()
+        h.advance(window)
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun finishingNothingWarnsAndAnUndoStillGivesTheWarning() {
+        h.start(plan)
+        h.ride(5 * MINUTE) { along(it) }
+        val warned = h.desk.running.value?.ride?.warned
+        h.desk.finish()
+        // The stop to get off at is next: its warning waits
+        h.ride(window - 1_000) { 2410.0 }
+        h.assertFinishing(title)
+        assertEquals(warned, h.desk.finishing.value?.journey?.ride?.warned)
+        h.desk.undoFinish()
+        h.advance(1)
+        val shown = checkNotNull(h.shown)
+        assertEquals("E21, get off at the next stop", with(h) { shown.title() })
+        assertEquals(TripChannel.WARNING_SILENT.id, shown.channelId)
+        assertEquals("it alerts", 0, shown.flags and Notification.FLAG_ONLY_ALERT_ONCE)
+    }
+
+    @Test
+    fun aSwipeOfTheFinishedNotificationEndsTheTripAtOnce() {
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        h.desk.finish()
+        h.assertFinishing(title)
+        h.swipe()
+        assertNull(h.desk.finishing.value)
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun aTripThatWouldEndByItselfWhileFinishingEndsAsFinishedWithNoLastWord() {
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        h.pressTitled("Finish")
+        h.location.lose()
+        h.advance(1)
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun aRideThatReachesItsStopWhileFinishingEndsAsFinished() {
+        h.start(plan)
+        h.ride(6 * MINUTE + 30_000) { along(it) }
+        h.desk.finish()
+        h.ride(window - 1_000) { 2900.0 }
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun anotherRideStartedWhileFinishingEndsItAsFinished() {
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        h.desk.finish()
+        h.start(plan.copy(alight = 3))
+        assertEquals(TripEnding.FINISHED, h.desk.ended.value?.ending)
+        assertNull(h.desk.finishing.value)
+        h.assertRunning()
+        assertEquals(1, h.posted.count { it.channelId?.startsWith("trip") == true })
+        assertEquals(3, h.desk.running.value?.ride?.plan?.alight)
+        // Its window runs out on nothing: the new one runs on
+        h.ride(window * 2) { along(it) }
+        h.assertRunning()
+    }
+
+    @Test
+    fun aFinishAgainChangesNothing() {
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        h.desk.finish()
+        val until = h.desk.finishing.value?.until
+        h.advance(window / 2)
+        h.desk.finish()
+        // A Finish left on the shade, as before its Undo showed
+        h.app.sendBroadcast(
+            Intent(h.app, TripActionReceiver::class.java)
+                .setAction(TripNotifications.ACTION_FINISH)
+                .putExtra(TripNotifications.EXTRA_STARTED_AT, checkNotNull(h.desk.finishing.value).journey.startedAt),
+        )
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertEquals(until, h.desk.finishing.value?.until)
+        h.advance(window / 2)
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun aFinishBeforeTheServiceTookTheStartEndsItAtOnce() {
+        h.desk.start(plan)
+        h.desk.finish()
+        assertNull(h.desk.running.value)
+        assertNull(h.desk.finishing.value)
+        assertEquals(TripEnding.FINISHED, h.desk.ended.value?.ending)
+        // The service, started meanwhile, finds nothing to follow
+        h.start(null)
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun anUndoLeftFromAnEarlierTripTakesNoNewerOneBack() {
+        h.start(plan)
+        h.desk.finish()
+        h.app.sendBroadcast(
+            Intent(h.app, TripActionReceiver::class.java)
+                .setAction(TripNotifications.ACTION_UNDO)
+                .putExtra(TripNotifications.EXTRA_STARTED_AT, 1L),
+        )
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        h.assertFinishing(title)
     }
 
     @Test
@@ -325,7 +482,7 @@ class TripServiceTest {
         h.start(plan)
         assertEquals(2, h.posted.size)
         h.desk.finish()
-        h.advance(1)
+        h.advance(TripEngine.UNDO_WINDOW.inWholeMilliseconds)
         // The wait's notification and service stay as they were
         assertEquals(listOf(WaitChannel.WAITS.id), h.posted.map { it.channelId })
         assertFalse(shadowOf(wait).isStoppedBySelf)
