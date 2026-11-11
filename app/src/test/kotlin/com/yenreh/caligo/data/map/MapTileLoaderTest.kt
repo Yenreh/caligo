@@ -148,6 +148,29 @@ class MapTileLoaderTest {
     }
 
     @Test
+    fun eachTileSaysHowAskingForItWent() = runTest {
+        fun outcome(respond: (call: Int, url: HttpUrl) -> MockResponse): TileOutcome {
+            service?.close()
+            return kotlinx.coroutines.runBlocking { tiles(respond).fetch(url, headers).outcome }
+        }
+        assertEquals(TileOutcome.ANSWERED, outcome { _, _ -> png() })
+        // Fresh on disk now: nothing asked
+        assertEquals(TileOutcome.KEPT, kotlinx.coroutines.runBlocking { tiles { _, _ -> png() }.fetch(url, headers).outcome })
+        cache.put(url, TileMetadata(staleAt = now - 1, lastModified = null, etag = null), image)
+        // The server refusing, an old tile drawn all the same
+        val refused = kotlinx.coroutines.runBlocking { tiles { _, _ -> MockResponse(code = 403) }.fetch(url, headers) }
+        assertEquals(TileOutcome.REFUSED, refused.outcome)
+        assertArrayEquals(image, refused.bytes)
+        assertEquals(TileOutcome.REFUSED, outcome { _, _ -> MockResponse(code = 401) })
+        assertEquals(TileOutcome.REFUSED, outcome { _, _ -> MockResponse(code = 429) })
+        // Busy past the retries
+        assertEquals(TileOutcome.REFUSED, outcome { _, _ -> MockResponse(code = 503) })
+        assertEquals(TileOutcome.REFUSED, outcome { _, _ -> MockResponse(code = 500) })
+        assertEquals(TileOutcome.MISSING, outcome { _, _ -> MockResponse(code = 404) })
+        assertEquals(TileOutcome.UNREACHABLE, outcome { _, _ -> dropped() })
+    }
+
+    @Test
     fun aBusyServerIsAskedAgainUpToThreeTimes() = runTest {
         val loader = tiles { call, _ -> if (call < 4) MockResponse(code = 503) else png() }
 

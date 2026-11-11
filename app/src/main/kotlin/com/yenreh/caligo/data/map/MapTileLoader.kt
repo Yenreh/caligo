@@ -19,6 +19,33 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 
+/** How asking for a tile went, for the maps to tell a tile server refusing them */
+enum class TileOutcome {
+    /** Fresh on disk: nothing asked */
+    KEPT,
+
+    /** The server answered with the tile, or that it had not changed */
+    ANSWERED,
+
+    /** The server would not serve it: 401 or 403, the key refused or out of quota, 429, or 5xx after the retries */
+    REFUSED,
+
+    /** No such tile, as 404 out of range, or another answer that says nothing of the server */
+    MISSING,
+
+    /** No answer at all: no connection, no name, a timeout; any other server would fare the same */
+    UNREACHABLE,
+}
+
+/** A tile's image, null when there is none to draw, and how asking for it went */
+class TileFetch(val bytes: ByteArray?, val outcome: TileOutcome)
+
+/** Where tiles come from, for the maps: the loader, or a test's */
+interface TileFetcher {
+    /** The image at [url], sent with [headers], and how asking for it went */
+    suspend fun fetch(url: String, headers: Map<String, String>): TileFetch
+}
+
 /**
  * The tiles of every map, through one client open for the whole run and
  * the disk cache, as flutter_map's NetworkTileProvider over the Flutter
@@ -41,7 +68,7 @@ class MapTileLoader(
     private val cache: MapTileCache,
     private val now: () -> Long = System::currentTimeMillis,
     private val retryDelay: (attempt: Int) -> Duration = { 500.milliseconds * 1.5.pow(it) },
-) {
+) : TileFetcher {
     /**
      * Tiles come many at once from one host, which the client's default of
      * five calls per host would queue
@@ -55,9 +82,11 @@ class MapTileLoader(
      * The image at [url], sent with [headers]; null when there is none to
      * draw. Kept on disk under [url] without its API key.
      */
-    suspend fun load(url: String, headers: Map<String, String>): ByteArray? {
+    suspend fun load(url: String, headers: Map<String, String>): ByteArray? = fetch(url, headers).bytes
+
+    override suspend fun fetch(url: String, headers: Map<String, String>): TileFetch {
         val cached = cache.get(url)
-        if (cached != null && now() <= cached.metadata.staleAt) return cached.bytes
+        if (cached != null && now() <= cached.metadata.staleAt) return TileFetch(cached.bytes, TileOutcome.KEPT)
 
         return try {
             val conditional = Headers.Builder().apply {
@@ -65,7 +94,8 @@ class MapTileLoader(
                 cached?.metadata?.etag?.let { add("If-None-Match", it) }
             }.build()
             val answer = get(url, headers, conditional)
-            when {
+            val outcome = outcomeOf(answer.code)
+            val bytes = when {
                 cached != null && answer.code == 304 -> {
                     keep(url, answer.headers, bytes = null)
                     cached.bytes
@@ -80,10 +110,11 @@ class MapTileLoader(
                 answer.body.isNotEmpty() -> answer.body
                 else -> null
             }
+            TileFetch(bytes, outcome)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             // No connection, or the call cut short: the old tile if any
-            cached?.bytes
+            TileFetch(cached?.bytes, TileOutcome.UNREACHABLE)
         }
     }
 
@@ -140,6 +171,14 @@ class MapTileLoader(
         private val FALLBACK_FRESHNESS = 7.days
 
         private val MAX_AGE = Regex("max-age=(\\d+)")
+
+        /** What an answer's [code] says of the server */
+        fun outcomeOf(code: Int): TileOutcome = when (code) {
+            200, 304 -> TileOutcome.ANSWERED
+            401, 403, 429 -> TileOutcome.REFUSED
+            in 500..599 -> TileOutcome.REFUSED
+            else -> TileOutcome.MISSING
+        }
 
         /**
          * When a tile answered with [headers] at [now] goes stale, and what

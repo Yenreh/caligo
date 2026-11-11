@@ -3,8 +3,12 @@ package com.yenreh.caligo.ui.map
 import com.yenreh.caligo.BuildConfig
 import com.yenreh.caligo.data.MockService
 import com.yenreh.caligo.data.MockService.Companion.ok
+import com.yenreh.caligo.data.map.CartoFallback
 import com.yenreh.caligo.data.map.MapTileCache
 import com.yenreh.caligo.data.map.MapTileLoader
+import com.yenreh.caligo.data.map.TileFetch
+import com.yenreh.caligo.data.map.TileFetcher
+import com.yenreh.caligo.data.map.TileOutcome
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -73,6 +77,62 @@ class AppMapTilesTest {
         assertTrue(tiles().id != tiles(dark = true).id)
         assertTrue(tiles().id != tiles(sharp = false).id)
         assertEquals(tiles(), tiles())
+    }
+
+    // CARTO refusing: OpenStreetMap in its place
+
+    /** Tiles as a test scripts them: [outcome] for CARTO's, an image for OpenStreetMap's; every address asked kept */
+    private class ScriptedTiles(var outcome: TileOutcome) : TileFetcher {
+        val asked = mutableListOf<String>()
+
+        override suspend fun fetch(url: String, headers: Map<String, String>): TileFetch {
+            asked.add(url)
+            if ("openstreetmap" in url) return TileFetch(byteArrayOf(1), TileOutcome.ANSWERED)
+            return TileFetch(null, outcome)
+        }
+    }
+
+    @Test
+    fun threeRefusalsFromCartoMoveTheMapsToOpenStreetMapInvertedForDarkWithItsCredits() = runTest {
+        val fallback = CartoFallback()
+        val scripted = ScriptedTiles(TileOutcome.REFUSED)
+        val carto = AppMapTiles(scripted, dark = true, sharp = true, density = 2.625f, key = "k3y", fallback = fallback)
+        repeat(3) { carto.tile(16, 1, it) }
+        assertEquals(1, fallback.switches.value)
+
+        // What the map then shows: OpenStreetMap's tiles, light ones inverted, its credits alone
+        val choice = fallback.choice()
+        assertFalse(choice.carto)
+        val osm = AppMapTiles(scripted, dark = true, sharp = true, density = 2.625f, key = "k3y", fallback = fallback, carto = false)
+        assertEquals("osm", osm.id)
+        assertTrue(osm.inverted)
+        assertFalse(osm.byCarto)
+        assertEquals(256, osm.tilePixels)
+        assertEquals(byteArrayOf(1).toList(), osm.tile(16, 1, 2)?.toList())
+        assertEquals("https://tile.openstreetmap.org/16/1/2.png", scripted.asked.last())
+        // A different set of tiles: drawn afresh, never mixed with CARTO's
+        assertTrue(osm.id != carto.id)
+    }
+
+    @Test
+    fun noConnectionOrAMissingTileNeverSwitches() = runTest {
+        val fallback = CartoFallback()
+        val scripted = ScriptedTiles(TileOutcome.UNREACHABLE)
+        val carto = AppMapTiles(scripted, dark = false, sharp = true, density = 2.625f, key = "k3y", fallback = fallback)
+        repeat(5) { carto.tile(16, 1, it) }
+        scripted.outcome = TileOutcome.MISSING
+        repeat(5) { carto.tile(16, 2, it) }
+        assertEquals(0, fallback.switches.value)
+    }
+
+    @Test
+    fun aKeylessBuildIsOpenStreetMapAsBeforeAndTellsTheFallbackNothing() = runTest {
+        val fallback = CartoFallback()
+        val scripted = ScriptedTiles(TileOutcome.REFUSED)
+        val osm = AppMapTiles(scripted, dark = false, sharp = true, density = 2.625f, key = "", fallback = fallback)
+        repeat(5) { osm.tile(16, 1, it) }
+        assertEquals("osm", osm.id)
+        assertEquals(0, fallback.switches.value)
     }
 
     @Test

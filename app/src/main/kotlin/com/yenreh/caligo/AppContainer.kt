@@ -16,6 +16,7 @@ import com.yenreh.caligo.data.datasources.StopsRemoteDatasource
 import com.yenreh.caligo.data.datasources.UpdateChecker
 import com.yenreh.caligo.data.location.AndroidLocationSource
 import com.yenreh.caligo.data.location.AndroidLocationUpdates
+import com.yenreh.caligo.data.map.CartoFallback
 import com.yenreh.caligo.data.map.MapTileCache
 import com.yenreh.caligo.data.map.MapTileLoader
 import com.yenreh.caligo.data.repositories.CardRepositoryImpl
@@ -84,6 +85,9 @@ class AppContainer(private val context: Context) {
 
     /** Made when a map first shows */
     val tileLoader by lazy { MapTileLoader(http, tileCache) }
+
+    /** Whether the maps draw CARTO's tiles or, while it refuses them, OpenStreetMap's */
+    val cartoFallback = CartoFallback()
 
     /** The device location, asked from the activity on screen */
     val location = AndroidLocationSource(context)

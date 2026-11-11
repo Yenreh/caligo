@@ -1,13 +1,16 @@
 package com.yenreh.caligo.ui.map
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import com.yenreh.caligo.AppInfo
 import com.yenreh.caligo.BuildConfig
 import com.yenreh.caligo.CaliGoApp
-import com.yenreh.caligo.data.map.MapTileLoader
+import com.yenreh.caligo.data.map.CartoFallback
+import com.yenreh.caligo.data.map.TileFetcher
 import com.yenreh.caligo.domain.entities.Settings
 
 /**
@@ -21,17 +24,22 @@ import com.yenreh.caligo.domain.entities.Settings
  * to three times the data, on any screen denser than one pixel a dp.
  *
  * Without a key, OpenStreetMap's, which only come light: those are
- * inverted for a dark map.
+ * inverted for a dark map. The same, with a key, while CARTO refuses the
+ * app's tiles, as [fallback] tells: [carto] false.
  */
 class AppMapTiles(
-    private val loader: MapTileLoader,
+    private val loader: TileFetcher,
     dark: Boolean,
     sharp: Boolean,
     density: Float,
     /** Passed to the build from the environment or local.properties, never committed */
     key: String = BuildConfig.CARTO_KEY,
+    /** Hears how CARTO answers, to give way to OpenStreetMap while it refuses */
+    private val fallback: CartoFallback? = null,
+    /** CARTO's, with a key; false for OpenStreetMap's while CARTO refuses */
+    carto: Boolean = true,
 ) : MapTileSource {
-    private val fromCarto = key.isNotEmpty()
+    private val fromCarto = key.isNotEmpty() && carto
     override val byCarto get() = fromCarto
 
     private val style = if (dark) "dark_all" else "voyager"
@@ -53,7 +61,11 @@ class AppMapTiles(
     fun url(zoom: Int, x: Int, y: Int): String =
         template.replace("{z}", zoom.toString()).replace("{x}", x.toString()).replace("{y}", y.toString())
 
-    override suspend fun tile(zoom: Int, x: Int, y: Int): ByteArray? = loader.load(url(zoom, x, y), headers)
+    override suspend fun tile(zoom: Int, x: Int, y: Int): ByteArray? {
+        val fetched = loader.fetch(url(zoom, x, y), headers)
+        if (fromCarto) fallback?.heard(fetched.outcome)
+        return fetched.bytes
+    }
 
     override fun equals(other: Any?) = other is AppMapTiles && other.id == id && other.loader === loader
 
@@ -80,12 +92,25 @@ class AppMapTiles(
     }
 }
 
-/** The app's tiles for this screen's density, as the settings ask */
+/**
+ * The app's tiles for this screen's density, as the settings ask: CARTO's
+ * or OpenStreetMap's as chosen when the map is made, and OpenStreetMap's
+ * from the moment CARTO gives way while it shows, its tiles drawn afresh
+ */
 @Composable
 fun rememberAppMapTiles(settings: Settings): MapTileSource {
-    val loader = (LocalContext.current.applicationContext as CaliGoApp).container.tileLoader
+    val container = (LocalContext.current.applicationContext as CaliGoApp).container
+    return rememberAppMapTiles(settings, container.tileLoader, container.cartoFallback)
+}
+
+/** [rememberAppMapTiles] from [loader], giving way to OpenStreetMap as [fallback] says, with [key] for CARTO */
+@Composable
+fun rememberAppMapTiles(settings: Settings, loader: TileFetcher, fallback: CartoFallback, key: String = BuildConfig.CARTO_KEY): MapTileSource {
     val density = LocalDensity.current.density
-    return remember(loader, settings.darkMap, settings.sharpMap, density) {
-        AppMapTiles(loader, settings.darkMap, settings.sharpMap, density)
+    val choice = remember(fallback) { fallback.choice() }
+    val switches by fallback.switches.collectAsState()
+    val carto = choice.cartoAt(switches)
+    return remember(loader, settings.darkMap, settings.sharpMap, density, carto, key) {
+        AppMapTiles(loader, settings.darkMap, settings.sharpMap, density, key, fallback, carto)
     }
 }

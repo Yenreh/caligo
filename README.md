@@ -112,7 +112,10 @@ version is the one in `VERSION`.
 The CARTO key comes from the `CARTO_KEY` environment variable or
 `carto.key` in `local.properties`, and is never committed. It is limited
 to CaliGo's package signed with its release certificate, which every tile
-request names. Without a key the map falls back to OpenStreetMap tiles.
+request names. Without a key the map falls back to OpenStreetMap tiles,
+and so does every map while CARTO refuses three tiles in a row (its key or
+quota, a rate limit, a server error), until a map made 10 minutes later
+tries CARTO again.
 
 Release builds are signed with the key described by `key.properties`,
 never committed either: `key.properties` at the repository root, which
