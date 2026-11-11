@@ -255,7 +255,7 @@ class TripEngine(
         val near = when (val phase = journey.phase(now)) {
             is JourneyPhase.Riding -> phase.trip.progress(now).stopsLeft <= NEAR_STOPS
             is JourneyPhase.Waiting -> busNear || host.soonestAwaited(now)?.let { it - now <= AWAITED_NEAR_MS } == true
-            is JourneyPhase.Walking -> phase.leg.toStop && phase.meters <= NEAR_BOARD_METERS
+            is JourneyPhase.Walking -> journey.nearBoarding(now)
         }
         return if (near) FixQuality.HIGH else FixQuality.BALANCED
     }
@@ -383,10 +383,10 @@ class TripEngine(
         val fix = running.fix
         if (running.phase(now) is JourneyPhase.Waiting) {
             val fresh = fix?.takeIf { now - it.at <= FIX_FRESH_MS }
-            return if (fresh == null || running.nearRide(fresh.point, NEAR_BOARD_METERS)) candidates.map { it.line } else emptyList()
+            return if (fresh == null || running.nearRide(fresh.point, Journey.NEAR_BOARD_METERS)) candidates.map { it.line } else emptyList()
         }
         val near = fix != null && candidates.any {
-            metersBetween(fix.point.latitude, fix.point.longitude, it.board.latitude, it.board.longitude) <= NEAR_BOARD_METERS
+            metersBetween(fix.point.latitude, fix.point.longitude, it.board.latitude, it.board.longitude) <= Journey.NEAR_BOARD_METERS
         }
         return if (near) candidates.map { it.line } else emptyList()
     }
@@ -400,9 +400,6 @@ class TripEngine(
 
         /** Within this many stops of where the ride ends, the fixes are asked at high accuracy */
         const val NEAR_STOPS = 2
-
-        /** Within this of the stop to board at, the fixes are asked at high accuracy, and its lines' buses followed */
-        const val NEAR_BOARD_METERS = 300.0
 
         /** The waits for a ride, all ended with none taken, are asked for again after this */
         val AWAIT_AGAIN = 60.seconds

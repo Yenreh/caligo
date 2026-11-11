@@ -21,7 +21,6 @@ import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.Wait
 import com.yenreh.caligo.domain.WaitEnding
 import com.yenreh.caligo.domain.WaitStatus
-import com.yenreh.caligo.domain.JourneyPhase
 import com.yenreh.caligo.waits.WaitChannel
 import com.yenreh.caligo.waits.WaitDesk
 import com.yenreh.caligo.waits.WaitEngine
@@ -157,13 +156,8 @@ class TripService : Service(), TripHost {
         val alerts = desk.alerts()
         val warningOn = channelOn(this, TripChannel.warning(alerts))
         val awaited = awaitedLines(journey, now)
-        val near = when (val phase = journey.phase(now)) {
-            is JourneyPhase.Waiting -> true
-            is JourneyPhase.Walking -> phase.leg.toStop && phase.meters <= TripEngine.NEAR_BOARD_METERS
-            is JourneyPhase.Riding -> false
-        }
         val busAlertOn = channelOn(this, WaitChannel.alert(alerts))
-        val notice = TripNotice.of(journey, now, alerts, words, nextPostIn, warningOn, awaited, near, busAlertOn)
+        val notice = TripNotice.of(journey, now, alerts, words, nextPostIn, warningOn, awaited, journey.nearBoarding(now), busAlertOn)
         // Once a ride, whoever posts first
         if (notice.alerting && notice.busChannel != null && journey.startedAt == engine.journey?.startedAt) engine.busAlerted()
         return TripNotifications.build(this, journey.startedAt, notice, alerts, words)

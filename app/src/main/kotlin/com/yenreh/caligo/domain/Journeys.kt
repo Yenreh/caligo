@@ -119,6 +119,13 @@ data class Journey(
         }
     }
 
+    /** Whether the rider is near the stop to board at, at [now]: on foot within [NEAR_BOARD_METERS] of it, or waiting there */
+    fun nearBoarding(now: Long): Boolean = when (val phase = phase(now)) {
+        is JourneyPhase.Waiting -> true
+        is JourneyPhase.Walking -> phase.leg.toStop && phase.meters <= NEAR_BOARD_METERS
+        is JourneyPhase.Riding -> false
+    }
+
     /** With [fix]: a walk measured, a ride followed, the rider at the stop or gone */
     fun fixed(fix: TripFix): Journey {
         if (!fix.good) return this
@@ -288,6 +295,9 @@ data class Journey(
 
         /** The last fix within this of the destination lets the walk's estimate end the journey */
         const val DESTINATION_NEAR_METERS = 300.0
+
+        /** Within this of the stop to board at, the rider is near it: see [nearBoarding] */
+        const val NEAR_BOARD_METERS = 300.0
 
         /** Good fixes this far from the ride waited for, and off its routes, for [AWAY_FOR], end the journey: the rider left */
         const val AWAY_METERS = 400.0
