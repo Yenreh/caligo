@@ -712,19 +712,23 @@ private const val MIN_ZOOM = 11.0
 private const val FIT_MAX_ZOOM = 17.0
 
 @Composable
-private fun endedText(ended: EndedTrip?): String = when (ended?.ending) {
-    TripEnding.REACHED -> stringResource(R.string.trip_ended_reached, reachedName(ended.journey))
-    TripEnding.DISMISSED -> stringResource(R.string.trip_ended_dismissed)
-    TripEnding.TIME_LIMIT -> stringResource(R.string.trip_ended_time_limit)
-    TripEnding.OFF_ROUTE -> stringResource(R.string.trip_ended_off_route)
-    TripEnding.BLOCKED -> stringResource(R.string.trip_ended_blocked)
-    TripEnding.NO_LOCATION -> stringResource(R.string.trip_ended_no_location)
-    TripEnding.REPLACED -> stringResource(R.string.trip_ended_replaced)
-    TripEnding.LEFT_STOP -> stringResource(R.string.trip_ended_left_stop)
-    TripEnding.NO_BUS -> stringResource(R.string.trip_ended_no_bus, Journey.WAITING_LIMIT.inWholeMinutes.toInt())
-    TripEnding.FINISHED -> stringResource(R.string.trip_ended_finished)
-    // No trip ran in this process: nothing to tell of one
-    null -> stringResource(R.string.trip_none)
+private fun endedText(ended: EndedTrip?): String {
+    // Never ran: the system would not start it
+    if (ended?.refused == true) return stringResource(R.string.trip_ended_refused)
+    return when (ended?.ending) {
+        TripEnding.REACHED -> stringResource(R.string.trip_ended_reached, reachedName(ended.journey))
+        TripEnding.DISMISSED -> stringResource(R.string.trip_ended_dismissed)
+        TripEnding.TIME_LIMIT -> stringResource(R.string.trip_ended_time_limit)
+        TripEnding.OFF_ROUTE -> stringResource(R.string.trip_ended_off_route)
+        TripEnding.BLOCKED -> stringResource(R.string.trip_ended_blocked)
+        TripEnding.NO_LOCATION -> stringResource(R.string.trip_ended_no_location)
+        TripEnding.REPLACED -> stringResource(R.string.trip_ended_replaced)
+        TripEnding.LEFT_STOP -> stringResource(R.string.trip_ended_left_stop)
+        TripEnding.NO_BUS -> stringResource(R.string.trip_ended_no_bus, Journey.WAITING_LIMIT.inWholeMinutes.toInt())
+        TripEnding.FINISHED -> stringResource(R.string.trip_ended_finished)
+        // No trip ran in this process: nothing to tell of one
+        null -> stringResource(R.string.trip_none)
+    }
 }
 
 /** Where a trip that reached its end ended: its destination, or the stop got off at */

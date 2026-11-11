@@ -227,6 +227,15 @@ class TripScreenTest {
     }
 
     @Test
+    fun aTripTheSystemWouldNotStartSaysSo() {
+        val refused = com.yenreh.caligo.domain.Journey.single(TripFixtures.plan, NOW)
+        trips.ended.value = com.yenreh.caligo.trips.EndedTrip(refused, com.yenreh.caligo.domain.TripEnding.BLOCKED, refused = true)
+        show(took = null)
+        waitFor("trip_ended")
+        compose.onNode(hasText("Android did not let the trip start", substring = true)).assertExists()
+    }
+
+    @Test
     fun withNoTripRunningNorEndedItSaysSoPlainly() {
         show(took = null)
         waitFor("trip_ended")

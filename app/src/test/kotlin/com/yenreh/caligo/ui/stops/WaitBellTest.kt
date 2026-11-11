@@ -156,6 +156,17 @@ class WaitBellTest {
     }
 
     @Test
+    fun aWaitTheSystemWouldNotStartSaysSo() {
+        access.granted = true
+        control.result = WaitStart.NOT_ALLOWED
+        show()
+        tapBell()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { exists("wait_message") }
+        compose.onNode(hasText("Android did not let CaliGo follow the bus", substring = true)).assertExists()
+        assertTrue(exists("wait_bell"))
+    }
+
+    @Test
     fun anAreasRowsKeptFromTheLastRunWaitForTheFirstAnswer() {
         val area = HomeSamples.stops[1]
         show { FavoriteStopCard(stop = area, arrivals = listOf(t31), fading = null) }

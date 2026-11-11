@@ -55,7 +55,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /** Why a bell did not start a wait */
-enum class WaitMessage { NEEDS_NOTIFICATIONS, CAP_REACHED }
+enum class WaitMessage { NEEDS_NOTIFICATIONS, CAP_REACHED, NOT_ALLOWED }
 
 /**
  * The bells of the arrival rows: one tap starts waiting for that bus, and
@@ -87,7 +87,11 @@ class WaitBells(
                 message = WaitMessage.NEEDS_NOTIFICATIONS
                 return@launch
             }
-            if (control.start(bus, seed) == WaitStart.CAP_REACHED) message = WaitMessage.CAP_REACHED
+            when (control.start(bus, seed)) {
+                WaitStart.CAP_REACHED -> message = WaitMessage.CAP_REACHED
+                WaitStart.NOT_ALLOWED -> message = WaitMessage.NOT_ALLOWED
+                WaitStart.STARTED, WaitStart.ALREADY_WAITING -> {}
+            }
         }
     }
 
@@ -170,6 +174,7 @@ private fun WaitMessageDialog(message: WaitMessage, onSettings: () -> Unit, onDi
                 text = when (message) {
                     WaitMessage.NEEDS_NOTIFICATIONS -> stringResource(R.string.wait_needs_notifications)
                     WaitMessage.CAP_REACHED -> pluralStringResource(R.plurals.wait_cap_reached, Wait.CAP, Wait.CAP)
+                    WaitMessage.NOT_ALLOWED -> stringResource(R.string.wait_not_allowed)
                 },
                 style = MaterialTheme.typography.bodyLarge.copy(color = p.ink),
             )

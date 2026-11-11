@@ -18,8 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** How the last trip ended */
-data class EndedTrip(val journey: Journey, val ending: TripEnding)
+/** How the last trip ended; [refused] when the system would not start its service, so it never ran */
+data class EndedTrip(val journey: Journey, val ending: TripEnding, val refused: Boolean = false)
 
 /** What the screens may do with the trip */
 interface TripControl {
@@ -113,12 +113,23 @@ class TripDesk(
         NotificationManagerCompat.from(context).cancel(TripNotifications.ENDED_ID)
         last.value = null
         service?.let { return it.start(start) }
+        val journey = start.journey(now())
         pending = start
-        pendingJourney = start.journey(now())
+        pendingJourney = journey
         publish()
         // From the screen on show, the app visible: the while-in-use
-        // location permission covers the service from here on
-        ContextCompat.startForegroundService(context, Intent(context, TripService::class.java))
+        // location permission covers the service from here on. Yet the
+        // start comes after a permission prompt, which may have left the
+        // app in the background: then the system refuses, and the screen
+        // hears why.
+        try {
+            ContextCompat.startForegroundService(context, Intent(context, TripService::class.java))
+        } catch (_: IllegalStateException) {
+            pending = null
+            pendingJourney = null
+            publish()
+            last.value = EndedTrip(journey, TripEnding.BLOCKED, refused = true)
+        }
     }
 
     override fun took(took: TookRide): Boolean = service?.took(took) == true

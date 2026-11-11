@@ -291,6 +291,7 @@
         <item quantity="one">You are already waiting for %1$d bus, the most at once. Stop it to follow another.</item>
         <item quantity="other">You are already waiting for %1$d buses, the most at once. Stop one to follow another.</item>
     </plurals>
+    <string name="wait_not_allowed">Android did not let CaliGo follow the bus. Try again with the app open.</string>
     <string name="wait_needs_notifications">CaliGo follows the bus in a notification, and notifications are off for it.</string>
     <string name="wait_close">Close</string>
     <string name="wait_open_settings">Notification settings</string>
@@ -359,6 +360,7 @@
     <string name="trip_ended_blocked">Notifications are off, so the trip ended.</string>
     <string name="trip_ended_no_location">Without your location the ride cannot be followed.</string>
     <string name="trip_ended_replaced">Another trip took its place.</string>
+    <string name="trip_ended_refused">Android did not let the trip start. Try again with the app open.</string>
     <string name="trip_none">No trip is running.</string>
     <string name="trip_ended_title">Trip ended</string>
     <string name="trip_ended_title_watch">Trip ended: watch for your stop</string>
