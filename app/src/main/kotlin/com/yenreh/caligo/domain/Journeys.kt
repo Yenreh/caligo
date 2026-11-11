@@ -195,15 +195,16 @@ data class Journey(
         }
         val on = leg
         if (on is JourneyLeg.Walk && !on.toStop) {
-            val here = fix?.takeIf { it.at >= legStartedAt }
-                ?.let { metersBetween(it.point.latitude, it.point.longitude, on.to.latitude, on.to.longitude) }
-            if (here != null && here <= DESTINATION_METERS) return JourneyStep.Ends(TripEnding.REACHED)
-            // With no fix of the walk, the estimate ends it a good while after
-            if (fix?.takeIf { it.at >= legStartedAt } == null &&
-                now >= legStartedAt + on.walk.duration.inWholeMilliseconds + Trip.ESTIMATE_GRACE.inWholeMilliseconds
-            ) {
+            val last = fix?.takeIf { it.at >= legStartedAt }
+            val here = last?.let { metersBetween(it.point.latitude, it.point.longitude, on.to.latitude, on.to.longitude) }
+            if (last != null && here != null && here <= DESTINATION_METERS + minOf(last.accuracy, ARRIVED_ERROR_METERS)) {
                 return JourneyStep.Ends(TripEnding.REACHED)
             }
+            // The estimate ends it a good while after: with no fix of the
+            // walk, or the last one close, as at a mall or campus whose
+            // point lies inside, away from where the rider stands
+            val due = now >= legStartedAt + on.walk.duration.inWholeMilliseconds + Trip.ESTIMATE_GRACE.inWholeMilliseconds
+            if (due && (here == null || here <= DESTINATION_NEAR_METERS)) return JourneyStep.Ends(TripEnding.REACHED)
         }
         return JourneyStep.Goes(this)
     }
@@ -238,8 +239,11 @@ data class Journey(
         /** Of a fix's own error, at most this much more is allowed */
         const val ARRIVED_ERROR_METERS = 30.0
 
-        /** Within this of the destination, the journey is done */
+        /** Within this of the destination, and of a fix's own error up to [ARRIVED_ERROR_METERS], the journey is done */
         const val DESTINATION_METERS = 50.0
+
+        /** The last fix within this of the destination lets the walk's estimate end the journey */
+        const val DESTINATION_NEAR_METERS = 300.0
 
         /** Faster than anyone walks: 12.6 km/h */
         const val BUS_PACE = 3.5

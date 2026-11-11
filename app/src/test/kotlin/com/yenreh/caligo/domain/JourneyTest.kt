@@ -138,6 +138,38 @@ class JourneyTest {
         assertEquals(JourneyStep.Ends(TripEnding.REACHED), last.step(NOW + walk + Trip.ESTIMATE_GRACE.inWholeMilliseconds))
     }
 
+    /** The final walk, from [NOW] */
+    private val lastWalk = journey.copy(index = 4, legStartedAt = NOW)
+    private val lastWalkDue = NOW + (lastWalk.leg as JourneyLeg.Walk).walk.duration.inWholeMilliseconds + Trip.ESTIMATE_GRACE.inWholeMilliseconds
+
+    /** [meters] short of the destination */
+    private fun shortOf(meters: Double) = JourneyFixtures.between(JourneyFixtures.destination, JourneyFixtures.origin, meters)
+
+    @Test
+    fun aFixWithinItsOwnErrorOfTheDestinationEndsTheFinalWalk() {
+        val near = lastWalk.fixed(fixAt(shortOf(70.0), NOW + 3 * MINUTE, accuracy = 25.0))
+        assertEquals(JourneyStep.Ends(TripEnding.REACHED), near.step(NOW + 3 * MINUTE))
+        // At most 30 m of a fix's error count
+        val vague = lastWalk.fixed(fixAt(shortOf(85.0), NOW + 3 * MINUTE, accuracy = 60.0))
+        assertTrue(vague.step(NOW + 3 * MINUTE) is JourneyStep.Goes)
+    }
+
+    @Test
+    fun fixesStoppingShortOfALargeDestinationEndTheFinalWalkByItsEstimate() {
+        // As at Unicentro: its point lies inside, 120 m from where the rider stands
+        var walk = lastWalk
+        for (i in 1..13) walk = walk.fixed(fixAt(shortOf(250.0 - 10.0 * i), NOW + i * 15_000))
+        assertTrue(walk.step(lastWalkDue - 1) is JourneyStep.Goes)
+        assertEquals(JourneyStep.Ends(TripEnding.REACHED), walk.step(lastWalkDue))
+    }
+
+    @Test
+    fun theLastFixFarFromTheDestinationKeepsTheFinalWalkPastItsEstimate() {
+        val far = lastWalk.fixed(fixAt(shortOf(400.0), NOW + MINUTE))
+        assertTrue(far.step(lastWalkDue) is JourneyStep.Goes)
+        assertTrue(far.step(lastWalkDue + 30 * MINUTE) is JourneyStep.Goes)
+    }
+
     @Test
     fun threeHoursEndAPlannerTrip() {
         assertEquals(JourneyStep.Ends(TripEnding.TIME_LIMIT), journey.step(NOW + Journey.TIME_LIMIT.inWholeMilliseconds))
