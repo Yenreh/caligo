@@ -10,6 +10,9 @@ import com.yenreh.caligo.trips.JourneyFixtures.option
 import com.yenreh.caligo.trips.TripFixtures.MINUTE
 import com.yenreh.caligo.trips.TripFixtures.NOW
 import com.yenreh.caligo.trips.TripFixtures.out
+import com.yenreh.caligo.domain.entities.RideLeg
+import com.yenreh.caligo.domain.entities.TripOption
+import kotlin.time.Duration.Companion.minutes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -120,6 +123,52 @@ class JourneyTest {
         val phase = next.phase(next.legStartedAt) as JourneyPhase.Walking
         assertEquals("Kr 22 con Cl 10", phase.leg.toName)
         assertEquals(3, next.pendingRide)
+    }
+
+    @Test
+    fun aRideThatEndsOtherwiseThanAtItsStopEndsTheWholeTrip() {
+        // On the T31, then good fixes 500 m north of Calle 5 from 7 min on
+        var j = journey.took("T31", NOW + 6 * MINUTE)
+        val off = GeoPoint(stop.latitude + 500 / 111320.0, stop.longitude)
+        for (at in NOW + 7 * MINUTE..NOW + 11 * MINUTE step 15_000) j = j.fixed(fixAt(off, at))
+        assertEquals(JourneyStep.Ends(TripEnding.OFF_ROUTE), j.step(NOW + 11 * MINUTE))
+    }
+
+    @Test
+    fun aFirstWalkOfAFewStepsIsSkipped() {
+        fun from(meters: Double) = TripOption.through(
+            stop.latitude + meters / 111320.0,
+            stop.longitude,
+            listOf(JourneyFixtures.first, JourneyFixtures.second),
+            JourneyFixtures.destination.latitude,
+            JourneyFixtures.destination.longitude,
+        )
+        // 20 m away, 26 m on foot: at the stop already
+        val near = Journey.planned(from(20.0), DESTINATION, NOW)
+        assertEquals(1, near.index)
+        assertTrue(near.phase(NOW) is JourneyPhase.Waiting)
+        // 60 m away: the walk is followed
+        assertEquals(0, Journey.planned(from(60.0), DESTINATION, NOW).index)
+    }
+
+    @Test
+    fun aChangeAtTheSameStopWaitsThereForTheNextRide() {
+        // Off the T31 at its last stop, Calle 5 con Kr 39, and on from it on the P10
+        val p10 = RideLeg("P10", "Universidades", out.subList(6, 10), wait = 2.minutes, duration = 4.minutes)
+        val option = TripOption.through(
+            JourneyFixtures.origin.latitude,
+            JourneyFixtures.origin.longitude,
+            listOf(JourneyFixtures.first, p10),
+            out[9].latitude,
+            out[9].longitude,
+        )
+        val planned = Journey.planned(option, DESTINATION, NOW)
+        assertEquals(4, planned.legs.size)
+        val (change, _) = rideToTheChange(planned.took("T31", NOW + 6 * MINUTE))
+        assertEquals(2, change.index)
+        assertTrue(change.phase(change.legStartedAt) is JourneyPhase.Waiting)
+        assertEquals(2, change.pendingRide)
+        assertTrue(change.awaits("P10", out[6].stopId))
     }
 
     @Test

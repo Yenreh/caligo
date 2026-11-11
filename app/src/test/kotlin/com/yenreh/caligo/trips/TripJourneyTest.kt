@@ -166,6 +166,32 @@ class TripJourneyTest {
     }
 
     @Test
+    fun aPlannerRideWarnsBeforeItsStopAsASingleRideDoes() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.pressTitled("I took the T31")
+        val t31At = h.now()
+        // At 7 m/s, two stops before the change after 4 min
+        h.move(4 * MINUTE) { at -> calle5Route.pointAt((at - t31At) * 7.0 / 1000) }
+        assertEquals(true, h.desk.running.value?.ride?.alerted)
+        assertEquals(TripChannel.WARNING_SILENT.id, shown.channelId)
+        assertTrue(shown.title(), shown.title().startsWith("Get off at Calle 5 con Kr 39"))
+    }
+
+    @Test
+    fun aTripStartedInItsPlaceEndsAPlannerTripsWaits() {
+        startJourney()
+        h.move(MINUTE) { walking(it) }
+        assertEquals(2, waits.running.value.size)
+        h.start(TripFixtures.plan)
+        h.advance(1)
+        assertEquals(TripEnding.REPLACED, h.desk.ended.value?.ending)
+        assertTrue(h.awaitedLines.toString(), h.awaitedLines.isEmpty())
+        assertTrue(waits.running.value.isEmpty())
+        assertEquals("E21", h.desk.running.value?.ride?.plan?.line)
+    }
+
+    @Test
     fun aButtonLeftFromAnEarlierTripTakesNothing() {
         startJourney()
         h.move(5 * MINUTE) { toTheStop(it) }
