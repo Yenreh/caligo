@@ -67,11 +67,13 @@ class WaitService : Service(), WaitHost {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         lastStartId = startId
         desk.attach(this)
-        for ((bus, seed) in desk.takePending()) engine.start(bus, seed)
         // Started as a foreground service: it must say so at once, even
-        // with nothing left to wait for
+        // with nothing left to wait for, and before anything runs: on the
+        // main thread's immediate dispatcher a wait's first round runs
+        // inside start, and may end every wait there
+        if (carrier == null) foreground(WaitNotifications.PLACEHOLDER_ID, WaitNotifications.placeholder(this))
+        for ((bus, seed) in desk.takePending()) engine.start(bus, seed)
         if (engine.waits.isEmpty()) {
-            foreground(WaitNotifications.PLACEHOLDER_ID, WaitNotifications.placeholder(this))
             idle()
         } else {
             carrier = null
@@ -120,6 +122,8 @@ class WaitService : Service(), WaitHost {
             if (carrier == null) {
                 foreground(id, notification)
                 carrier = wait.key
+                // The placeholder that carried the service until now
+                manager.cancel(WaitNotifications.PLACEHOLDER_ID)
             } else {
                 manager.notify(id, notification)
             }

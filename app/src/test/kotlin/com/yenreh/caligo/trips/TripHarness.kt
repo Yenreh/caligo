@@ -12,6 +12,7 @@ import com.yenreh.caligo.trips.TripFixtures.NOW
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -22,10 +23,12 @@ import org.robolectric.android.controller.ServiceController
 
 /**
  * The trip service on virtual time, with the device's fixes and the
- * line's buses as a test scripts them
+ * line's buses as a test scripts them. [immediate] runs it as the main
+ * thread's immediate dispatcher does: a coroutine started runs at once,
+ * up to where it first suspends.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class TripHarness {
+class TripHarness(private val immediate: Boolean = false) {
     val scheduler = TestCoroutineScheduler()
     val now = { NOW + scheduler.currentTime }
     val app = ApplicationProvider.getApplicationContext<CaliGoApp>()
@@ -50,8 +53,10 @@ class TripHarness {
         desk.source = source
         desk.location = location
         desk.now = now
-        desk.coroutineContext = StandardTestDispatcher(scheduler)
+        desk.coroutineContext = dispatcher()
     }
+
+    private fun dispatcher() = if (immediate) UnconfinedTestDispatcher(scheduler) else StandardTestDispatcher(scheduler)
 
     fun tearDown() {
         controller?.destroy()
@@ -63,7 +68,7 @@ class TripHarness {
         val waits = app.container.waits
         waits.source = com.yenreh.caligo.waits.FakeWaitSource(answer, now)
         waits.now = now
-        waits.coroutineContext = StandardTestDispatcher(scheduler)
+        waits.coroutineContext = dispatcher()
     }
 
     /** Run the waits' service as the system would, for each start asked of it */

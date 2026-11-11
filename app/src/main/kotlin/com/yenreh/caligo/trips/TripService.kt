@@ -92,12 +92,19 @@ class TripService : Service(), TripHost {
             return START_NOT_STICKY
         }
         if (start != null) {
-            engine.start(start)
-            val journey = checkNotNull(engine.journey)
-            // Not allowed to follow the location: nothing runs, and the screen hears why
-            if (!foreground(TripNotifications.TRIP_ID, notification(journey, desk.now(), TripEngine.BEAT.inWholeMilliseconds))) {
-                engine.end(TripEnding.NO_LOCATION)
+            // In the foreground before anything runs: on the main thread's
+            // immediate dispatcher the trip's first round runs inside
+            // start, and may end it there
+            val now = desk.now()
+            val journey = start.journey(now)
+            if (!foreground(TripNotifications.TRIP_ID, notification(journey, now, TripEngine.BEAT.inWholeMilliseconds))) {
+                // Not allowed to follow the location: nothing runs, and the screen hears why
+                if (engine.journey != null) engine.end(TripEnding.NO_LOCATION) else idle()
+                desk.endedAs(journey, TripEnding.NO_LOCATION)
+                return START_NOT_STICKY
             }
+            // Ended already, or running: either way the engine has seen to it
+            engine.start(start)
         }
         return START_NOT_STICKY
     }
@@ -155,7 +162,7 @@ class TripService : Service(), TripHost {
         val busAlertOn = WaitNotifications.channelOn(this, WaitChannel.alert(alerts))
         val notice = TripNotice.of(journey, now, alerts, words, nextPostIn, warningOn, awaited, near, busAlertOn)
         // Once a ride, whoever posts first
-        if (notice.alerting && notice.busChannel != null) engine.busAlerted()
+        if (notice.alerting && notice.busChannel != null && journey.startedAt == engine.journey?.startedAt) engine.busAlerted()
         return TripNotifications.build(this, journey.startedAt, notice, alerts, words)
     }
 
