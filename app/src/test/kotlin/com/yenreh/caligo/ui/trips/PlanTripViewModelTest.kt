@@ -521,6 +521,7 @@ class PlanTripViewModelTest {
         model.savePlace(origin = false, name = " Work ")
         val saved = model.screen.value.places.single()
         assertEquals("Work", saved.name)
+        assertEquals("cleaned before it is saved", listOf("Work"), places.names)
         assertEquals("Destination", saved.label)
         assertEquals(saved, model.screen.value.savedTo)
 
@@ -551,9 +552,10 @@ class PlanTripViewModelTest {
 
         assertEquals(listOf("Mi casa"), model.screen.value.places.map { it.name })
         assertEquals("Mi casa", model.screen.value.to?.name)
-        // An empty name is no rename
+        // An empty name is no rename, never asked
         model.renamePlace(home.id, "  ")
         assertEquals("Mi casa", model.screen.value.places.single().name)
+        assertEquals(listOf("Mi casa"), places.names)
     }
 
     @Test

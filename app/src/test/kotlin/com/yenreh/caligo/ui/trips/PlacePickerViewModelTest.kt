@@ -257,6 +257,8 @@ class PlacePickerViewModelTest {
         model.renamePlace(1, "  Casa de mamá ")
         model.renamePlace(2, " ")
         assertEquals(listOf("Casa de mamá", "U"), model.places.value.map { it.name })
+        // Cleaned before it is saved; a blank one never asked
+        assertEquals(listOf("Casa de mamá"), places.names)
 
         model.deletePlace(2)
         assertEquals(listOf("Casa de mamá"), model.places.value.map { it.name })

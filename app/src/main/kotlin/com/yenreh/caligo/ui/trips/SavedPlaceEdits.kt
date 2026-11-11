@@ -29,11 +29,16 @@ internal class SavedPlaceEdits(
         }
     }
 
-    fun add(name: String, place: TripPlace) = change { places.add(name, place) }
+    /** Save [place] as [name], cleaned; a name with nothing left once cleaned saves nothing */
+    fun add(name: String, place: TripPlace) {
+        val clean = FavoritePlace.cleanName(name) ?: return
+        change { places.add(clean, place) }
+    }
 
-    /** Rename the place [id]; a name with nothing left once cleaned is no rename */
+    /** Rename the place [id] to [name], cleaned; a name with nothing left once cleaned is no rename */
     fun rename(id: Long, name: String) {
-        if (FavoritePlace.cleanName(name) != null) change { places.rename(id, name) }
+        val clean = FavoritePlace.cleanName(name) ?: return
+        change { places.rename(id, clean) }
     }
 
     fun delete(id: Long) = change { places.delete(id) }

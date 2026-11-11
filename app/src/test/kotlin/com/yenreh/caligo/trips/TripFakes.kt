@@ -4,6 +4,7 @@ import com.yenreh.caligo.data.location.FixQuality
 import com.yenreh.caligo.data.location.LocationUpdates
 import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.TookRide
+import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.TripFix
 import com.yenreh.caligo.domain.TripPlan
 import com.yenreh.caligo.domain.LiveArrivals
@@ -85,7 +86,12 @@ class FakeTripSource(private val now: () -> Long) : TripSource {
     }
 }
 
-/** The trip as the screens start, change and finish it, recorded */
+/**
+ * The trip as the screens start, change and finish it, recorded: as
+ * [TripDesk] with its service running, a start replaces the trip on and a
+ * finish ends it, each as [ended] says, and a bus is taken by the trip's
+ * own rules
+ */
 class FakeTripControl(private val now: Long = TripFixtures.NOW) : TripControl {
     override val running = MutableStateFlow<Journey?>(null)
     override val ended = MutableStateFlow<EndedTrip?>(null)
@@ -95,24 +101,24 @@ class FakeTripControl(private val now: Long = TripFixtures.NOW) : TripControl {
     val tookRides = mutableListOf<TookRide>()
     override val awaited = MutableStateFlow<List<AwaitedLine>>(emptyList())
     val takenLines = mutableListOf<String>()
-
-    override fun takeLine(line: String) {
-        takenLines.add(line)
-        running.value = running.value?.let { if (it.planned) it.took(line, now) else it }
-    }
     var finished = 0
 
     override fun start(start: TripStart) {
         starts.add(start)
+        ended.value = running.value?.let { EndedTrip(it, TripEnding.REPLACED) }
         running.value = start.journey(now)
     }
 
     override fun took(took: TookRide): Boolean {
-        val journey = running.value ?: return false
-        if (!journey.planned || !journey.awaits(took.line, took.stopId)) return false
+        val taken = running.value?.tookIt(took, now) ?: return false
         tookRides.add(took)
-        running.value = journey.took(took.line, now)
+        running.value = taken
         return true
+    }
+
+    override fun takeLine(line: String) {
+        takenLines.add(line)
+        running.value?.tookLine(line, now)?.let { running.value = it }
     }
 
     override fun alightAt(alight: Int?) {
@@ -122,7 +128,9 @@ class FakeTripControl(private val now: Long = TripFixtures.NOW) : TripControl {
 
     override fun finish() {
         finished++
+        val journey = running.value ?: return
         running.value = null
+        ended.value = EndedTrip(journey, TripEnding.FINISHED)
     }
 
     /** Whether a trip may post, as the trips' channel says */

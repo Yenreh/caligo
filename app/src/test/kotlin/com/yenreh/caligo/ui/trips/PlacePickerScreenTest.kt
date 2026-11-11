@@ -398,6 +398,7 @@ class PlacePickerScreenTest {
         compose.onNodeWithTag("place_save").performClick()
 
         compose.waitUntil(WAIT_TIMEOUT_MS) { savedExists("Casa de mamá") }
+        assertEquals("cleaned before it is saved", listOf("Casa de mamá"), trips.places.names)
         assertFalse(savedExists("Mamá"))
         assertFalse(exists(hasTestTag("place_sheet")))
         assertTrue(picked.isEmpty())

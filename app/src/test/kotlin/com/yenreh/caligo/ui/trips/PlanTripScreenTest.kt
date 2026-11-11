@@ -547,6 +547,7 @@ class PlanTripScreenTest {
 
         compose.waitUntil(WAIT_TIMEOUT_MS) { model.screen.value.places.isNotEmpty() }
         assertEquals("Casa", model.screen.value.places.single().name)
+        assertEquals("cleaned before it is saved", listOf("Casa"), trips.places.names)
     }
 
     @Test
