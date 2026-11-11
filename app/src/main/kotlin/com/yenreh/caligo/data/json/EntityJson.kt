@@ -9,6 +9,7 @@ import com.yenreh.caligo.domain.entities.HomeContent
 import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.Settings
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -69,7 +70,7 @@ fun favoriteFromJson(json: JsonObject) = FavoriteStop(
     stopId = json["stopId"].stringOrNull(),
     anchorLatitude = json["anchorLatitude"].double(),
     anchorLongitude = json["anchorLongitude"].double(),
-    position = json["position"].longOrNull()?.toInt() ?: 0,
+    position = json["position"].position(),
     showOnHome = json["showOnHome"].boolOrNull() ?: true,
     lines = json["lines"].listOrNull()?.map { it.dartString() ?: "null" } ?: emptyList(),
 )
@@ -99,9 +100,17 @@ fun favoritePlaceFromJson(json: JsonObject): FavoritePlace {
         latitude = json["latitude"].double(),
         longitude = json["longitude"].double(),
         stopId = json["stopId"].stringOrNull(),
-        position = json["position"].intOrNull() ?: 0,
+        position = json["position"].position(),
     )
 }
+
+/**
+ * A stop's or a place's position, as `(json['position'] as num?)?.toInt() ?? 0`
+ * reads it: a double is truncated, and a number past 32 bits held at the
+ * nearest end, so the order stays; anything else is a fault
+ */
+private fun JsonElement?.position(): Int =
+    longOrNull()?.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong())?.toInt() ?: 0
 
 fun BusArrival.toJson(): JsonObject = buildJsonObject {
     put("line", line)

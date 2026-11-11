@@ -216,6 +216,29 @@ class BackupTest {
     }
 
     @Test
+    fun aPlacesPositionIsReadAsAStopsIs() = runTest {
+        val device = device("a")
+        fun place(name: String, latitude: Double, position: String) =
+            """{"name": "$name", "latitude": $latitude, "longitude": -76.5, "position": $position}"""
+
+        // A double truncated, past 32 bits held at the end, as a stop's
+        device.backup.import(
+            """{"favoritePlaces": [${place("C", 3.0, "1e12")}, ${place("B", 3.1, "1.9")}, ${place("A", 3.2, "0")}],
+                "favoriteStops": [{"id": "1", "name": "S", "anchorLatitude": 3.4, "anchorLongitude": -76.5, "position": 2.5}]}""",
+        )
+        assertEquals(listOf("A", "B", "C"), device.places.places.value.map { it.name })
+        assertEquals(2, device.stops.getFavorites().single().position)
+
+        // Anything but a number is a fault for both
+        assertThrowsSuspend<JsonTypeException> { device.backup.import("""{"favoritePlaces": [${place("D", 3.3, "\"1\"")}]}""") }
+        assertThrowsSuspend<JsonTypeException> {
+            device.backup.import("""{"favoriteStops": [{"id": "2", "name": "T", "anchorLatitude": 3.4, "anchorLongitude": -76.5, "position": true}]}""")
+        }
+        assertEquals(3, device.places.places.value.size)
+        assertEquals(1, device.stops.getFavorites().size)
+    }
+
+    @Test
     fun exportsVersionFourIndentedAsTheFlutterApp() = runTest {
         val device = device("a")
         device.cards.createCard(card.copy(balance = null, lastUpdate = null))
