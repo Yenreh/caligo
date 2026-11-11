@@ -7,6 +7,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
 import com.yenreh.caligo.domain.GeoPoint
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.TripPlace
 
 /** A place the picker chose for the planner: where the trip starts, when [origin], or ends */
@@ -58,6 +59,9 @@ class PickedPlaces(place: PickedPlace? = null, point: GeoPoint? = null) {
                     point != null,
                     point?.latitude ?: 0.0,
                     point?.longitude ?: 0.0,
+                    place?.place?.kind?.key ?: PlaceKind.PLACE.key,
+                    place?.place?.detail.orEmpty(),
+                    place?.place?.stopId.orEmpty(),
                 )
             },
             restore = {
@@ -65,7 +69,15 @@ class PickedPlaces(place: PickedPlace? = null, point: GeoPoint? = null) {
                     place = if (it[0] as Boolean) {
                         PickedPlace(
                             origin = it[1] as Boolean,
-                            place = TripPlace(it[2] as Double, it[3] as Double, it[4] as String, it[5] as Boolean),
+                            place = TripPlace(
+                                it[2] as Double,
+                                it[3] as Double,
+                                it[4] as String,
+                                it[5] as Boolean,
+                                kind = PlaceKind.of(it[9] as String),
+                                detail = (it[10] as String).ifEmpty { null },
+                                stopId = (it[11] as String).ifEmpty { null },
+                            ),
                         )
                     } else {
                         null

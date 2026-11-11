@@ -2,6 +2,8 @@ package com.yenreh.caligo.ui.trips
 
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.remember
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
@@ -10,20 +12,27 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.longClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.WAIT_TIMEOUT_MS
+import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.GeocodedPlace
+import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.LineStop
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.FakeLocationSource
+import com.yenreh.caligo.ui.FakePlacesRepository
 import com.yenreh.caligo.ui.FakeStopsRepository
 import com.yenreh.caligo.ui.stops.StopsViewModel
 import com.yenreh.caligo.ui.theme.CaliGoTheme
@@ -166,7 +175,7 @@ class PlacePickerScreenTest {
         assertEquals(listOf("Unicentro, Cali"), geocoder.asked)
         compose.onNodeWithText("ADDRESSES AND PLACES").assertExists()
         tile("Unicentro").performClick()
-        assertEquals(listOf(TripPlace(3.3739, -76.5395, "Unicentro")), picked)
+        assertEquals(listOf(TripPlace(3.3739, -76.5395, "Unicentro", detail = "Unicentro, Cra. 100 #5-169")), picked)
 
         // Typing on offers the search again
         type("Unicentr")
@@ -225,7 +234,13 @@ class PlacePickerScreenTest {
         compose.onNodeWithText("Casa").performClick()
         compose.onNodeWithText("Universidades").performClick()
 
-        assertEquals(listOf(TripPlace(3.4200, -76.5400, "Casa"), TripPlace(3.371, -76.531, "Universidades")), picked)
+        assertEquals(
+            listOf(
+                TripPlace(3.4200, -76.5400, "Casa", kind = PlaceKind.STOP, detail = "Cl 5 con Kr 39", stopId = "3"),
+                TripPlace(3.371, -76.531, "Universidades"),
+            ),
+            picked,
+        )
     }
 
     @Test
@@ -238,7 +253,13 @@ class PlacePickerScreenTest {
         scrollTo("STOPS")
         compose.onNode(hasTestTag("place_tile") and hasText("Estación Calima") and !hasText("Cl 70 - Kr 1")).performClick()
 
-        assertEquals(listOf(TripPlace(3.4801, -76.5001, "Estación Calima"), TripPlace(3.4800, -76.5000, "Estación Calima")), picked)
+        assertEquals(
+            listOf(
+                TripPlace(3.4801, -76.5001, "Estación Calima", detail = "Cl 70 - Kr 1"),
+                TripPlace(3.4800, -76.5000, "Estación Calima", kind = PlaceKind.STOP, stopId = "4"),
+            ),
+            picked,
+        )
     }
 
     @Test
@@ -312,5 +333,97 @@ class PlacePickerScreenTest {
         compose.runOnUiThread { results.point = GeoPoint(3.4900, -76.5000) }
         compose.waitForIdle()
         assertEquals(TripPlace(3.4900, -76.5000, "Point on the map"), picked.last())
+    }
+
+    // Saved places
+
+    private val saved = listOf(
+        FavoritePlace(1, "Mamá", PlaceKind.ADDRESS, "Cl 9 # 40-12", null, 3.4310, -76.5450, null, 0),
+        FavoritePlace(2, "U", PlaceKind.STOP, "Universidades A1", null, 3.3700, -76.5300, "1", 1),
+    )
+
+    private fun showSaved(): PlacePickerViewModel {
+        trips.places = FakePlacesRepository(saved)
+        return trips.picker(repository()).also(::show)
+    }
+
+    private fun savedTile(text: String) = compose.onNode(hasTestTag("saved_place") and hasText(text))
+
+    private fun savedExists(text: String) =
+        compose.onAllNodes(hasTestTag("saved_place") and hasText(text)).fetchSemanticsNodes().isNotEmpty()
+
+    @Test
+    fun savedPlacesComeFirstAboveTheFavoritesAndAreHandedBackAsSaved() {
+        showSaved()
+
+        val label = compose.onNodeWithText("SAVED PLACES").fetchSemanticsNode().boundsInRoot.top
+        val favoritesLabel = compose.onNodeWithText("FAVORITES").fetchSemanticsNode().boundsInRoot.top
+        assertTrue(label < favoritesLabel)
+        assertTrue(savedTile("Mamá").fetchSemanticsNode().boundsInRoot.top < favoritesLabel)
+        // What they were called, below their own name
+        savedTile("Cl 9 # 40-12").assertExists()
+
+        savedTile("U").performClick()
+        assertEquals(listOf(TripPlace(3.3700, -76.5300, "U", kind = PlaceKind.STOP, stopId = "1")), picked)
+        compose.assertControlsAccessible()
+    }
+
+    @Test
+    fun theSearchFiltersSavedPlacesByNameOrWhatTheyWereCalled() {
+        showSaved()
+
+        type("mama")
+        savedTile("Mamá").assertExists()
+        assertFalse(savedExists("U"))
+
+        type("universidades")
+        savedTile("U").assertExists()
+        assertFalse(savedExists("Mamá"))
+
+        type("trabajo")
+        assertFalse(exists(hasText("SAVED PLACES")))
+    }
+
+    @Test
+    fun aLongPressRenamesASavedPlace() {
+        showSaved()
+
+        savedTile("Mamá").performTouchInput { longClick() }
+        compose.onNodeWithTag("place_sheet").assertExists()
+        compose.onNodeWithText("Edit place").assertExists()
+        compose.onNodeWithTag("place_name").performTextReplacement("  Casa de mamá ")
+        compose.onNodeWithTag("place_save").performClick()
+
+        compose.waitUntil(WAIT_TIMEOUT_MS) { savedExists("Casa de mamá") }
+        assertFalse(savedExists("Mamá"))
+        assertFalse(exists(hasTestTag("place_sheet")))
+        assertTrue(picked.isEmpty())
+    }
+
+    @Test
+    fun theCustomActionDeletesASavedPlace() {
+        showSaved()
+
+        val edit = savedTile("Mamá").fetchSemanticsNode().config[SemanticsActions.CustomActions].single()
+        assertEquals("Edit place", edit.label)
+        compose.runOnUiThread { edit.action() }
+        // The long press says what it does too
+        assertEquals("Edit place", savedTile("U").fetchSemanticsNode().config[SemanticsActions.OnLongClick].label)
+
+        compose.onNodeWithTag("place_delete").performClick()
+
+        compose.waitUntil(WAIT_TIMEOUT_MS) { !savedExists("Mamá") }
+        savedTile("U").assertExists()
+        assertFalse(exists(hasTestTag("place_sheet")))
+    }
+
+    @Test
+    fun anEmptyNameCannotBeSaved() {
+        showSaved()
+
+        savedTile("U").performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.onNodeWithTag("place_name").performTextReplacement("   ")
+
+        assertTrue(compose.onNodeWithTag("place_save").fetchSemanticsNode().config.contains(SemanticsProperties.Disabled))
     }
 }

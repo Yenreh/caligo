@@ -35,7 +35,8 @@ look for a newer release from Settings > About, on request only.
 - **Lines**: each line's route, its live buses going each way, and its
   hours
 - **Trip planner**: from an address, place, stop or point on the map to
-  another, timed with the buses on their way
+  another, timed with the buses on their way; a star saves a place under
+  a short name, and its chip plans a trip there with one tap
 - **Local storage**: everything stays on the device, in SQLite, with JSON
   export and import
 - **Languages**: Spanish and English

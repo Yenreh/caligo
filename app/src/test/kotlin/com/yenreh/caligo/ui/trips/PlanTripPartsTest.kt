@@ -4,6 +4,7 @@ import androidx.compose.runtime.saveable.SaverScope
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.yenreh.caligo.domain.GeoPoint
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.navigation.PlaceKey
 import com.yenreh.caligo.ui.navigation.Route
@@ -122,6 +123,15 @@ class PlanTripPartsTest {
         val empty = PickedPlaces.Saver.restore(with(PickedPlaces.Saver) { plain.save(PickedPlaces()) }!!)!!
         assertNull(empty.place)
         assertNull(empty.point)
+        // A stop or a place keeps what saves it as a place
+        for (place in listOf(
+            TripPlace(3.42, -76.54, "Casa", kind = PlaceKind.STOP, detail = "Cl 5 con Kr 39", stopId = "3"),
+            TripPlace(3.37, -76.53, "Unicentro", kind = PlaceKind.PLACE, detail = "Cra. 100 #5-169"),
+            TripPlace(3.43, -76.52, "Cl 5 # 38-20", kind = PlaceKind.ADDRESS),
+        )) {
+            val kept = PickedPlaces.Saver.restore(with(PickedPlaces.Saver) { plain.save(PickedPlaces(PickedPlace(false, place))) }!!)!!
+            assertEquals(PickedPlace(false, place), kept.place)
+        }
     }
 
     @Test

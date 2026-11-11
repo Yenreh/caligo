@@ -21,6 +21,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.domain.entities.NearbyStop
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.TripPlace
 import kotlinx.coroutines.isActive
 import org.junit.After
@@ -213,7 +214,10 @@ class PlanTripNavigationTest {
         waitFor(planner)
         compose.onNodeWithTag("destination_field").assert(hasText("Trabajo"))
         val stop = trips.line("a", 12..12).single()
-        assertEquals(TripPlace(stop.latitude, stop.longitude, "Trabajo"), planners.single().first.screen.value.to)
+        assertEquals(
+            TripPlace(stop.latitude, stop.longitude, "Trabajo", kind = PlaceKind.STOP, detail = "a 12", stopId = "a12"),
+            planners.single().first.screen.value.to,
+        )
     }
 
     @Test

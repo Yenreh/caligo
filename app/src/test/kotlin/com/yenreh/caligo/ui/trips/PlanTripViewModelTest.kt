@@ -12,11 +12,14 @@ import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.LiveArrivals
 import com.yenreh.caligo.domain.entities.BusArrival
+import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.LineHours
 import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.entities.NearbyStop
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.FakeLocationSource
+import com.yenreh.caligo.ui.FakePlacesRepository
 import com.yenreh.caligo.ui.FakeStopsRepository
 import java.util.Calendar
 import kotlin.coroutines.CoroutineContext
@@ -67,6 +70,7 @@ class PlanTripViewModelTest {
     private val store = ViewModelStore()
     private val main = UnconfinedTestDispatcher()
     private val work = CoroutineScope(SupervisorJob() + main)
+    private var places = FakePlacesRepository()
 
     /** 2026-09-29 10:00, local time */
     private var clock = Calendar.getInstance().apply {
@@ -130,6 +134,7 @@ class PlanTripViewModelTest {
                     work = work,
                     now = { clock },
                     planning = planning,
+                    savedPlaces = places,
                 )
             }
         },
@@ -469,6 +474,112 @@ class PlanTripViewModelTest {
     }
 
     /** Runs on [delegate], keeping the threads it ran on */
+    // Saved places
+
+    private val home = FavoritePlace(7, "Casa", PlaceKind.ADDRESS, "Destination", null, to.latitude, to.longitude, null, 0)
+
+    @Test
+    fun aQuickPlanGoesToTheSavedPlaceFromTheOriginAsItIs() = test {
+        places = FakePlacesRepository(listOf(home))
+        val model = viewModel(repository(), destination = null)
+        assertEquals(listOf(home), model.screen.value.quickPlans)
+
+        model.planTo(home)
+
+        val state = model.screen.value
+        assertEquals(TripPlace(from.latitude, from.longitude, "My location", isDevice = true), state.from)
+        assertEquals(TripPlace(to.latitude, to.longitude, "Casa", kind = PlaceKind.ADDRESS), state.to)
+        assertEquals(1, state.options.size)
+        // The chips go once there is somewhere to go, and its star is filled
+        assertTrue(state.quickPlans.isEmpty())
+        assertEquals(home, state.savedTo)
+    }
+
+    @Test
+    fun aQuickPlanKeepsAnOriginChosenByHand() = test {
+        places = FakePlacesRepository(listOf(home))
+        val model = viewModel(repository(), location = location(lastKnown = null), destination = null)
+        model.choose(origin = true, place = from)
+
+        model.planTo(home)
+
+        assertEquals(from, model.screen.value.from)
+        assertEquals(1, model.screen.value.options.size)
+    }
+
+    @Test
+    fun noQuickPlansWithoutSavedPlaces() = test {
+        val model = viewModel(repository(), destination = null)
+        assertTrue(model.screen.value.quickPlans.isEmpty())
+    }
+
+    @Test
+    fun aStarSavesThePlaceOnceAndNeverTheDevice() = test {
+        val model = viewModel(repository())
+        assertNull(model.screen.value.savedTo)
+
+        model.savePlace(origin = false, name = " Work ")
+        val saved = model.screen.value.places.single()
+        assertEquals("Work", saved.name)
+        assertEquals("Destination", saved.label)
+        assertEquals(saved, model.screen.value.savedTo)
+
+        // Saved already, and the device: nothing more
+        model.savePlace(origin = false, name = "Again")
+        model.savePlace(origin = true, name = "Here")
+        assertEquals(listOf("Work"), model.screen.value.places.map { it.name })
+        assertNull(model.screen.value.savedFrom)
+    }
+
+    @Test
+    fun aPlaceAFewMetresOffIsTheOneSaved() = test {
+        places = FakePlacesRepository(listOf(home))
+        val model = viewModel(repository(), destination = to.copy(latitude = to.latitude + 0.0002, name = "Calle 5"))
+        assertEquals(home, model.screen.value.savedTo)
+
+        model.choose(origin = false, place = to.copy(latitude = to.latitude + 0.001))
+        assertNull(model.screen.value.savedTo)
+    }
+
+    @Test
+    fun renamingAPlaceRenamesTheFieldShowingIt() = test {
+        places = FakePlacesRepository(listOf(home))
+        val model = viewModel(repository(), destination = null)
+        model.planTo(home)
+
+        model.renamePlace(home.id, "Mi casa")
+
+        assertEquals(listOf("Mi casa"), model.screen.value.places.map { it.name })
+        assertEquals("Mi casa", model.screen.value.to?.name)
+        // An empty name is no rename
+        model.renamePlace(home.id, "  ")
+        assertEquals("Mi casa", model.screen.value.places.single().name)
+    }
+
+    @Test
+    fun deletingAPlaceEmptiesItsStarAndKeepsTheField() = test {
+        places = FakePlacesRepository(listOf(home))
+        val model = viewModel(repository())
+        assertEquals(home, model.screen.value.savedTo)
+
+        model.deletePlace(home.id)
+
+        assertTrue(model.screen.value.places.isEmpty())
+        assertNull(model.screen.value.savedTo)
+        assertEquals(to, model.screen.value.to)
+    }
+
+    @Test
+    fun aPlaceThatCannotBeSavedSaysSo() = test {
+        places = FakePlacesRepository().apply { failure = IllegalStateException("disk") }
+        val model = viewModel(repository())
+
+        model.savePlace(origin = false, name = "Work")
+
+        assertEquals(PlanTripMessage.COULD_NOT_SAVE_PLACE, withTimeoutOrNull(1_000) { model.messages.first() })
+        assertTrue(model.screen.value.places.isEmpty())
+    }
+
     private class RecordingDispatcher(private val delegate: CoroutineDispatcher) : CoroutineDispatcher() {
         /** Every thread a block handed to it ran on */
         val threads: MutableList<Thread> = java.util.concurrent.CopyOnWriteArrayList()

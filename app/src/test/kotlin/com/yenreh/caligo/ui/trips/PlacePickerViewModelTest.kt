@@ -11,11 +11,14 @@ import com.yenreh.caligo.domain.AddressPrecision
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.GeocodedPlace
 import com.yenreh.caligo.domain.TransitNetwork
+import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.LineStop
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.FakeLocationSource
+import com.yenreh.caligo.ui.FakePlacesRepository
 import com.yenreh.caligo.ui.FakeStopsRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +44,7 @@ class PlacePickerViewModelTest {
     private val store = ViewModelStore()
     private val main = UnconfinedTestDispatcher()
     private val work = CoroutineScope(SupervisorJob() + main)
+    private var places = FakePlacesRepository()
 
     @Before
     fun main() = Dispatchers.setMain(main)
@@ -84,7 +88,7 @@ class PlacePickerViewModelTest {
         val loader = TransitNetworkLoader(repository, work, building = main)
         return ViewModelProvider.create(
             store,
-            viewModelFactory { initializer { PlacePickerViewModel(loader, geocoder::search, location, names) } },
+            viewModelFactory { initializer { PlacePickerViewModel(loader, geocoder::search, location, names, places) } },
         )[PlacePickerViewModel::class]
     }
 
@@ -225,7 +229,47 @@ class PlacePickerViewModelTest {
         val known = FavoriteStop(id = "3", stopId = "3", name = "Cl 1", anchorLatitude = 3.0, anchorLongitude = -76.0)
         val area = FavoriteStop(id = "u", name = "Universidades", anchorLatitude = 3.1, anchorLongitude = -76.1)
 
-        assertEquals(TripPlace(3.42334, -76.55276, "Cl 1"), favoritePlace(known, network))
+        assertEquals(TripPlace(3.42334, -76.55276, "Cl 1", kind = PlaceKind.STOP, stopId = "3"), favoritePlace(known, network))
         assertEquals(TripPlace(3.1, -76.1, "Universidades"), favoritePlace(area, network))
+    }
+
+    // Saved places
+
+    private val saved = listOf(
+        FavoritePlace(1, "Mamá", PlaceKind.ADDRESS, "Cl 9 # 40-12", null, 3.431, -76.545, null, 0),
+        FavoritePlace(2, "U", PlaceKind.PLACE, "Universidad del Valle", "Cl. 13 #100-00", 3.3705, -76.531, null, 1),
+    )
+
+    @Test
+    fun savedPlacesAreFoundByTheirNameOrWhatTheyWereCalledWithoutAccents() {
+        assertEquals(saved, PlaceFilter("").places(saved))
+        assertEquals(listOf(saved[0]), PlaceFilter("mama").places(saved))
+        assertEquals(listOf(saved[1]), PlaceFilter("valle").places(saved))
+        assertEquals(emptyList<FavoritePlace>(), PlaceFilter("trabajo").places(saved))
+    }
+
+    @Test
+    fun savedPlacesLoadAndAreRenamedAndDeleted() = test {
+        places = FakePlacesRepository(saved)
+        val model = viewModel()
+        assertEquals(saved, model.places.value)
+
+        model.renamePlace(1, "  Casa de mamá ")
+        model.renamePlace(2, " ")
+        assertEquals(listOf("Casa de mamá", "U"), model.places.value.map { it.name })
+
+        model.deletePlace(2)
+        assertEquals(listOf("Casa de mamá"), model.places.value.map { it.name })
+    }
+
+    @Test
+    fun aPlaceThatCannotChangeSaysSo() = test {
+        places = FakePlacesRepository(saved).apply { failure = IllegalStateException("disk") }
+        val model = viewModel()
+
+        model.deletePlace(1)
+
+        assertEquals(PlacePickerEvent.CouldNotSavePlace, model.events.first())
+        assertEquals(saved, model.places.value)
     }
 }

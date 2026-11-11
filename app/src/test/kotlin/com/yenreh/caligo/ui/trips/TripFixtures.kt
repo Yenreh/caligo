@@ -14,6 +14,7 @@ import com.yenreh.caligo.domain.entities.LineStop
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.FakeLocationSource
+import com.yenreh.caligo.ui.FakePlacesRepository
 import com.yenreh.caligo.ui.FakeStopsRepository
 import java.util.Calendar
 import kotlin.time.Duration.Companion.minutes
@@ -38,6 +39,9 @@ class TripFixtures(
     val names: PlaceNames = PlaceNames("My location", "Point on the map") { "Near $it" },
 ) {
     val store = ViewModelStore()
+
+    /** The places saved, shared by the planners and pickers made here */
+    var places = FakePlacesRepository()
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     /** 2026-09-29 10:00, local time */
@@ -95,6 +99,7 @@ class TripFixtures(
                     planning = Dispatchers.Main.immediate,
                     trips = trips,
                     notifications = notifications,
+                    savedPlaces = places,
                 )
             }
         },
@@ -108,7 +113,7 @@ class TripFixtures(
         key: String = "picker",
     ): PlacePickerViewModel = ViewModelProvider.create(
         store,
-        viewModelFactory { initializer { PlacePickerViewModel(loader, geocoder::search, location, names) } },
+        viewModelFactory { initializer { PlacePickerViewModel(loader, geocoder::search, location, names, places) } },
     )[key, PlacePickerViewModel::class]
 
     fun bus(line: String, vehicle: String, minutes: Int) =

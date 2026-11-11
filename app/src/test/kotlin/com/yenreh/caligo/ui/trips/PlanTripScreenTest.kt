@@ -9,6 +9,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -23,13 +25,20 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.yenreh.caligo.WAIT_TIMEOUT_MS
+import com.yenreh.caligo.assertControlsAccessible
 import com.yenreh.caligo.domain.LiveArrivals
+import com.yenreh.caligo.domain.entities.FavoritePlace
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.domain.entities.WalkLeg
+import com.yenreh.caligo.ui.FakePlacesRepository
 import com.yenreh.caligo.ui.map.FixtureTiles
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import kotlin.time.Duration
@@ -502,4 +511,112 @@ class PlanTripScreenTest {
         assertEquals(asked + 1, repository.tripAsked.size)
     }
 
+    // Saved places
+
+    private val home get() = FavoritePlace(7, "Casa", PlaceKind.ADDRESS, "Destination", null, trips.to.latitude, trips.to.longitude, null, 0)
+    private val work get() = FavoritePlace(8, "Trabajo", PlaceKind.STOP, "a 6", null, trips.point(6.0, 0.0).latitude, trips.point(6.0, 0.0).longitude, "a6", 1)
+
+    private fun chip(name: String) = compose.onNode(hasTestTag("quick_plan") and hasText(name))
+
+    @Test
+    fun anEmptyStarSavesThePlaceInTwoTaps() {
+        val model = trips.planner()
+        show(model)
+        // My location has no star
+        assertFalse(exists(hasTestTag("origin_star")))
+
+        compose.onNodeWithContentDescription("Save Destination as a place").performClick()
+        compose.onNodeWithText("Save place").assertExists()
+        compose.onNodeWithTag("place_name").assert(hasText("Destination"))
+        compose.onNodeWithTag("place_save").performClick()
+
+        compose.waitUntil(WAIT_TIMEOUT_MS) { model.screen.value.places.isNotEmpty() }
+        assertEquals("Destination", model.screen.value.places.single().name)
+        assertFalse(exists(hasTestTag("place_sheet")))
+        compose.onNodeWithContentDescription("Edit the saved place Destination").assertExists()
+    }
+
+    @Test
+    fun aNameTypedOverTheSuggestionIsSavedTrimmed() {
+        val model = trips.planner()
+        show(model)
+
+        compose.onNodeWithTag("destination_star").performClick()
+        compose.onNodeWithTag("place_name").performTextReplacement("  Casa  ")
+        compose.onNodeWithTag("place_save").performClick()
+
+        compose.waitUntil(WAIT_TIMEOUT_MS) { model.screen.value.places.isNotEmpty() }
+        assertEquals("Casa", model.screen.value.places.single().name)
+    }
+
+    @Test
+    fun aFilledStarEditsThePlace() {
+        trips.places = FakePlacesRepository(listOf(home))
+        val model = trips.planner()
+        show(model)
+
+        compose.onNodeWithContentDescription("Edit the saved place Casa").performClick()
+        compose.onNodeWithText("Edit place").assertExists()
+        compose.onNodeWithTag("place_name").performTextReplacement("Mi casa")
+        compose.onNodeWithTag("place_save").performClick()
+
+        compose.waitUntil(WAIT_TIMEOUT_MS) { model.screen.value.places.single().name == "Mi casa" }
+
+        compose.onNodeWithTag("destination_star").performClick()
+        compose.onNodeWithTag("place_delete").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { model.screen.value.places.isEmpty() }
+        compose.onNodeWithContentDescription("Save Destination as a place").assertExists()
+    }
+
+    @Test
+    fun aChipPlansThereFromTheOriginWithOneTap() {
+        trips.places = FakePlacesRepository(listOf(home, work))
+        val model = trips.planner(destination = null)
+        show(model)
+        compose.onNodeWithTag("quick_plans").assertExists()
+        // In the order saved
+        assertTrue(
+            chip("Casa").fetchSemanticsNode().boundsInRoot.left < chip("Trabajo").fetchSemanticsNode().boundsInRoot.left,
+        )
+        assertEquals(
+            "Plan a trip to Casa",
+            chip("Casa").fetchSemanticsNode().config[SemanticsActions.OnClick].label,
+        )
+        compose.assertControlsAccessible()
+
+        chip("Casa").performClick()
+
+        waitFor(hasTestTag("option_0"))
+        compose.onNodeWithTag("destination_field").assert(hasText("Casa"))
+        compose.onNodeWithTag("origin_field").assert(hasText("My location"))
+        assertFalse(exists(hasTestTag("quick_plans")))
+        compose.onNodeWithContentDescription("Edit the saved place Casa").assertExists()
+    }
+
+    @Test
+    fun aLongPressOrTheCustomActionEditsAChip() {
+        trips.places = FakePlacesRepository(listOf(home, work))
+        val model = trips.planner(destination = null)
+        show(model)
+
+        chip("Trabajo").performTouchInput { longClick() }
+        compose.onNodeWithText("Edit place").assertExists()
+        compose.onNodeWithTag("place_delete").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { model.screen.value.places == listOf(home) }
+        assertNull(model.screen.value.to)
+
+        val edit = chip("Casa").fetchSemanticsNode().config[SemanticsActions.CustomActions].single()
+        assertEquals("Edit place", edit.label)
+        assertEquals("Edit place", chip("Casa").fetchSemanticsNode().config[SemanticsActions.OnLongClick].label)
+        compose.runOnUiThread { edit.action() }
+        compose.onNodeWithTag("place_name").performTextReplacement(" ")
+        assertTrue(compose.onNodeWithTag("place_save").fetchSemanticsNode().config.contains(SemanticsProperties.Disabled))
+    }
+
+    @Test
+    fun noChipsWithoutSavedPlaces() {
+        show(trips.planner(destination = null))
+        assertFalse(exists(hasTestTag("quick_plans")))
+        compose.onNodeWithText("Choose where you leave from and where you are going to see how to get there.").assertExists()
+    }
 }

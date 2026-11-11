@@ -1,6 +1,7 @@
 package com.yenreh.caligo.ui.trips
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,8 +23,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -31,12 +35,16 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.AddressMatch
 import com.yenreh.caligo.domain.AddressPrecision
+import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.TripPlace
@@ -93,8 +101,9 @@ fun PlacePickerRoute(
 
 /**
  * Choose where a trip starts or ends: the device, a point on the map, a
- * favorite, a station, any stop along the routes, or an address or place
- * looked up on request, since each search asks Google through the phone.
+ * saved place, a favorite, a station, any stop along the routes, or an
+ * address or place looked up on request, since each search asks Google
+ * through the phone. A long press on a saved place renames or deletes it.
  */
 @Composable
 fun PlacePickerScreen(
@@ -110,6 +119,8 @@ fun PlacePickerScreen(
     val p = LabTheme.palette
     val state by viewModel.screen.collectAsStateWithLifecycle()
     val routes by viewModel.routes.collectAsStateWithLifecycle()
+    val places by viewModel.places.collectAsStateWithLifecycle()
+    var editing by rememberSaveable { mutableStateOf<Long?>(null) }
     val network = routes.network
     val snackbars = rememberLabSnackbars()
     val query = rememberTextFieldState()
@@ -121,16 +132,19 @@ fun PlacePickerScreen(
     LaunchedEffect(focus) { focus.requestFocus() }
 
     val couldNotLocate = stringResource(R.string.could_not_locate)
+    val couldNotSave = stringResource(R.string.could_not_save_place)
     LaunchedEffect(viewModel) {
         viewModel.events.collect {
             when (it) {
                 is PlacePickerEvent.Picked -> picked(it.place)
                 PlacePickerEvent.CouldNotLocate -> snackbars.show(couldNotLocate, LabTone.WARN)
+                PlacePickerEvent.CouldNotSavePlace -> snackbars.show(couldNotSave, LabTone.CRIT)
             }
         }
     }
 
     val filter = state.filter
+    val shownPlaces = filter.places(places)
     val shownFavorites = filter.favorites(favorites)
     val shownStations = filter.stations(stations)
     val shownStops = remember(state.typed, network) { filter.stops(network) }
@@ -176,7 +190,7 @@ fun PlacePickerScreen(
                 if (state.offersAddress) {
                     if (state.showsFound) {
                         section("addresses", R.string.addresses_section, if (state.found.isEmpty()) listOf(null) else state.found) { match ->
-                            if (match == null) NotFoundTile() else AddressTile(match, onClick = { picked(match.place) })
+                            if (match == null) NotFoundTile() else AddressTile(match, onClick = { picked(addressPlace(match)) })
                         }
                     } else {
                         item(key = "search_address") {
@@ -213,6 +227,9 @@ fun PlacePickerScreen(
                         trailing = { Chevron() },
                     )
                 }
+                section("places", R.string.saved_places, shownPlaces) { place ->
+                    SavedPlaceTile(place, onClick = { picked(place.tripPlace) }, onEdit = { editing = place.id })
+                }
                 section("favorites", R.string.favorites_short, shownFavorites) { favorite ->
                     PlaceTile(
                         icon = R.drawable.ic_signpost,
@@ -226,23 +243,34 @@ fun PlacePickerScreen(
                         icon = R.drawable.ic_directions_bus,
                         title = station.name,
                         subtitle = station.address,
-                        onClick = { picked(TripPlace(station.latitude, station.longitude, station.name)) },
+                        onClick = { picked(stationPlace(station)) },
                     )
                 }
                 section("stops", R.string.stops_section, shownStops) { stop ->
                     PlaceTile(
                         icon = R.drawable.ic_place,
                         title = stop.name,
-                        onClick = { picked(TripPlace(stop.latitude, stop.longitude, stop.name)) },
+                        onClick = { picked(stopPlace(stop)) },
                     )
                 }
             }
         }
     }
+    places.firstOrNull { it.id == editing }?.let { place ->
+        EditPlaceSheet(
+            place = place,
+            onDismiss = { editing = null },
+            onSave = { name ->
+                editing = null
+                viewModel.renamePlace(place.id, name)
+            },
+            onDelete = {
+                editing = null
+                viewModel.deletePlace(place.id)
+            },
+        )
+    }
 }
-
-/** What an address found names and where it is */
-private val AddressMatch.place: TripPlace get() = TripPlace(latitude, longitude, name)
 
 /** A section of [rows], under its label, with a rule between rows; nothing without rows */
 private fun <T> LazyListScope.section(key: String, title: Int, rows: List<T>, row: @Composable (T) -> Unit) {
@@ -272,6 +300,23 @@ private fun PlaceTile(icon: Int, title: String, onClick: () -> Unit, subtitle: S
         modifier = Modifier
             .clickable(onClick = onClick)
             .testTag("place_tile"),
+    )
+}
+
+/** A saved place: a tap picks it, a long press or the custom action edits it */
+@Composable
+private fun SavedPlaceTile(place: FavoritePlace, onClick: () -> Unit, onEdit: () -> Unit) {
+    val edit = stringResource(R.string.edit_place)
+    LabListTile(
+        title = place.name,
+        subtitle = place.label.takeIf { it != place.name } ?: place.detail,
+        // The star that saved it, as on the planner's chips
+        leading = painterResource(R.drawable.ic_star),
+        leadingTint = LabTheme.palette.accent,
+        modifier = Modifier
+            .combinedClickable(onClick = onClick, onLongClick = onEdit, onLongClickLabel = edit)
+            .semantics { customActions = listOf(CustomAccessibilityAction(edit) { onEdit(); true }) }
+            .testTag("saved_place"),
     )
 }
 

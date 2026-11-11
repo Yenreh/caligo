@@ -19,10 +19,13 @@ import com.yenreh.caligo.domain.FadingArrivals
 import com.yenreh.caligo.domain.LiveArrivals
 import com.yenreh.caligo.domain.TransitNetwork
 import com.yenreh.caligo.domain.TripPlanner
+import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.LineHours
 import com.yenreh.caligo.domain.entities.TripOption
 import com.yenreh.caligo.domain.entities.TripPlace
+import com.yenreh.caligo.domain.entities.matching
 import com.yenreh.caligo.domain.metersBetween
+import com.yenreh.caligo.domain.repositories.PlacesRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import com.yenreh.caligo.domain.rideReadings
 import com.yenreh.caligo.domain.stopsWorthAsking
@@ -107,7 +110,18 @@ data class PlanTripState(
     val planning: Boolean = false,
     /** Why the open option could not start as a trip, with the way to the settings */
     val tripMessage: TripMessage? = null,
+    /** The places saved for quick plans, in the order saved */
+    val places: List<FavoritePlace> = emptyList(),
 ) {
+    /** The saved place the origin is, which fills its star */
+    val savedFrom: FavoritePlace? get() = from?.let { places.matching(it) }
+
+    /** The saved place the destination is, which fills its star */
+    val savedTo: FavoritePlace? get() = to?.let { places.matching(it) }
+
+    /** The saved places offered as quick plans: while there is nowhere to go yet */
+    val quickPlans: List<FavoritePlace> get() = if (to == null) places else emptyList()
+
     /** The option open, timed */
     val open: TripOption? get() = expanded?.let { timed[it] }
 
@@ -138,6 +152,9 @@ enum class PlanTripMessage {
 
     /** Planning failed, by a read or the planner itself */
     COULD_NOT_PLAN,
+
+    /** A place could not be saved, renamed or deleted */
+    COULD_NOT_SAVE_PLACE,
 }
 
 /**
@@ -171,6 +188,8 @@ class PlanTripViewModel(
     /** Where the open option starts as a trip; none offers no "Start trip" */
     private val trips: TripControl? = null,
     private val notifications: NotificationAccess? = null,
+    /** The places saved for quick plans, which the stars save and the chips plan to */
+    private val savedPlaces: PlacesRepository,
 ) : ViewModel() {
     private val state = MutableStateFlow(PlanTripState(to = destination, network = network.load.value))
     val screen: StateFlow<PlanTripState> = state.asStateFlow()
@@ -276,6 +295,56 @@ class PlanTripViewModel(
         // Most trips start where the phone is; asked quietly, so no prompt
         // stands in front of someone who has not chosen anything yet
         viewModelScope.launch { startFromDevice() }
+        viewModelScope.launch { savedPlaces.places.collect { places -> state.update { it.copy(places = places) } } }
+        viewModelScope.launch {
+            try {
+                savedPlaces.load()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // Without them the planner works all the same, with no quick plans
+            }
+        }
+    }
+
+    /** Plan to a saved place, from the origin as it is */
+    fun planTo(place: FavoritePlace) = choose(origin = false, place.tripPlace)
+
+    /** Save the origin or the destination under [name]; never the device, nor a place saved already */
+    fun savePlace(origin: Boolean, name: String) {
+        val current = state.value
+        val place = (if (origin) current.from else current.to) ?: return
+        if (place.isDevice || FavoritePlace.cleanName(name) == null || current.places.matching(place) != null) return
+        viewModelScope.launch { changePlaces { savedPlaces.add(name, place) } }
+    }
+
+    /** Rename a saved place, and either field showing it under its old name */
+    fun renamePlace(id: Long, name: String) {
+        val clean = FavoritePlace.cleanName(name) ?: return
+        val old = state.value.places.firstOrNull { it.id == id } ?: return
+        viewModelScope.launch {
+            if (!changePlaces { savedPlaces.rename(id, clean) }) return@launch
+            fun renamed(place: TripPlace?) =
+                if (place != null && place.name == old.name && old.isAt(place.latitude, place.longitude, place.stopId)) {
+                    place.copy(name = clean)
+                } else {
+                    place
+                }
+            state.update { it.copy(from = renamed(it.from), to = renamed(it.to)) }
+        }
+    }
+
+    fun deletePlace(id: Long) {
+        viewModelScope.launch { changePlaces { savedPlaces.delete(id) } }
+    }
+
+    /** Whether [change] went through; a snackbar says so when not */
+    private suspend fun changePlaces(change: suspend () -> Unit): Boolean = try {
+        change()
+        true
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        reports.trySend(PlanTripMessage.COULD_NOT_SAVE_PLACE)
+        false
     }
 
     private fun tick() {
@@ -586,6 +655,7 @@ class PlanTripViewModel(
                     work = container.scope,
                     trips = container.trips,
                     notifications = container.notificationAccess,
+                    savedPlaces = container.placesRepository,
                 )
             }
         }

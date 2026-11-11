@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -52,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -83,6 +85,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yenreh.caligo.R
 import com.yenreh.caligo.domain.GeoPoint
+import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.RideLeg
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.TripOption
@@ -157,11 +160,13 @@ fun PlanTripRoute(
  * From one place to another on the MIO: where to walk, which buses to
  * take and where to change, with the trip drawn on the map.
  *
- * Origin and destination open the picker through [onChoose]; each option
- * lists its legs and, once opened, its steps, with the map above it. The
- * arrivals are asked for only while [shown]. [darkTiles] says the tiles
- * are dark, which the controls on them follow; [carto] that they are
- * CARTO's, which the credits then name.
+ * Origin and destination open the picker through [onChoose], and a star
+ * beside each saves it as a place; while there is nowhere to go yet, the
+ * saved places plan there with one tap. Each option lists its legs and,
+ * once opened, its steps, with the map above it. The arrivals are asked
+ * for only while [shown]. [darkTiles] says the tiles are dark, which the
+ * controls on them follow; [carto] that they are CARTO's, which the
+ * credits then name.
  */
 @Composable
 fun PlanTripScreen(
@@ -200,6 +205,13 @@ fun PlanTripScreen(
     val scope = rememberCoroutineScope()
     val list = rememberLazyListState()
     var creditsOpen by remember { mutableStateOf(false) }
+    // The field whose place is being named, true for the origin, and the saved place being edited
+    var naming by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    var editing by rememberSaveable { mutableStateOf<Long?>(null) }
+    fun star(origin: Boolean) {
+        val saved = if (origin) state.savedFrom else state.savedTo
+        if (saved != null) editing = saved.id else naming = origin
+    }
 
     // Out of view nothing is asked for; back in view the open trip catches up
     DisposableEffect(viewModel, shown) {
@@ -209,11 +221,13 @@ fun PlanTripScreen(
 
     val couldNotLocate = stringResource(R.string.could_not_locate)
     val couldNotPlan = stringResource(R.string.could_not_plan)
+    val couldNotSavePlace = stringResource(R.string.could_not_save_place)
     LaunchedEffect(viewModel) {
         viewModel.messages.collect {
             when (it) {
                 PlanTripMessage.COULD_NOT_LOCATE -> snackbars.show(couldNotLocate, LabTone.WARN)
                 PlanTripMessage.COULD_NOT_PLAN -> snackbars.show(couldNotPlan, LabTone.CRIT)
+                PlanTripMessage.COULD_NOT_SAVE_PLACE -> snackbars.show(couldNotSavePlace, LabTone.CRIT)
             }
         }
     }
@@ -312,7 +326,13 @@ fun PlanTripScreen(
                 onTo = { onChoose(false) },
                 canSwap = state.canSwap,
                 onSwap = viewModel::swap,
+                savedFrom = state.savedFrom,
+                savedTo = state.savedTo,
+                onStar = ::star,
             )
+            if (state.quickPlans.isNotEmpty()) {
+                QuickPlans(state.quickPlans, onPlan = viewModel::planTo, onEdit = { editing = it.id })
+            }
             val open = state.open
             if (open != null) {
                 Rule(1.dp, p.rule)
@@ -349,6 +369,32 @@ fun PlanTripScreen(
                 )
             }
         }
+    }
+    naming?.let { origin ->
+        val place = if (origin) state.from else state.to
+        if (place == null || place.isDevice) return@let
+        SavePlaceSheet(
+            place = place,
+            onDismiss = { naming = null },
+            onSave = { name ->
+                naming = null
+                viewModel.savePlace(origin, name)
+            },
+        )
+    }
+    state.places.firstOrNull { it.id == editing }?.let { place ->
+        EditPlaceSheet(
+            place = place,
+            onDismiss = { editing = null },
+            onSave = { name ->
+                editing = null
+                viewModel.renamePlace(place.id, name)
+            },
+            onDelete = {
+                editing = null
+                viewModel.deletePlace(place.id)
+            },
+        )
     }
 }
 
@@ -408,6 +454,9 @@ private fun PlacesPanel(
     onTo: () -> Unit,
     canSwap: Boolean,
     onSwap: () -> Unit,
+    savedFrom: FavoritePlace?,
+    savedTo: FavoritePlace?,
+    onStar: (origin: Boolean) -> Unit,
 ) {
     val p = LabTheme.palette
     Row(
@@ -423,7 +472,13 @@ private fun PlacesPanel(
                 onClick = onFrom,
                 marker = { OriginDot(p) },
                 modifier = Modifier.testTag("origin_field"),
-                trailing = { LocateButton(locating, onLocate) },
+                trailing = {
+                    if (from != null && !from.isDevice) {
+                        PlaceStar(from, savedFrom, onClick = { onStar(true) }, modifier = Modifier.testTag("origin_star"))
+                    }
+                    LocateButton(locating, onLocate)
+                    Spacer(Modifier.width(8.dp))
+                },
             )
             Spacer(Modifier.height(8.dp))
             PlaceField(
@@ -432,6 +487,11 @@ private fun PlacesPanel(
                 onClick = onTo,
                 marker = { DestinationSquare(p) },
                 modifier = Modifier.testTag("destination_field"),
+                trailing = if (to != null && !to.isDevice) {
+                    { PlaceStar(to, savedTo, onClick = { onStar(false) }, modifier = Modifier.testTag("destination_star")) }
+                } else {
+                    null
+                },
             )
         }
         Spacer(Modifier.width(8.dp))
@@ -455,20 +515,24 @@ private fun PlaceField(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val p = LabTheme.palette
+    // The text sets the height, 48 at least, which a star of 48 then keeps
     Row(
         modifier
             .fillMaxWidth()
             .background(p.paper)
             .border(1.dp, p.rule)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .heightIn(min = 48.dp)
+            .padding(start = 12.dp, end = if (trailing == null) 12.dp else 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { marker() }
         Spacer(Modifier.width(12.dp))
         Text(
             text = text ?: placeholder,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 12.dp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodyLarge.copy(color = if (text == null) p.muted else p.ink),

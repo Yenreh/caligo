@@ -267,6 +267,17 @@
     <string name="address_not_found">No encontramos nada. Prueba con un cruce, como «Calle 5 con Carrera 38», o elige el punto en el mapa.</string>
     <string name="stops_section">Paradas</string>
     <string name="pick_on_map">Elegir en el mapa</string>
+    <!-- Saved places -->
+    <string name="saved_places">Lugares guardados</string>
+    <string name="save_place">Guardar lugar</string>
+    <string name="edit_place">Editar lugar</string>
+    <string name="place_name_label">Nombre</string>
+    <string name="place_name_hint">Corto, como Casa o Trabajo: planea el viaje hasta allí con un toque desde el planeador</string>
+    <string name="delete_place">Eliminar lugar</string>
+    <string name="save_place_action">Guardar %1$s como lugar</string>
+    <string name="edit_place_action">Editar el lugar guardado %1$s</string>
+    <string name="plan_to_place">Planear un viaje a %1$s</string>
+    <string name="could_not_save_place">No se pudo guardar el lugar</string>
     <string name="use_point">Usar este punto</string>
     <!-- Waiting for a bus -->
     <string name="wait_start">Avisarme del %1$s</string>

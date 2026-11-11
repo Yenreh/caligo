@@ -272,6 +272,17 @@
     <string name="address_not_found">Nothing found. Try a crossing, such as “Calle 5 con Carrera 38”, or pick the point on the map.</string>
     <string name="stops_section">Stops</string>
     <string name="pick_on_map">Pick on the map</string>
+    <!-- Saved places -->
+    <string name="saved_places">Saved places</string>
+    <string name="save_place">Save place</string>
+    <string name="edit_place">Edit place</string>
+    <string name="place_name_label">Name</string>
+    <string name="place_name_hint">Short, such as Home or Work: it plans a trip there with one tap from the planner</string>
+    <string name="delete_place">Delete place</string>
+    <string name="save_place_action">Save %1$s as a place</string>
+    <string name="edit_place_action">Edit the saved place %1$s</string>
+    <string name="plan_to_place">Plan a trip to %1$s</string>
+    <string name="could_not_save_place">Could not save the place</string>
     <string name="use_point">Use this point</string>
     <!-- Waiting for a bus -->
     <string name="wait_start">Notify me about the %1$s</string>

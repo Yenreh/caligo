@@ -12,16 +12,20 @@ import com.yenreh.caligo.data.location.LocationSource
 import com.yenreh.caligo.data.location.currentDevicePosition
 import com.yenreh.caligo.data.location.lastKnownDevicePosition
 import com.yenreh.caligo.domain.AddressMatch
+import com.yenreh.caligo.domain.AddressPrecision
 import com.yenreh.caligo.domain.AddressSearch
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.GeocodedPlace
 import com.yenreh.caligo.domain.TransitNetwork
 import com.yenreh.caligo.domain.dartTrim
+import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.LineStop
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.Station
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.domain.foldAccents
+import com.yenreh.caligo.domain.repositories.PlacesRepository
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -73,6 +77,9 @@ sealed interface PlacePickerEvent {
 
     /** The device could not be located: a snackbar */
     data object CouldNotLocate : PlacePickerEvent
+
+    /** A saved place could not be changed: a snackbar */
+    data object CouldNotSavePlace : PlacePickerEvent
 }
 
 /** Three letters typed at least before an address is looked up */
@@ -87,6 +94,9 @@ class PlaceFilter(typed: String) {
     private val needle = foldAccents(typed)
 
     fun matches(text: String) = needle.isEmpty() || foldAccents(text).contains(needle)
+
+    /** Saved places by their own name or what they were called */
+    fun places(places: List<FavoritePlace>) = places.filter { matches(it.name) || matches(it.label) }
 
     fun favorites(favorites: List<FavoriteStop>) = favorites.filter { matches(it.displayName) || matches(it.name) }
 
@@ -110,7 +120,8 @@ class PlaceFilter(typed: String) {
 
 /**
  * A favorite as a place: the stop itself when the routes know it; its
- * anchor, a few metres off, otherwise
+ * anchor, a few metres off, otherwise. An area, with no stop of its own,
+ * is a plain place.
  */
 fun favoritePlace(favorite: FavoriteStop, network: TransitNetwork?): TripPlace {
     val stop = favorite.stopId?.let { network?.stopById(it) }
@@ -118,13 +129,32 @@ fun favoritePlace(favorite: FavoriteStop, network: TransitNetwork?): TripPlace {
         stop?.latitude ?: favorite.anchorLatitude,
         stop?.longitude ?: favorite.anchorLongitude,
         favorite.displayName,
+        kind = if (favorite.stopId == null) PlaceKind.PLACE else PlaceKind.STOP,
+        detail = favorite.secondaryName,
+        stopId = favorite.stopId,
     )
 }
 
+/** A stop along the routes as a place */
+fun stopPlace(stop: LineStop) = TripPlace(stop.latitude, stop.longitude, stop.name, kind = PlaceKind.STOP, stopId = stop.stopId)
+
+/** A station as a place: it spans several stops, so it is a plain place */
+fun stationPlace(station: Station) = TripPlace(station.latitude, station.longitude, station.name, detail = station.address)
+
+/** What an address found names and where it is: an address, or a place with its own */
+fun addressPlace(match: AddressMatch) = TripPlace(
+    match.latitude,
+    match.longitude,
+    match.name,
+    kind = if (match.precision == AddressPrecision.PLACE) PlaceKind.PLACE else PlaceKind.ADDRESS,
+    detail = match.detail.takeIf { match.precision == AddressPrecision.PLACE },
+)
+
 /**
  * The Flutter PlacePickerScreen's logic: choose where a trip starts or
- * ends, from the device, a point on the map, a favorite, a station, any
- * stop along the routes, or an address or place looked up on request.
+ * ends, from the device, a point on the map, a saved place, a favorite, a
+ * station, any stop along the routes, or an address or place looked up on
+ * request. Saved places are renamed or deleted here too.
  *
  * One per picker screen.
  */
@@ -134,6 +164,7 @@ class PlacePickerViewModel(
     private val geocode: suspend (query: String) -> List<GeocodedPlace>,
     private val location: LocationSource,
     private val names: PlaceNames,
+    private val savedPlaces: PlacesRepository,
 ) : ViewModel() {
     private val state = MutableStateFlow(PlacePickerState())
     val screen: StateFlow<PlacePickerState> = state.asStateFlow()
@@ -144,8 +175,37 @@ class PlacePickerViewModel(
     /** The routes, for the stops listed and named */
     val routes: StateFlow<NetworkLoad> get() = network.load
 
+    /** The places saved for quick plans, listed first */
+    val places: StateFlow<List<FavoritePlace>> get() = savedPlaces.places
+
     init {
         network.watch()
+        viewModelScope.launch {
+            try {
+                savedPlaces.load()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // Without them the picker lists the rest all the same
+            }
+        }
+    }
+
+    fun renamePlace(id: Long, name: String) {
+        if (FavoritePlace.cleanName(name) == null) return
+        viewModelScope.launch { changePlaces { savedPlaces.rename(id, name) } }
+    }
+
+    fun deletePlace(id: Long) {
+        viewModelScope.launch { changePlaces { savedPlaces.delete(id) } }
+    }
+
+    private suspend fun changePlaces(change: suspend () -> Unit) {
+        try {
+            change()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            reports.send(PlacePickerEvent.CouldNotSavePlace)
+        }
     }
 
     fun setQuery(query: String) = state.update { it.copy(query = query) }
@@ -220,6 +280,7 @@ class PlacePickerViewModel(
                         pointOnMap = app.getString(R.string.point_on_map),
                         nearStop = { app.getString(R.string.near_stop, it) },
                     ),
+                    savedPlaces = container.placesRepository,
                 )
             }
         }

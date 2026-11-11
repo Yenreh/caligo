@@ -98,6 +98,7 @@ class PlannerApp {
                                     work = trips.scope,
                                     now = { trips.clock },
                                     planning = Dispatchers.Main.immediate,
+                                    savedPlaces = trips.places,
                                 ).also { planners.add(it to destination) }
                             }
                         },
@@ -107,7 +108,7 @@ class PlannerApp {
                     viewModel(
                         factory = viewModelFactory {
                             initializer {
-                                PlacePickerViewModel(loader, TripFixtures.Geocoder()::search, location, trips.names)
+                                PlacePickerViewModel(loader, TripFixtures.Geocoder()::search, location, trips.names, trips.places)
                                     .also { pickers.add(it) }
                             }
                         },
