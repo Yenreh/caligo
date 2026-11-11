@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.remember
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -24,6 +25,7 @@ import com.yenreh.caligo.ui.map.waitForMapTiles
 import com.yenreh.caligo.ui.theme.CaliGoTheme
 import kotlin.math.roundToInt
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -125,12 +127,39 @@ class PlanTripScreenshotTest {
 
     // The options, none open
 
-    private fun options(name: String) {
+    private fun options(name: String, label: Boolean = true, whole: Boolean = true) {
         val model = trips.planner(repository(), destination = destination)
         planner(model, FixtureTiles(), dark = false)
         compose.captureWindow(name)
         compose.assertControlsAccessible()
+        // The title whole beside the actions, Google Maps named where there is room
+        val title = compose.onNode(hasText("Planear viaje") or hasText("Plan a trip")).fetchSemanticsNode()
+        val layout = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        title.config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action!!.invoke(layout)
+        assertEquals("$name: title whole", whole, !layout.single().isLineEllipsized(0))
+        assertEquals(label, exists(hasText("Google Maps")))
     }
+
+    @Test
+    @Config(qualifiers = "+en")
+    fun optionsEnglish() = options("plan_trip_options_en")
+
+    @Test
+    @Config(qualifiers = "es-w360dp-h640dp-xxhdpi")
+    fun optionsNarrow() = options("plan_trip_options_360", label = false)
+
+    @Test
+    @Config(qualifiers = "en-w360dp-h640dp-xxhdpi")
+    fun optionsNarrowEnglish() = options("plan_trip_options_360_en", label = false)
+
+    @Test
+    @Config(qualifiers = "es-w360dp-h640dp-xxhdpi", fontScale = 2f)
+    // Large text on a small phone: even shrunk, the title is cut
+    fun optionsNarrowFontScale2() = options("plan_trip_options_360_font2", label = false, whole = false)
+
+    @Test
+    @Config(qualifiers = "+en", fontScale = 2f)
+    fun optionsEnglishFontScale2() = options("plan_trip_options_en_font2", label = false)
 
     @Test
     fun optionsLight() = options("plan_trip_options_light")
@@ -143,7 +172,7 @@ class PlanTripScreenshotTest {
 
     @Test
     @Config(fontScale = 2f)
-    fun optionsFontScale2() = options("plan_trip_options_font2")
+    fun optionsFontScale2() = options("plan_trip_options_font2", label = false)
 
     @Test
     @Config(fontScale = 2f)

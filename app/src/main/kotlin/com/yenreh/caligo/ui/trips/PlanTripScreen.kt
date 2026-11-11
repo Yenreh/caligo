@@ -100,6 +100,7 @@ import com.yenreh.caligo.ui.lab.LabEmptyState
 import com.yenreh.caligo.ui.lab.LabIconButton
 import com.yenreh.caligo.ui.lab.LabLineChip
 import com.yenreh.caligo.ui.lab.LabSnackbarHost
+import com.yenreh.caligo.ui.lab.LabTextButton
 import com.yenreh.caligo.ui.lab.LabTone
 import com.yenreh.caligo.ui.lab.LabTooltip
 import com.yenreh.caligo.ui.lab.LabTopBar
@@ -285,22 +286,38 @@ fun PlanTripScreen(
                     }
                     val mapsLabel = stringResource(R.string.open_in_google_maps)
                     val canOpenMaps = from != null && to != null
-                    // Its icon alone, as the other bars' actions, so the title keeps its room
-                    LabTooltip(mapsLabel) {
-                        IconButton(
-                            onClick = openMaps,
-                            enabled = canOpenMaps,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .testTag("google_maps"),
-                            shape = RectangleShape,
-                        ) {
-                            Icon(
-                                painterResource(R.drawable.ic_open_in_new),
-                                contentDescription = mapsLabel,
-                                // A disabled TextButton's onSurface at 38 %
-                                tint = if (canOpenMaps) p.accent else p.ink.copy(alpha = 0.38f),
-                            )
+                    if (mapsLabelFits()) {
+                        // "Google Maps" in words: where it leaves for, as riders know it
+                        LabTooltip(mapsLabel) {
+                            LabTextButton(
+                                onClick = openMaps,
+                                enabled = canOpenMaps,
+                                modifier = Modifier.testTag("google_maps"),
+                                withIcon = true,
+                            ) {
+                                Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.google_maps))
+                            }
+                        }
+                    } else {
+                        // Its icon alone, as the other bars' actions, so the title keeps its room
+                        LabTooltip(mapsLabel) {
+                            IconButton(
+                                onClick = openMaps,
+                                enabled = canOpenMaps,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .testTag("google_maps"),
+                                shape = RectangleShape,
+                            ) {
+                                Icon(
+                                    painterResource(R.drawable.ic_open_in_new),
+                                    contentDescription = mapsLabel,
+                                    // A disabled TextButton's onSurface at 38 %
+                                    tint = if (canOpenMaps) p.accent else p.ink.copy(alpha = 0.38f),
+                                )
+                            }
                         }
                     }
                     Spacer(Modifier.width(8.dp))
@@ -384,6 +401,21 @@ fun PlanTripScreen(
 
 /** Share of the screen the map takes while an option is open: the steps below it matter as much */
 private const val MAP_SHARE = 0.3f
+
+/**
+ * Whether the Google Maps action has room for its name beside the title:
+ * a window [MAPS_LABEL_MIN_WIDTH] wide or more, and text not large
+ */
+@Composable
+private fun mapsLabelFits(): Boolean =
+    !labLargeText() && with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() } >= MAPS_LABEL_MIN_WIDTH
+
+/**
+ * Where "Planear viaje" still fits whole beside the refresh button and
+ * "Google Maps": at 22 sp from about 485 dp, shrunk to about 18 sp at
+ * 400 dp; at 380 dp even 16 sp is cut
+ */
+private val MAPS_LABEL_MIN_WIDTH = 400.dp
 
 /** The height of the window, system bars included, as Flutter's MediaQuery size */
 @Composable
