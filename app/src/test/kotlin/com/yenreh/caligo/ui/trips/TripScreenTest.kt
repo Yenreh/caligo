@@ -270,9 +270,23 @@ class TripScreenTest {
         waitFor("trip_running")
         compose.onNode(hasText("Trip to Unicentro")).assertExists()
         compose.onNode(hasText("Walk to Plaza de Cayzedo A1")).assertExists()
+        compose.onNode(hasText("Then the E21 or T31")).assertExists()
         compose.onNode(hasText("THEN")).assertExists()
         compose.onNode(hasText("E21 or T31 · get off at Calle 5 con Kr 39, 6${NBSP}stops")).assertExists()
         compose.assertControlsAccessible()
+    }
+
+    @Test
+    fun onFootTheAwaitedBusesShowSoonestFirstAsAtTheStop() {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        trips.awaited.value = listOf(
+            com.yenreh.caligo.trips.AwaitedLine("T31", NOW + 6 * 60_000),
+            com.yenreh.caligo.trips.AwaitedLine("E21", NOW + 9 * 60_000),
+        )
+        show(took = null)
+        waitFor("trip_awaited")
+        compose.onNode(hasText("Then the T31 or E21")).assertExists()
+        compose.onNode(hasText("T31 6${NBSP}min · E21 9${NBSP}min")).assertExists()
     }
 
     @Test

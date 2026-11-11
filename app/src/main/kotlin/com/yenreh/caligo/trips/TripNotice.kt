@@ -173,12 +173,12 @@ data class TripNotice(
                     // Short titles, which a collapsed notification shows whole; the stop on the line below
                     if (phase.leg.toStop && next != null) {
                         title = words.walkToStop(minutes, phase.estimated)
-                        val then = if (soonest.isEmpty()) {
-                            words.lines(next.ride.lines)
+                        // As at the stop: the buses awaited soonest first, or the lines to take
+                        text = if (soonest.isEmpty()) {
+                            "${phase.leg.toName} · ${words.then(words.lines(next.ride.lines))}"
                         } else {
-                            words.lines(soonest.map { words.lineIn(it, now) })
+                            "${phase.leg.toName} · " + soonest.joinToString(" · ") { words.lineMinutes(it, now) }
                         }
-                        text = "${phase.leg.toName} · ${words.then(then)}"
                     } else {
                         title = words.walkToDestination(minutes, phase.estimated)
                         text = phase.leg.toName
@@ -419,20 +419,17 @@ class TripWords(private val resources: Resources) {
     fun walkToDestination(minutes: Int, estimated: Boolean) =
         resources.getString(R.string.trip_walk_to_destination, about(estimated) + minutes)
 
+    /** "then the E21 or T31", after the stop on the notification */
     fun then(lines: String) = resources.getString(R.string.trip_then, lines)
+
+    /** "Then the E21 or T31", a line of its own on the screen */
+    fun thenTake(lines: String) = resources.getString(R.string.trip_then_take, lines)
 
     fun take(lines: String) = resources.getString(R.string.trip_heading_take, lines)
 
     fun atStop(stop: String) = resources.getString(R.string.trip_at_stop, stop)
 
-    /** "A47 in 3 min", for the walk */
-    fun lineIn(bus: AwaitedLine, now: Long) = if (bus.atStop) {
-        resources.getString(R.string.trip_line_at_stop, bus.line)
-    } else {
-        resources.getString(R.string.trip_line_in, bus.line, Trip.minutesOf(bus.dueAt(now) - now))
-    }
-
-    /** "A47 3 min", at the stop */
+    /** "A47 3 min", on the way to the stop and at it */
     fun lineMinutes(bus: AwaitedLine, now: Long) = if (bus.atStop) {
         resources.getString(R.string.trip_line_at_stop, bus.line)
     } else {

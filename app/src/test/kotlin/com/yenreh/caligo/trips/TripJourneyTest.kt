@@ -90,7 +90,7 @@ class TripJourneyTest {
         assertOne()
         assertEquals(listOf("E21", "T31"), h.awaitedLines)
         assertTrue(shown.title(), shown.title().startsWith("Walk to the stop, "))
-        assertEquals("Plaza de Cayzedo A1 · then the E21 in 7${NBSP}min or T31 in 9${NBSP}min", shown.text())
+        assertEquals("Plaza de Cayzedo A1 · E21 7${NBSP}min · T31 9${NBSP}min", shown.text())
         // At the stop
         h.move(4 * MINUTE) { toTheStop(it) }
         assertOne()
@@ -110,7 +110,7 @@ class TripJourneyTest {
         assertEquals(2, h.desk.running.value?.index)
         assertEquals(listOf("A47"), h.awaitedLines)
         assertOne()
-        assertTrue(shown.text(), shown.text().startsWith("Kr 22 con Cl 10 · then the A47 in "))
+        assertTrue(shown.text(), shown.text().startsWith("Kr 22 con Cl 10 · A47 "))
         // The T31 ride taught the planner how it ran
         assertTrue(h.source.observed.toString(), h.source.observed.any { "T31" in it })
         // The change on foot, then away on the A47 beside its bus: taken by position

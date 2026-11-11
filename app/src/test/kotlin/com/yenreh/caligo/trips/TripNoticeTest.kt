@@ -212,6 +212,22 @@ class TripNoticeTest {
     }
 
     @Test
+    fun onFootTheTextReadsAsAtTheStopTheBusesSoonestFirstOrTheLinesToTake() {
+        assertEquals("Plaza de Cayzedo A1 · E21 2${NBSP}min · T31 5${NBSP}min", phaseNotice(walking).text)
+        val none = TripNotice.of(walking, NOW, Alerts(), words, 15_000, near = true)
+        assertEquals("Plaza de Cayzedo A1 · then the E21 or T31", none.text)
+    }
+
+    @Test
+    @Config(qualifiers = "es")
+    fun onFootInSpanish() {
+        val es = TripWords(ApplicationProvider.getApplicationContext<Context>().resources)
+        val shown = TripNotice.of(walking, NOW, Alerts(), es, 15_000, awaited = buses, near = true)
+        assertEquals("Plaza de Cayzedo A1 · E21 2${NBSP}min · T31 5${NBSP}min", shown.text)
+        assertEquals("Plaza de Cayzedo A1 · luego el E21 o T31", TripNotice.of(walking, NOW, Alerts(), es, 15_000).text)
+    }
+
+    @Test
     fun noPhaseShowsAClockButTheChipKeepsTheMinutes() {
         for (journey in listOf(walking, waiting, riding)) {
             val notice = phaseNotice(journey)

@@ -369,7 +369,6 @@
     <string name="trip_home_title">On the %1$s</string>
     <string name="trip_open">Open the trip</string>
     <string name="trip_walk_to">Walk to %1$s, %2$s\u00A0min</string>
-    <string name="trip_line_in">%1$s in %2$d\u00A0min</string>
     <string name="trip_line_minutes">%1$s %2$d\u00A0min</string>
     <string name="trip_line_at_stop">%1$s at the stop</string>
     <string name="trip_took_line">I took the %1$s</string>
@@ -402,4 +401,5 @@
     <string name="trip_walk_to_stop">Walk to the stop, %1$s\u00A0min</string>
     <string name="trip_walk_to_destination">Walk to your destination, %1$s\u00A0min</string>
     <string name="trip_then">then the %1$s</string>
+    <string name="trip_then_take">Then the %1$s</string>
 </resources>

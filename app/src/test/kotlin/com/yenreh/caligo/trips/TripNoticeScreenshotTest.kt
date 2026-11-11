@@ -79,11 +79,11 @@ class TripNoticeScreenshotTest {
     fun englishDark() = all("en", dark = true)
 
     @Test
-    @Config(qualifiers = "es")
+    @Config(qualifiers = "+es")
     fun spanishLight() = all("es", dark = false)
 
     @Test
-    @Config(qualifiers = "es-night")
+    @Config(qualifiers = "+es-night")
     fun spanishDark() = all("es", dark = true)
 
     @Test

@@ -3,6 +3,7 @@ package com.yenreh.caligo.trips
 import android.app.NotificationManager
 import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.yenreh.caligo.NBSP
 import com.yenreh.caligo.data.location.LocationPermission
 import com.yenreh.caligo.domain.WaitAnswer
 import com.yenreh.caligo.trips.JourneyFixtures.DESTINATION
@@ -65,7 +66,7 @@ class TripAccessTest {
         h.assertRunning()
         assertEquals(listOf("E21", "T31"), h.awaitedLines)
         assertEquals(listOf("E21", "T31"), h.desk.awaited.value.map { it.line })
-        with(h) { assertEquals(true, checkNotNull(shown).text().contains("E21 in")) }
+        with(h) { assertEquals(true, Regex("E21 \\d+${NBSP}min").containsMatchIn(checkNotNull(shown).text())) }
         // Still there a while later: never ended as blocked, nor asked for again
         val asked = h.source.arrivalsAsked.size
         h.move(2 * MINUTE) { origin }

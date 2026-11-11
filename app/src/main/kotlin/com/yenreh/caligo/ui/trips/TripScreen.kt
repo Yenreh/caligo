@@ -395,12 +395,17 @@ private fun Running(
                         Heading(stringResource(R.string.trip_heading_walk, phase.leg.toName))
                         Detail(words.walkDetail(Trip.minutesOf(phase.millis), phase.estimated, roundTo10(phase.meters)))
                         Source(if (phase.estimated) R.string.trip_by_estimate else R.string.trip_by_fix)
-                        if (awaited.isNotEmpty()) {
+                        val next = journey.legs.getOrNull(journey.index + 1) as? JourneyLeg.Ride
+                        if (phase.leg.toStop && next != null) {
+                            // The soonest first, then the lines with no bus awaited, as at the stop
+                            val ordered = (awaited.map { it.line } + next.ride.lines).distinct()
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                words.then(words.lines(awaited.map { words.lineIn(it, at) })),
-                                style = MaterialTheme.typography.bodyMedium.copy(color = p.ink),
+                                words.thenTake(words.lines(ordered)),
+                                style = MaterialTheme.typography.bodyLarge.copy(color = p.ink),
+                                modifier = Modifier.testTag("trip_then"),
                             )
+                            AwaitedTimes(awaited, at, words)
                         }
                     }
                     is JourneyPhase.Waiting -> {
@@ -408,14 +413,7 @@ private fun Running(
                         val ordered = (awaited.map { it.line } + phase.leg.ride.lines).distinct()
                         Heading(words.take(words.lines(ordered)))
                         Detail(words.atStop(phase.leg.ride.board.name))
-                        if (awaited.isNotEmpty()) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                awaited.map { words.lineMinutes(it, at) }.joinToString(" · "),
-                                style = MaterialTheme.typography.bodyLarge.copy(color = p.ink),
-                                modifier = Modifier.testTag("trip_awaited"),
-                            )
-                        }
+                        AwaitedTimes(awaited, at, words)
                         Spacer(Modifier.height(4.dp))
                         Text(stringResource(R.string.trip_took_it_hint), style = LabText.statusLine(p))
                         for (line in ordered) {
@@ -467,6 +465,18 @@ private fun Detail(text: String) {
         text,
         style = MaterialTheme.typography.bodyLarge.copy(color = LabTheme.palette.ink, fontWeight = FontWeight.Medium),
         modifier = Modifier.testTag("trip_detail"),
+    )
+}
+
+/** The buses awaited, soonest first: "E21 2 min · T31 5 min"; nothing with none */
+@Composable
+private fun AwaitedTimes(awaited: List<AwaitedLine>, at: Long, words: TripWords) {
+    if (awaited.isEmpty()) return
+    Spacer(Modifier.height(4.dp))
+    Text(
+        awaited.joinToString(" · ") { words.lineMinutes(it, at) },
+        style = MaterialTheme.typography.bodyLarge.copy(color = LabTheme.palette.ink),
+        modifier = Modifier.testTag("trip_awaited"),
     )
 }
 
