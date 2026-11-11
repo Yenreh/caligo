@@ -62,6 +62,8 @@ class PickedPlaces(place: PickedPlace? = null, point: GeoPoint? = null) {
                     place?.place?.kind?.key ?: PlaceKind.PLACE.key,
                     place?.place?.detail.orEmpty(),
                     place?.place?.stopId.orEmpty(),
+                    place?.place?.savedId ?: 0L,
+                    place?.place?.label.orEmpty(),
                 )
             },
             restore = {
@@ -77,6 +79,8 @@ class PickedPlaces(place: PickedPlace? = null, point: GeoPoint? = null) {
                                 kind = PlaceKind.of(it[9] as String),
                                 detail = (it[10] as String).ifEmpty { null },
                                 stopId = (it[11] as String).ifEmpty { null },
+                                savedId = (it.getOrNull(12) as? Long)?.takeIf { id -> id > 0 },
+                                label = (it.getOrNull(13) as? String)?.ifEmpty { null },
                             ),
                         )
                     } else {

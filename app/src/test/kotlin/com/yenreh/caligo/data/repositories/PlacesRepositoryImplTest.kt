@@ -46,7 +46,11 @@ class PlacesRepositoryImplTest {
         )
         assertEquals(listOf("Casa", "U", "Centro comercial"), places.places.value.map { it.name })
         assertEquals(listOf(0, 1, 2), places.places.value.map { it.position })
-        assertEquals(mall.copy(name = "Centro comercial"), places.places.value[2].tripPlace)
+        val saved = places.places.value[2]
+        assertEquals(mall.copy(name = "Centro comercial", savedId = saved.id, label = "Unicentro"), saved.tripPlace)
+        // Saved from a field showing a saved place, it keeps what that was called
+        assertEquals("Unicentro", places.add("Mall", saved.tripPlace).label)
+        places.delete(places.places.value.last().id)
         assertEquals("t12", places.places.value[1].stopId)
 
         // Kept: another repository reads them back the same

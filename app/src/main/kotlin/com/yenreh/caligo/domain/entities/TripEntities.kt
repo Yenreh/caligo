@@ -18,7 +18,17 @@ data class TripPlace(
     val detail: String? = null,
     /** The stop's id, when it is one */
     val stopId: String? = null,
-)
+    /**
+     * The saved place it was picked as, whose short name [name] is: the
+     * planner follows it as it is renamed or deleted
+     */
+    val savedId: Long? = null,
+    /** What a saved place was called where it was picked, which [name] stands for */
+    val label: String? = null,
+) {
+    /** What it was called where it was picked, before any name of the user's */
+    val ownName: String get() = label ?: name
+}
 
 /** One stretch of a trip, on foot or on a bus */
 sealed class TripLeg {

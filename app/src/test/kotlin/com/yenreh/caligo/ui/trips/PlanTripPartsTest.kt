@@ -13,6 +13,7 @@ import java.util.Calendar
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -111,7 +112,7 @@ class PlanTripPartsTest {
         val device = TripPlace(3.4, -76.5, "My location", isDevice = true)
         val picked = PickedPlaces(place = PickedPlace(origin = true, place = device), point = GeoPoint(3.41, -76.51))
 
-        val plain = SaverScope { it is Boolean || it is Double || it is String || it is List<*> }
+        val plain = SaverScope { it is Boolean || it is Long || it is Double || it is String || it is List<*> }
         val saved = with(PickedPlaces.Saver) { plain.save(picked) }!!
         val restored = PickedPlaces.Saver.restore(saved)!!
 
@@ -128,10 +129,20 @@ class PlanTripPartsTest {
             TripPlace(3.42, -76.54, "Casa", kind = PlaceKind.STOP, detail = "Cl 5 con Kr 39", stopId = "3"),
             TripPlace(3.37, -76.53, "Unicentro", kind = PlaceKind.PLACE, detail = "Cra. 100 #5-169"),
             TripPlace(3.43, -76.52, "Cl 5 # 38-20", kind = PlaceKind.ADDRESS),
+            TripPlace(3.43, -76.52, "Casa", kind = PlaceKind.ADDRESS, savedId = 4, label = "Cl 5 # 38-20"),
         )) {
             val kept = PickedPlaces.Saver.restore(with(PickedPlaces.Saver) { plain.save(PickedPlaces(PickedPlace(false, place))) }!!)!!
             assertEquals(PickedPlace(false, place), kept.place)
         }
+    }
+
+    @Test
+    fun aListSavedBeforeSavedPlacesWereFollowedStillRestores() {
+        val older = listOf(true, false, 3.4, -76.5, "Casa", false, false, 0.0, 0.0, "address", "", "")
+
+        val restored = PickedPlaces.Saver.restore(older)!!
+
+        assertEquals(PickedPlace(false, TripPlace(3.4, -76.5, "Casa", kind = PlaceKind.ADDRESS)), restored.place)
     }
 
     @Test
@@ -177,6 +188,43 @@ class PlanTripPartsTest {
         val key = Json.decodeFromString(Route.serializer(), json) as Route.PlanTrip
 
         assertEquals(TripPlace(3.45, -76.53, "a 12"), key.destination!!.place)
+    }
+
+    // Saved places changed in the picker
+
+    @Test
+    fun aPlaceRenamedInThePickerIsRenamedInThePlannersField() {
+        val planner = trips.planner(destination = null)
+        val home = runBlocking { trips.places.add("Casa", trips.to) }
+        // Both fields show it, as picked from the chips and from the picker
+        planner.planTo(home)
+        planner.choose(origin = true, place = home.tripPlace)
+
+        trips.picker().renamePlace(home.id, "Mi casa")
+
+        val state = planner.screen.value
+        assertEquals("Mi casa", state.from!!.name)
+        assertEquals("Mi casa", state.to!!.name)
+        assertEquals(state.places.single(), state.savedTo)
+    }
+
+    @Test
+    fun aPlaceDeletedInThePickerLeavesThePlannersFieldAsItWasPicked() {
+        val planner = trips.planner(destination = null)
+        val home = runBlocking { trips.places.add("Casa", trips.to) }
+        planner.planTo(home)
+        val other = trips.place(6.0, 0.5, "Other")
+        planner.choose(origin = true, place = other)
+
+        trips.picker().deletePlace(home.id)
+
+        val state = planner.screen.value
+        assertEquals(trips.to, state.to)
+        assertEquals(other, state.from)
+        assertNull(state.savedTo)
+        // Saved again, it keeps the name it was picked under as its label
+        planner.savePlace(origin = false, name = "Casa")
+        assertEquals("Destination", trips.places.places.value.single().label)
     }
 
     // How it is written

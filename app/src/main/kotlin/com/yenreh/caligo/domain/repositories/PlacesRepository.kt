@@ -12,7 +12,7 @@ interface PlacesRepository {
     /** Read them again from storage */
     suspend fun load()
 
-    /** Save [place] under [name], cleaned as [FavoritePlace.cleanName], after the others */
+    /** Save [place] under [name], cleaned as [FavoritePlace.cleanName], after the others, as [TripPlace.ownName] calls it */
     suspend fun add(name: String, place: TripPlace): FavoritePlace
 
     suspend fun rename(id: Long, name: String)

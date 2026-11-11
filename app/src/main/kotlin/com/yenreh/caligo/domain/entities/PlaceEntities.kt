@@ -35,9 +35,9 @@ data class FavoritePlace(
     val stopId: String?,
     val position: Int,
 ) {
-    /** As the planner takes it, under its own name */
+    /** As the planner takes it, under its own name, followed by [id] */
     val tripPlace: TripPlace
-        get() = TripPlace(latitude, longitude, name, kind = kind, detail = detail, stopId = stopId)
+        get() = TripPlace(latitude, longitude, name, kind = kind, detail = detail, stopId = stopId, savedId = id, label = label)
 
     /**
      * Whether it is the stop [stopId], when both are stops with an id;

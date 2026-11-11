@@ -23,7 +23,7 @@ class PlacesRepositoryImpl(private val local: PlacesLocalDatasource) : PlacesRep
                 id = 0,
                 name = cleaned(name),
                 kind = place.kind,
-                label = place.name,
+                label = place.ownName,
                 detail = place.detail,
                 latitude = place.latitude,
                 longitude = place.longitude,

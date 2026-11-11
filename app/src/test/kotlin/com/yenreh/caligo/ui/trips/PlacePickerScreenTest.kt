@@ -364,7 +364,10 @@ class PlacePickerScreenTest {
         savedTile("Cl 9 # 40-12").assertExists()
 
         savedTile("U").performClick()
-        assertEquals(listOf(TripPlace(3.3700, -76.5300, "U", kind = PlaceKind.STOP, stopId = "1")), picked)
+        assertEquals(
+            listOf(TripPlace(3.3700, -76.5300, "U", kind = PlaceKind.STOP, stopId = "1", savedId = 2, label = "Universidades A1")),
+            picked,
+        )
         compose.assertControlsAccessible()
     }
 

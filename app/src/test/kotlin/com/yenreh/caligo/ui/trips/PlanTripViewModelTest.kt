@@ -488,7 +488,7 @@ class PlanTripViewModelTest {
 
         val state = model.screen.value
         assertEquals(TripPlace(from.latitude, from.longitude, "My location", isDevice = true), state.from)
-        assertEquals(TripPlace(to.latitude, to.longitude, "Casa", kind = PlaceKind.ADDRESS), state.to)
+        assertEquals(TripPlace(to.latitude, to.longitude, "Casa", kind = PlaceKind.ADDRESS, savedId = 7, label = "Destination"), state.to)
         assertEquals(1, state.options.size)
         // The chips go once there is somewhere to go, and its star is filled
         assertTrue(state.quickPlans.isEmpty())
@@ -554,6 +554,22 @@ class PlanTripViewModelTest {
         // An empty name is no rename
         model.renamePlace(home.id, "  ")
         assertEquals("Mi casa", model.screen.value.places.single().name)
+    }
+
+    @Test
+    fun deletingAPlaceAFieldShowsGivesItBackWhatItWasCalled() = test {
+        places = FakePlacesRepository(listOf(home))
+        val model = viewModel(repository(), destination = null)
+        model.planTo(home)
+
+        model.deletePlace(home.id)
+
+        assertEquals(to.copy(kind = PlaceKind.ADDRESS), model.screen.value.to)
+        assertNull(model.screen.value.savedTo)
+        // Saved again, under what it was called where picked
+        model.savePlace(origin = false, name = "Casa")
+        assertEquals("Destination", model.screen.value.places.single().label)
+        assertEquals(model.screen.value.places.single(), model.screen.value.savedTo)
     }
 
     @Test

@@ -54,6 +54,19 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * A field as the saved places change from [before] to [now]: a saved place
+ * it shows under its new name, or once deleted under what it was called
+ * where picked, so saving it again keeps that. Left as it is while its
+ * place was never read, as before the first load.
+ */
+private fun TripPlace?.following(before: List<FavoritePlace>, now: List<FavoritePlace>): TripPlace? {
+    val id = this?.savedId ?: return this
+    now.firstOrNull { it.id == id }?.let { return copy(name = it.name) }
+    if (before.none { it.id == id }) return this
+    return copy(name = ownName, savedId = null, label = null)
+}
+
 /** An option as listed: its position among the plans, timed */
 data class OptionRow(val index: Int, val option: TripOption, val expanded: Boolean)
 
@@ -295,7 +308,13 @@ class PlanTripViewModel(
         // Most trips start where the phone is; asked quietly, so no prompt
         // stands in front of someone who has not chosen anything yet
         viewModelScope.launch { startFromDevice() }
-        viewModelScope.launch { savedPlaces.places.collect { places -> state.update { it.copy(places = places) } } }
+        viewModelScope.launch {
+            savedPlaces.places.collect { places ->
+                state.update {
+                    it.copy(places = places, from = it.from.following(it.places, places), to = it.to.following(it.places, places))
+                }
+            }
+        }
         viewModelScope.launch {
             try {
                 savedPlaces.load()
@@ -317,34 +336,24 @@ class PlanTripViewModel(
         viewModelScope.launch { changePlaces { savedPlaces.add(name, place) } }
     }
 
-    /** Rename a saved place, and either field showing it under its old name */
+    /** Rename a saved place; a field showing it follows, as with a rename in the picker */
     fun renamePlace(id: Long, name: String) {
         val clean = FavoritePlace.cleanName(name) ?: return
-        val old = state.value.places.firstOrNull { it.id == id } ?: return
-        viewModelScope.launch {
-            if (!changePlaces { savedPlaces.rename(id, clean) }) return@launch
-            fun renamed(place: TripPlace?) =
-                if (place != null && place.name == old.name && old.isAt(place.latitude, place.longitude, place.stopId)) {
-                    place.copy(name = clean)
-                } else {
-                    place
-                }
-            state.update { it.copy(from = renamed(it.from), to = renamed(it.to)) }
-        }
+        viewModelScope.launch { changePlaces { savedPlaces.rename(id, clean) } }
     }
 
     fun deletePlace(id: Long) {
         viewModelScope.launch { changePlaces { savedPlaces.delete(id) } }
     }
 
-    /** Whether [change] went through; a snackbar says so when not */
-    private suspend fun changePlaces(change: suspend () -> Unit): Boolean = try {
-        change()
-        true
-    } catch (e: Exception) {
-        if (e is CancellationException) throw e
-        reports.trySend(PlanTripMessage.COULD_NOT_SAVE_PLACE)
-        false
+    /** A snackbar when [change] does not go through */
+    private suspend fun changePlaces(change: suspend () -> Unit) {
+        try {
+            change()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            reports.trySend(PlanTripMessage.COULD_NOT_SAVE_PLACE)
+        }
     }
 
     private fun tick() {
