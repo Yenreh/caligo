@@ -345,15 +345,17 @@ class PlanTripViewModelTest {
         assertEquals(first, model.screen.value.expanded)
         assertSame(model.screen.value.timed[first], model.screen.value.open)
 
-        // Out of view, the ticks only time it again
+        // Out of view, as under the trip screen, the ticks neither ask nor time it again
+        val timedAt = model.screen.value.open!!.startsAt
         clock += 3.minutes.inWholeMilliseconds
         advanceTimeBy(20.seconds + 1.seconds)
         assertEquals(asked, repository.tripAsked.size)
-        assertEquals(clock, model.screen.value.open!!.startsAt)
+        assertEquals(timedAt, model.screen.value.open!!.startsAt)
 
-        // Back in view with arrivals three minutes old: at once, the open trip's stops only
+        // Back in view with arrivals three minutes old: at once, the open trip's stops only, and timed from now
         model.setShown(true)
         assertEquals(asked + 1, repository.tripAsked.size)
+        assertEquals(clock, model.screen.value.open!!.startsAt)
         val open = model.screen.value.plans!![first]
         assertEquals(
             open.rides.flatMap { listOf(it.board.stopId, it.alight.stopId) },
@@ -370,6 +372,30 @@ class PlanTripViewModelTest {
         clock += 10.minutes.inWholeMilliseconds
         advanceTimeBy(20.seconds)
         assertEquals(asked + 1, repository.tripAsked.size)
+    }
+
+    @Test
+    fun theOptionsAreTimedAgainOnlyInViewAndCatchUpAsTheyShow() = test {
+        val repository = repository().apply {
+            routes = mapOf("T1" to line("a", 0..12), "A9" to line("c", 0..12, y = 1.0))
+            tripArrivals = { arrivals() }
+        }
+        val model = viewModel(repository)
+        model.setShown(true)
+        val first = model.screen.value.order.first()
+        clock += 1.minutes.inWholeMilliseconds
+        advanceTimeBy(20.seconds + 1.seconds)
+        assertEquals(clock, model.screen.value.timed[first]!!.startsAt)
+
+        // Under the trip screen: left as it was
+        model.setShown(false)
+        val timedAt = model.screen.value.timed[first]!!.startsAt
+        clock += 2.minutes.inWholeMilliseconds
+        advanceTimeBy(40.seconds)
+        assertEquals(timedAt, model.screen.value.timed[first]!!.startsAt)
+
+        model.setShown(true)
+        assertEquals(clock, model.screen.value.timed[first]!!.startsAt)
     }
 
     @Test

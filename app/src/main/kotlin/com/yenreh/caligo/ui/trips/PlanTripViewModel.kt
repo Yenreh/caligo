@@ -364,9 +364,10 @@ class PlanTripViewModel(
         return followed
     }
 
+    /** Out of view, as under the trip screen, nothing is retimed: back in view it catches up */
     private fun tick() {
         val current = state.value
-        if (current.plans == null) return
+        if (current.plans == null || !shown) return
         val live = current.live
         val stale = live == null || now() - live.fetchedAt > LIVE_MAX_AGE.inWholeMilliseconds
         if (current.expanded != null && shown && stale) refreshLive() else retime()
@@ -374,8 +375,9 @@ class PlanTripViewModel(
 
     /**
      * Whether the screen is in view. Back in view, the open trip catches up
-     * at once if its arrivals aged meanwhile; out of view, under the place
-     * picker or in the background, nothing is asked for.
+     * at once if its arrivals aged meanwhile, and the times at once; out of
+     * view, under the place picker or the trip screen or in the background,
+     * nothing is asked for nor retimed.
      */
     fun setShown(shown: Boolean) {
         if (shown == this.shown) return
