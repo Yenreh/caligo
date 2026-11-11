@@ -187,7 +187,7 @@
     <string name="fare_price_updated">Fare price updated</string>
     <string name="data">Data</string>
     <string name="export_data">Export data</string>
-    <string name="export_data_desc">Back up cards, stops and settings</string>
+    <string name="export_data_desc">Back up cards, stops, places and settings</string>
     <string name="import_data">Import data</string>
     <string name="import_data_desc">Restore from a backup file</string>
     <string name="cache">Cached data</string>

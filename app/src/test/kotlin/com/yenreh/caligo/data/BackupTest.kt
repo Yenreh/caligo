@@ -9,17 +9,21 @@ import com.yenreh.caligo.data.datasources.AppDatabase
 import com.yenreh.caligo.data.datasources.CardLocalDatasource
 import com.yenreh.caligo.data.datasources.CardRemoteDatasource
 import com.yenreh.caligo.data.datasources.JsonCache
+import com.yenreh.caligo.data.datasources.PlacesLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsRemoteDatasource
 import com.yenreh.caligo.data.json.JsonFormatException
 import com.yenreh.caligo.data.json.JsonTypeException
 import com.yenreh.caligo.data.json.dartTryParse
 import com.yenreh.caligo.data.repositories.CardRepositoryImpl
+import com.yenreh.caligo.data.repositories.PlacesRepositoryImpl
 import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.entities.AppThemeMode
 import com.yenreh.caligo.domain.entities.CardEntity
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.HomeContent
+import com.yenreh.caligo.domain.entities.PlaceKind
+import com.yenreh.caligo.domain.entities.TripPlace
 import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -62,8 +66,9 @@ class BackupTest {
         )
         val settingsFile = File(folder.root, "$name-settings.json")
         val settings = SettingsStore(settingsFile, scope)
+        val places = PlacesRepositoryImpl(PlacesLocalDatasource(database))
         private var ids = 0
-        val backup = Backup(database, cards, stops, settings, newId = { "new-${++ids}" }, now = { 1790608530123 })
+        val backup = Backup(database, cards, stops, settings, places, newId = { "new-${++ids}" }, now = { 1790608530123 })
     }
 
     private fun TestScope.device(name: String) = Device(this, name).also { advanceUntilIdle() }
@@ -92,9 +97,122 @@ class BackupTest {
         lines = listOf("E21"),
     )
 
+    private val home = TripPlace(3.4372, -76.5225, "Cl 5 # 38-20", kind = PlaceKind.ADDRESS)
+    private val university = TripPlace(3.3705, -76.531, "Universidades", kind = PlaceKind.STOP, stopId = "t12")
+    private val mall = TripPlace(3.3739, -76.5395, "Unicentro", kind = PlaceKind.PLACE, detail = "Cra. 100 #5-169")
+
     @Test
     fun exportsNothingWithoutCardsOrStops() = runTest {
         assertNull(device("a").backup.export())
+    }
+
+    @Test
+    fun exportsThePlacesAloneAfterTheStops() = runTest {
+        val device = device("a")
+        device.places.add("Casa", home)
+        device.places.add("U", university)
+
+        val text = device.backup.export()!!
+
+        assertTrue(text.contains("\"version\": 4"))
+        assertTrue(text.indexOf("\"favoriteStops\"") < text.indexOf("\"favoritePlaces\""))
+        assertTrue(
+            text.contains(
+                """
+                  "favoritePlaces": [
+                    {
+                      "name": "Casa",
+                      "kind": "address",
+                      "label": "Cl 5 # 38-20",
+                      "detail": null,
+                      "latitude": 3.4372,
+                      "longitude": -76.5225,
+                      "stopId": null,
+                      "position": 0
+                    },
+                    {
+                      "name": "U",
+                      "kind": "stop",
+                      "label": "Universidades",
+                      "detail": null,
+                      "latitude": 3.3705,
+                      "longitude": -76.531,
+                      "stopId": "t12",
+                      "position": 1
+                    }
+                  ],
+                """.trimIndent().prependIndent("  "),
+            ),
+        )
+    }
+
+    @Test
+    fun thePlacesRestoreOnAnotherDeviceAfterItsOwn() = runTest {
+        val old = device("old")
+        old.places.add("Casa", home)
+        old.places.add("U", university)
+        old.places.add("Centro comercial", mall)
+        val new = device("new")
+        new.places.add("Trabajo", TripPlace(3.45, -76.53, "Cl 10 # 4-40", kind = PlaceKind.ADDRESS))
+
+        assertEquals(3, new.backup.import(old.backup.export()!!))
+
+        val places = new.places.places.value
+        assertEquals(listOf("Trabajo", "Casa", "U", "Centro comercial"), places.map { it.name })
+        assertEquals(listOf(0, 1, 2, 3), places.map { it.position })
+        assertEquals(
+            old.places.places.value.map { it.copy(id = 0, position = 0) },
+            places.drop(1).map { it.copy(id = 0, position = 0) },
+        )
+    }
+
+    @Test
+    fun aPlaceSavedAlreadyIsNotImportedAgain() = runTest {
+        val device = device("a")
+        device.places.add("Casa", home)
+        device.places.add("U", university)
+        val text = device.backup.export()!!
+        // Saved again under other names, a few metres off and by the same stop
+        device.places.delete(device.places.places.value[0].id)
+        device.places.delete(device.places.places.value[0].id)
+        device.places.add("Home", home.copy(latitude = home.latitude + 0.0002))
+        device.places.add("Uni", university.copy(latitude = 3.38))
+
+        assertEquals(0, device.backup.import(text))
+        assertEquals(listOf("Home", "Uni"), device.places.places.value.map { it.name })
+    }
+
+    @Test
+    fun aPlaceTheFileRepeatsIsImportedOnce() = runTest {
+        val device = device("a")
+        val place = """{"name": "Casa", "kind": "address", "label": "Cl 5", "latitude": 3.4372, "longitude": -76.5225}"""
+
+        assertEquals(1, device.backup.import("""{"favoritePlaces": [$place, $place]}"""))
+        assertEquals(1, device.places.places.value.size)
+    }
+
+    @Test
+    fun aPlaceIsReadAsTypedAndAFaultyOneChangesNothing() = runTest {
+        val device = device("a")
+        val card = """{"internalId": "x", "id": "1", "name": "A"}"""
+
+        // Its name cleaned as one typed, an unknown kind a plain place
+        device.backup.import(
+            """{"favoritePlaces": [{"name": "  Casa   de mi mamá en el barrio  ", "kind": "home", "label": "Cl 5",
+                 "latitude": 3.4, "longitude": -76.5}]}""",
+        )
+        val place = device.places.places.value.single()
+        assertEquals("Casa de mi mamá en el ba", place.name)
+        assertEquals(PlaceKind.PLACE, place.kind)
+
+        assertThrowsSuspend<JsonTypeException> {
+            device.backup.import("""{"cards": [$card], "favoritePlaces": [{"name": "B", "latitude": "north"}]}""")
+        }
+        assertThrowsSuspend<JsonTypeException> {
+            device.backup.import("""{"cards": [$card], "favoritePlaces": [{"name": " ", "latitude": 3.0, "longitude": -76.0}]}""")
+        }
+        assertTrue(device.cards.getAllCards().isEmpty())
+        assertEquals(1, device.places.places.value.size)
     }
 
     @Test
@@ -124,6 +242,7 @@ class BackupTest {
                 }
               ],
               "favoriteStops": [],
+              "favoritePlaces": [],
               "settings": {
                 "themeMode": 0,
                 "farePrice": 3500,
@@ -206,6 +325,8 @@ class BackupTest {
         assertEquals("Estación Alamos", stop.name)
         assertEquals(AppThemeMode.LIGHT, device.settings.settings.value.themeMode)
         assertEquals(HomeContent.BOTH, device.settings.settings.value.homeContent)
+        // Before 5.2 a backup had no places
+        assertTrue(device.places.places.value.isEmpty())
     }
 
     @Test

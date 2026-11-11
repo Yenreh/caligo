@@ -10,11 +10,13 @@ import com.yenreh.caligo.data.datasources.CacheEntry
 import com.yenreh.caligo.data.datasources.CardLocalDatasource
 import com.yenreh.caligo.data.datasources.CardRemoteDatasource
 import com.yenreh.caligo.data.datasources.JsonCache
+import com.yenreh.caligo.data.datasources.PlacesLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsRemoteDatasource
 import com.yenreh.caligo.data.datasources.UpdateChecker
 import com.yenreh.caligo.data.map.MapTileCache
 import com.yenreh.caligo.data.repositories.CardRepositoryImpl
+import com.yenreh.caligo.data.repositories.PlacesRepositoryImpl
 import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.entities.CardEntity
 import java.io.Closeable
@@ -46,7 +48,8 @@ class SettingsTestDevice(folder: File, release: () -> MockResponse = { MockServi
         JsonCache.None,
     )
     val store = SettingsStore(File(folder, "settings.json"), work).also { runBlocking { it.loaded.join() } }
-    val backup = Backup(database, cards, stops, store)
+    val places = PlacesRepositoryImpl(PlacesLocalDatasource(database))
+    val backup = Backup(database, cards, stops, store, places)
     val github = MockService { _, _ -> release() }
     val files = FakeBackupFiles()
     val cache = MemoryCache(bytes = 2048)

@@ -10,6 +10,7 @@ import com.yenreh.caligo.data.datasources.CardRemoteDatasource
 import com.yenreh.caligo.data.datasources.DeviceGeocoder
 import com.yenreh.caligo.data.datasources.FileJsonCache
 import com.yenreh.caligo.data.datasources.JsonCache
+import com.yenreh.caligo.data.datasources.PlacesLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsRemoteDatasource
 import com.yenreh.caligo.data.datasources.UpdateChecker
@@ -18,8 +19,10 @@ import com.yenreh.caligo.data.location.AndroidLocationUpdates
 import com.yenreh.caligo.data.map.MapTileCache
 import com.yenreh.caligo.data.map.MapTileLoader
 import com.yenreh.caligo.data.repositories.CardRepositoryImpl
+import com.yenreh.caligo.data.repositories.PlacesRepositoryImpl
 import com.yenreh.caligo.data.repositories.StopsRepositoryImpl
 import com.yenreh.caligo.domain.repositories.CardRepository
+import com.yenreh.caligo.domain.repositories.PlacesRepository
 import com.yenreh.caligo.domain.repositories.StopsRepository
 import com.yenreh.caligo.trips.RepositoryTripSource
 import com.yenreh.caligo.trips.TripDesk
@@ -67,6 +70,9 @@ class AppContainer(private val context: Context) {
         cache,
     )
 
+    /** The places saved for quick plans in the planner */
+    val placesRepository: PlacesRepository = PlacesRepositoryImpl(PlacesLocalDatasource(database))
+
     /** Every route as one network, for the trip planner: loaded once a run, when first needed */
     val transitNetwork by lazy { TransitNetworkLoader(stopsRepository, scope) }
 
@@ -95,7 +101,7 @@ class AppContainer(private val context: Context) {
     /** Whether a wait's notification may show, asked from the activity on screen */
     val notificationAccess = AndroidNotificationAccess(context)
 
-    val backup = Backup(database, cardRepository, stopsRepository, settings)
+    val backup = Backup(database, cardRepository, stopsRepository, settings, placesRepository)
 
     /** Asked only when the user says so, from the settings */
     val updates by lazy { UpdateChecker(http) }

@@ -183,7 +183,7 @@
     <string name="fare_price_updated">Valor del pasaje actualizado</string>
     <string name="data">Datos</string>
     <string name="export_data">Exportar datos</string>
-    <string name="export_data_desc">Copia de tarjetas, paradas y ajustes</string>
+    <string name="export_data_desc">Copia de tarjetas, paradas, lugares y ajustes</string>
     <string name="import_data">Importar datos</string>
     <string name="import_data_desc">Restaurar desde un archivo</string>
     <string name="cache">Datos en caché</string>

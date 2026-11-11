@@ -9,8 +9,9 @@ import kotlinx.coroutines.withContext
 
 /**
  * Single SQLite database shared by every local data source: the Flutter
- * app's `caligo.db`, same file, schema, version and upgrade chain, so the
- * port opens what that app left as is.
+ * app's `caligo.db`, same file, schema and upgrade chain up to version 7,
+ * so the port opens what that app left as is. Version 8 adds the places
+ * saved for quick plans.
  */
 class AppDatabase(context: Context, name: String? = NAME) :
     SQLiteOpenHelper(context, name, null, VERSION) {
@@ -18,6 +19,7 @@ class AppDatabase(context: Context, name: String? = NAME) :
     override fun onCreate(db: SQLiteDatabase) {
         createCards(db)
         createFavoriteStops(db)
+        createFavoritePlaces(db)
     }
 
     /**
@@ -40,9 +42,14 @@ class AppDatabase(context: Context, name: String? = NAME) :
         if (oldVersion < 7) {
             db.execSQL("ALTER TABLE favorite_stops ADD COLUMN lines TEXT")
         }
+        if (oldVersion < 8) createFavoritePlaces(db)
     }
 
-    /** sqflite, without a downgrade callback, only records the version */
+    /**
+     * sqflite, without a downgrade callback, only records the version; so
+     * does this. A 5.1 app, at version 7, leaves the places table in place
+     * for the next upgrade to find.
+     */
     override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
 
     /**
@@ -62,7 +69,7 @@ class AppDatabase(context: Context, name: String? = NAME) :
 
     companion object {
         const val NAME = "caligo.db"
-        const val VERSION = 7
+        const val VERSION = 8
 
         internal fun createCards(db: SQLiteDatabase) {
             db.execSQL(
@@ -95,6 +102,28 @@ class AppDatabase(context: Context, name: String? = NAME) :
                   missing_count INTEGER DEFAULT 0,
                   show_on_home INTEGER DEFAULT 1,
                   lines TEXT
+                )
+                """.trimIndent(),
+            )
+        }
+
+        /**
+         * The places saved for quick plans. Only if missing: a downgrade to
+         * version 7 keeps the table, and the upgrade after it finds it.
+         */
+        internal fun createFavoritePlaces(db: SQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS favorite_places (
+                  id INTEGER PRIMARY KEY,
+                  name TEXT NOT NULL,
+                  kind TEXT NOT NULL,
+                  label TEXT NOT NULL,
+                  detail TEXT,
+                  latitude REAL NOT NULL,
+                  longitude REAL NOT NULL,
+                  stop_id TEXT,
+                  position INTEGER NOT NULL DEFAULT 0
                 )
                 """.trimIndent(),
             )

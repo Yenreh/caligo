@@ -3,8 +3,10 @@ package com.yenreh.caligo.data.json
 import com.yenreh.caligo.domain.entities.AppThemeMode
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.CardEntity
+import com.yenreh.caligo.domain.entities.FavoritePlace
 import com.yenreh.caligo.domain.entities.FavoriteStop
 import com.yenreh.caligo.domain.entities.HomeContent
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.Settings
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -71,6 +73,35 @@ fun favoriteFromJson(json: JsonObject) = FavoriteStop(
     showOnHome = json["showOnHome"].boolOrNull() ?: true,
     lines = json["lines"].listOrNull()?.map { it.dartString() ?: "null" } ?: emptyList(),
 )
+
+/** A saved place in a backup, a key the Flutter app never wrote; its id is the device's own */
+fun FavoritePlace.toJson(): JsonObject = buildJsonObject {
+    put("name", name)
+    put("kind", kind.key)
+    put("label", label)
+    put("detail", detail)
+    put("latitude", latitude)
+    put("longitude", longitude)
+    put("stopId", stopId)
+    put("position", position)
+}
+
+/** A saved place from a backup, its name cleaned as one typed; one without a name is a fault */
+fun favoritePlaceFromJson(json: JsonObject): FavoritePlace {
+    val name = json["name"].string()
+    val label = json["label"].stringOrNull() ?: name
+    return FavoritePlace(
+        id = 0,
+        name = FavoritePlace.cleanName(name) ?: FavoritePlace.cleanName(label) ?: throw JsonTypeException("Expected a name"),
+        kind = PlaceKind.of(json["kind"].stringOrNull()),
+        label = label,
+        detail = json["detail"].stringOrNull(),
+        latitude = json["latitude"].double(),
+        longitude = json["longitude"].double(),
+        stopId = json["stopId"].stringOrNull(),
+        position = json["position"].intOrNull() ?: 0,
+    )
+}
 
 fun BusArrival.toJson(): JsonObject = buildJsonObject {
     put("line", line)

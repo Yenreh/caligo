@@ -12,6 +12,12 @@ data class TripPlace(
     val name: String,
     /** The device's own position, named by the screen showing it */
     val isDevice: Boolean = false,
+    /** What it is, for saving it as a place */
+    val kind: PlaceKind = PlaceKind.PLACE,
+    /** The line below its name where it was picked, such as a place's address */
+    val detail: String? = null,
+    /** The stop's id, when it is one */
+    val stopId: String? = null,
 )
 
 /** One stretch of a trip, on foot or on a bus */
