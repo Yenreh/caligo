@@ -42,6 +42,8 @@ class OpenTripNavigationTest {
     private val opened = Channel<Route.Trip>(Channel.CONFLATED)
 
     private fun show() {
+        // A build with trips
+        container.features.trips = true
         val flow = opened.receiveAsFlow()
         compose.setContent {
             val settings by container.settings.settings.collectAsStateWithLifecycle()

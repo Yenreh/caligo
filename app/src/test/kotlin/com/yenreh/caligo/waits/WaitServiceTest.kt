@@ -31,6 +31,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -80,6 +81,8 @@ class WaitServiceTest {
 
     @Before
     fun setUp() {
+        // The waits of 5.2.0, without trips, unless a test turns them on
+        features.trips = false
         desk.source = source
         desk.now = now
         desk.coroutineContext = StandardTestDispatcher(scheduler)
@@ -207,14 +210,27 @@ class WaitServiceTest {
 
     // 4. I took it
 
-    /** "I took it" opens the trip screen in the one activity, with the ride; the screen ends the wait */
-    private fun tookIt(line: String, stop: String = WaitFixtures.STOP) {
-        val intent = shadowOf(notificationOf(line).actions[0].actionIntent).savedIntent
+    private val features get() = app.container.features
+
+    /**
+     * "I took it" of [line]'s notification. Without trips it ends the wait
+     * there, as in 5.1; with them it opens the trip screen in the one
+     * activity, with the ride, and the screen ends the wait.
+     */
+    private fun tookIt(line: String, stop: String = WaitFixtures.STOP, button: Int = 0) {
+        val pending = notificationOf(line).actions[button].actionIntent
+        val intent = shadowOf(pending).savedIntent
         assertEquals(WaitNotifications.ACTION_TOOK, intent.action)
+        assertEquals(WaitNotifications.keyOf(intent)?.stopId, stop)
+        if (!features.trips) {
+            assertEquals(WaitActionReceiver::class.java.name, intent.component?.className)
+            pending.send()
+            shadowOf(Looper.getMainLooper()).idle()
+            return
+        }
         assertEquals(com.yenreh.caligo.MainActivity::class.java.name, intent.component?.className)
         val took = checkNotNull(WaitNotifications.tookOf(intent))
         assertEquals(line, took.line)
-        assertEquals(stop, took.stopId)
         desk.took(took.waitKey)
         shadowOf(Looper.getMainLooper()).idle()
     }
@@ -234,7 +250,23 @@ class WaitServiceTest {
     }
 
     @Test
+    fun tookItWithTripsOpensTheTripScreenWhichEndsTheWait() {
+        features.trips = true
+        start(awaited(t31), atAnotherStop(a47))
+        tookIt("A47", stop = OTHER_STOP)
+        assertLeft("T31")
+    }
+
+    @Test
+    fun withoutTripsITookItOpensNothing() {
+        start(awaited(t31))
+        assertFalse(shadowOf(notificationOf("T31").actions[0].actionIntent).isActivity)
+        assertNull(com.yenreh.caligo.MainActivity.openedTrip(shadowOf(notificationOf("T31").actions[0].actionIntent).savedIntent, features.trips))
+    }
+
+    @Test
     fun tookItNamesTheRideForTheTripScreen() {
+        features.trips = true
         start(awaited(t31))
         val intent = shadowOf(notificationOf("T31").actions[0].actionIntent).savedIntent
         val took = checkNotNull(WaitNotifications.tookOf(intent))
@@ -301,12 +333,17 @@ class WaitServiceTest {
     fun iTookItOnOneBusOfAStopEndsTheOthersThere() {
         start(awaited(t31), awaited(e21), atAnotherStop(a47))
         assertEquals(2, posted.size)
-        val intent = shadowOf(group("E21").actions[0].actionIntent).savedIntent
-        val took = checkNotNull(WaitNotifications.tookOf(intent))
-        assertEquals("E21", took.line)
-        desk.took(took.waitKey)
-        shadowOf(Looper.getMainLooper()).idle()
+        // Ended as taken: the T31 at the same stop goes too, as no other ending takes it
+        tookIt("E21")
         // The rider is gone from that stop; the other stop's wait goes on
+        assertLeft("A47")
+    }
+
+    @Test
+    fun withTripsITookItOnOneBusOfAStopEndsTheOthersThere() {
+        features.trips = true
+        start(awaited(t31), awaited(e21), atAnotherStop(a47))
+        tookIt("E21")
         assertLeft("A47")
     }
 
@@ -423,9 +460,9 @@ class WaitServiceTest {
         e21Passes()
         start(awaited(t31), awaited(e21))
         advance(e21.arrivalTime + MINUTE + 15_000 - now())
-        val intent = shadowOf(group.actions[0].actionIntent).savedIntent
-        assertEquals(WaitNotifications.ACTION_TOOK, intent.action)
-        assertEquals("E21", WaitNotifications.tookOf(intent)?.line)
+        assertEquals("Did you take the E21?", group.title())
+        tookIt("E21")
+        assertLeft()
     }
 
     @Test

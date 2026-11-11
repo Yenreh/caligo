@@ -48,6 +48,9 @@ import okhttp3.OkHttpClient
  * the databases, `settings.json` and the cache in `app_flutter`.
  */
 class AppContainer(private val context: Context) {
+    /** What the build turns on: trips or not */
+    val features = AppFeatures()
+
     /** Outlives every screen: shared requests, saves, housekeeping */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -100,6 +103,7 @@ class AppContainer(private val context: Context) {
     /** The ride followed, which the trip service follows apart from the waits */
     val trips = TripDesk(context, RepositoryTripSource(stopsRepository), AndroidLocationUpdates(context), scope).apply {
         alerts = { settings.settings.value.let { Alerts(sound = it.alertSound, vibrate = it.alertVibrate) } }
+        enabled = { features.trips }
     }
 
     /** Whether a wait's notification may show, asked from the activity on screen */

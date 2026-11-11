@@ -124,6 +124,13 @@ the release workflow writes from its secrets, or
 `storeFile` is relative to the file naming it. Without one, release builds
 use the debug key, which does not install over a published release.
 
+Trip tracking, still experimental, is built only with `-Ptrips=true`
+(for example `./gradlew assembleRelease -Ptrips=true`), which names the
+version `<VERSION>+trips`. Without it, as CI and the release workflow
+build, no trip screen or trip service is reached, "I took it" ends the
+wait, and the release manifest declares neither the trip service nor
+its location permission; `./gradlew test` checks that manifest.
+
 Versions are kept on the newest stable releases: Dependabot proposes
 updates monthly, and warnings fail the build (Kotlin, Gradle with
 `--warning-mode=fail`, and lint on old SDK levels and dependencies).

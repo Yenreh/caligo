@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
         // A wait's notification tapped: its stop, once, not again on a rotation
         if (savedInstanceState == null) {
             openedStop(intent)?.let(openedStops::trySend)
-            openedTrip(intent)?.let(openedTrips::trySend)
+            openedTrip(intent, container.features.trips)?.let(openedTrips::trySend)
         }
         enableEdgeToEdge()
         setContent {
@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
                         openedStops = openedStopsFlow,
                         openedTrips = openedTripsFlow,
                         runningTrip = container.trips.running,
+                        trips = container.features.trips,
                     )
                 }
             }
@@ -83,7 +84,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         openedStop(intent)?.let(openedStops::trySend)
-        openedTrip(intent)?.let(openedTrips::trySend)
+        openedTrip(intent, (application as CaliGoApp).container.features.trips)?.let(openedTrips::trySend)
     }
 
 
@@ -110,10 +111,10 @@ class MainActivity : ComponentActivity() {
         /**
          * The trip screen [intent] opens: the ride "I took it" names, or the
          * trip running. None when relaunched from Recents with the old
-         * intent, its ride long gone.
+         * intent, its ride long gone, nor in a build without [trips].
          */
-        internal fun openedTrip(intent: Intent?): Route.Trip? {
-            intent ?: return null
+        internal fun openedTrip(intent: Intent?, trips: Boolean): Route.Trip? {
+            if (intent == null || !trips) return null
             if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return null
             if (intent.action == TripNotifications.ACTION_OPEN_TRIP) return Route.Trip()
             return WaitNotifications.tookOf(intent)?.let { Route.Trip(it.key) }

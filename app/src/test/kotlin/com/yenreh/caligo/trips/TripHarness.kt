@@ -52,6 +52,8 @@ class TripHarness(private val immediate: Boolean = false) {
         private set
 
     init {
+        // The trip suites run a build with trips
+        app.container.features.trips = true
         desk.source = source
         desk.location = location
         desk.now = now

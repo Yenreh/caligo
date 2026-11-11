@@ -16,7 +16,10 @@ class TripActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (!intent.hasExtra(TripNotifications.EXTRA_STARTED_AT)) return
         val startedAt = intent.getLongExtra(TripNotifications.EXTRA_STARTED_AT, 0)
-        val trips = (context.applicationContext as CaliGoApp).container.trips
+        val container = (context.applicationContext as CaliGoApp).container
+        // A build without trips runs none: nothing to act on
+        if (!container.features.trips) return
+        val trips = container.trips
         if (intent.action == TripNotifications.ACTION_TAKE_LINE) {
             intent.getStringExtra(TripNotifications.EXTRA_LINE)?.let { trips.takeLine(startedAt, it) }
             return

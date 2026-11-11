@@ -708,7 +708,7 @@ class PlanTripViewModel(
                     deviceName = app.getString(R.string.my_location),
                     destination = destination,
                     work = container.scope,
-                    trips = container.trips,
+                    trips = container.trips.takeIf { container.features.trips },
                     notifications = container.notificationAccess,
                     savedPlaces = container.placesRepository,
                 )

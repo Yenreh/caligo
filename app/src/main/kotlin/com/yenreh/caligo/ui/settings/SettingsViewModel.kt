@@ -86,6 +86,8 @@ class SettingsViewModel(
     private val work: CoroutineScope,
     /** The installed version, as the about section shows it */
     val appVersion: String,
+    /** Whether the build has trips, which the alerts' words then name */
+    val trips: Boolean = false,
 ) : ViewModel() {
     val settings: StateFlow<Settings> = store.settings
 
@@ -211,6 +213,7 @@ class SettingsViewModel(
                     files = AndroidBackupFiles(app),
                     work = container.scope,
                     appVersion = BuildConfig.VERSION_NAME,
+                    trips = container.features.trips,
                 )
             }
         }

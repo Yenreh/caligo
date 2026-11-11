@@ -13,7 +13,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** The trip screen a notification's intent opens, and none from Recents, where the intent is the old one */
+/** The trip screen a notification's intent opens, and none from Recents, where the intent is the old one, nor without trips */
 @RunWith(AndroidJUnit4::class)
 class OpenedTripIntentTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
@@ -32,17 +32,23 @@ class OpenedTripIntentTest {
 
     @Test
     fun iTookItOpensWhereToGetOffForItsRide() {
-        assertEquals(Route.Trip(took.key), MainActivity.openedTrip(tookIt()))
+        assertEquals(Route.Trip(took.key), MainActivity.openedTrip(tookIt(), trips = true))
     }
 
     @Test
     fun theTripsNotificationOpensTheTripRunning() {
-        assertEquals(Route.Trip(), MainActivity.openedTrip(openTrip()))
+        assertEquals(Route.Trip(), MainActivity.openedTrip(openTrip(), trips = true))
+    }
+
+    @Test
+    fun withoutTripsNeitherOpensAnything() {
+        assertNull(MainActivity.openedTrip(tookIt(), trips = false))
+        assertNull(MainActivity.openedTrip(openTrip(), trips = false))
     }
 
     @Test
     fun fromRecentsNeitherOpensAnything() {
-        assertNull(MainActivity.openedTrip(tookIt().addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)))
-        assertNull(MainActivity.openedTrip(openTrip().addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)))
+        assertNull(MainActivity.openedTrip(tookIt().addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY), trips = true))
+        assertNull(MainActivity.openedTrip(openTrip().addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY), trips = true))
     }
 }

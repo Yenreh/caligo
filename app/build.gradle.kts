@@ -1,3 +1,4 @@
+import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.HostTestBuilder
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -21,6 +22,14 @@ val cartoKey: String = providers.environmentVariable("CARTO_KEY").orNull?.takeIf
         Properties().apply { file.inputStream().use(::load) }.getProperty("carto.key")
     }?.trim()
     ?: ""
+
+/**
+ * Trip tracking, still experimental: built only with -Ptrips=true, which
+ * neither CI nor the release workflow passes. Off, the app is 5.1's waits
+ * and planner with no trip anywhere, and the release manifest drops the
+ * trip service and its location permission.
+ */
+val trips: Boolean = providers.gradleProperty("trips").orNull?.trim() == "true"
 
 /** The version every release is named by, from VERSION at the repository root */
 val appVersionName: String = providers.fileContents(rootProject.layout.projectDirectory.file("VERSION"))
@@ -62,8 +71,15 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = appVersionCode
-        versionName = appVersionName
+        versionName = appVersionName + if (trips) "+trips" else ""
         buildConfigField("String", "CARTO_KEY", "\"$cartoKey\"")
+        buildConfigField("boolean", "TRIPS", trips.toString())
+    }
+
+    if (!trips) {
+        // Tests run on debug, which keeps the trip service declared for the
+        // trip suites to force the switch on
+        sourceSets.getByName("release").manifest.srcFile("src/withoutTrips/AndroidManifest.xml")
     }
 
     signingConfigs {
@@ -124,6 +140,38 @@ androidComponents {
         if (variant.buildType != "debug") {
             variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
         }
+    }
+}
+
+/** The merged release manifest declares the trip service and its permission only when trips are built */
+abstract class ReleaseManifestCheck : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val manifest: RegularFileProperty
+
+    @get:Input
+    abstract val trips: Property<Boolean>
+
+    @TaskAction
+    fun check() {
+        val text = manifest.get().asFile.readText()
+        for (name in listOf(".trips.TripService\"", "android.permission.FOREGROUND_SERVICE_LOCATION\"")) {
+            check((name in text) == trips.get()) {
+                "${if (trips.get()) "Missing" else "Declared without trips"}: $name in ${manifest.get().asFile}"
+            }
+        }
+    }
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        val built = trips
+        val check = tasks.register<ReleaseManifestCheck>("check${variant.name.replaceFirstChar(Char::uppercase)}TripsManifest") {
+            manifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+            trips.set(built)
+        }
+        // Run with the tests, and before every release APK
+        tasks.named { it == "test" || it == "assemble${variant.name.replaceFirstChar(Char::uppercase)}" }.configureEach { dependsOn(check) }
     }
 }
 

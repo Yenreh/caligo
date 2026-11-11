@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
+import com.yenreh.caligo.AppFeatures
 import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.ServiceWakeLock
 import com.yenreh.caligo.channelOn
@@ -63,9 +64,12 @@ class WaitService : Service(), WaitHost {
 
     private var lastStartId = 0
 
+    private lateinit var features: AppFeatures
+
     override fun onCreate() {
         super.onCreate()
         desk = (application as CaliGoApp).container.waits
+        features = (application as CaliGoApp).container.features
         scope = CoroutineScope(SupervisorJob() + desk.coroutineContext)
         engine = WaitEngine(desk.source, desk.now, scope, this)
         words = WaitWords(resources)
@@ -160,7 +164,7 @@ class WaitService : Service(), WaitHost {
             // The same as on show: not posted again for a while, the beat still kept awake
             if (carrier != null && last != null && last.first == shown && now - last.second < WaitNotice.REPOST_AFTER_MS) continue
             posted[group] = shown to now
-            val notification = WaitNotifications.build(this, id, members, notice, alerts, words)
+            val notification = WaitNotifications.build(this, id, members, notice, alerts, words, features.trips)
             if (carrier == null) {
                 foreground(id, notification)
                 carrier = group

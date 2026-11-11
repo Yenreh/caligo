@@ -48,6 +48,7 @@ fun SettingsRoute(
         settings = settings,
         state = state,
         appVersion = viewModel.appVersion,
+        trips = viewModel.trips,
         modifier = modifier,
         snackbars = snackbars,
         actions = SettingsActions(

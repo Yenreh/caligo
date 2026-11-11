@@ -28,6 +28,8 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.yenreh.caligo.BuildConfig
+import com.yenreh.caligo.CaliGoApp
+import androidx.compose.ui.platform.LocalContext
 import com.yenreh.caligo.domain.entities.NearbyStop
 import com.yenreh.caligo.domain.entities.Settings
 import com.yenreh.caligo.domain.entities.Station
@@ -107,6 +109,8 @@ fun AppNavigation(
     runningTrip: StateFlow<Journey?> = MutableStateFlow(null),
     /** The view model of a trip screen, for the ride it names: its own, or a test's */
     tripViewModel: @Composable (took: TookRide?) -> TripViewModel = { viewModel(factory = TripViewModel.factory(it)) },
+    /** Whether the build has trips: without them no trip screen nor the home's trip bar is reached */
+    trips: Boolean = (LocalContext.current.applicationContext as CaliGoApp).container.features.trips,
 ) {
     val activity: ViewModelStoreOwner = checkNotNull(LocalViewModelStoreOwner.current)
     // Read inside the entries, so they follow every change of the settings
@@ -148,13 +152,19 @@ fun AppNavigation(
     }
 
     // A trip screen opened from a notification: in place of one on top, never two
-    LaunchedEffect(openedTrips) {
+    LaunchedEffect(openedTrips, trips) {
         openedTrips.collect { route ->
+            if (!trips) return@collect
             if (backStack.lastOrNull() is Route.Trip) backStack.removeAt(backStack.lastIndex)
             open(route)
         }
     }
-    val trip by runningTrip.collectAsStateWithLifecycle()
+    // A back stack restored with a trip screen, in a build without trips: it closes
+    LaunchedEffect(trips) {
+        if (!trips) backStack.removeAll { it is Route.Trip }
+    }
+    val running by runningTrip.collectAsStateWithLifecycle()
+    val trip = running.takeIf { trips }
 
     NavDisplay(
         backStack = backStack,
@@ -290,8 +300,11 @@ fun AppNavigation(
                 EditCardRoute(key.cardId, cards(), onBack = ::back, onDone = { backFrom(key) })
             }
             entry<Route.Trip> { key ->
-                val tiles = mapTiles(current)
-                TripRoute(tripViewModel(key.took?.ride), onBack = { backFrom(key) }, tiles = TripMapTiles(tiles, current.darkMap))
+                // Without trips, nothing for the moment it takes to close
+                if (trips) {
+                    val tiles = mapTiles(current)
+                    TripRoute(tripViewModel(key.took?.ride), onBack = { backFrom(key) }, tiles = TripMapTiles(tiles, current.darkMap))
+                }
             }
             entry<Route.Settings> {
                 SettingsRoute(onBack = ::back, onLicenses = { open(Route.Licenses) })

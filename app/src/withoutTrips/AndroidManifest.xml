@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A release built without trips: neither the trip service nor its location permission -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_LOCATION"
+        tools:node="remove" />
+
+    <application>
+        <service
+            android:name=".trips.TripService"
+            tools:node="remove" />
+    </application>
+
+</manifest>

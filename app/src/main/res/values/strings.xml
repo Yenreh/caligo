@@ -171,9 +171,11 @@
     <string name="map_credit_carto" translatable="false">CARTO</string>
     <string name="alerts_section">Alerts</string>
     <string name="alert_sound">Sound when the bus is near</string>
-    <string name="alert_sound_desc">As an awaited bus comes within about 2 minutes, and before the stop you get off at on a trip. Off, the alerts are silent</string>
+    <string name="alert_sound_desc">As an awaited bus comes within about 2 minutes. Off, the alert is silent</string>
+    <string name="alert_sound_desc_trips">As an awaited bus comes within about 2 minutes, and before the stop you get off at on a trip. Off, the alerts are silent</string>
     <string name="alert_vibrate">Vibrate</string>
-    <string name="alert_vibrate_desc">With the same alerts</string>
+    <string name="alert_vibrate_desc">With the same alert</string>
+    <string name="alert_vibrate_desc_trips">With the same alerts</string>
     <string name="dark_map">Dark map</string>
     <string name="dark_map_desc">Dark tiles on the stops map, whatever the app theme</string>
     <string name="sharp_map">Sharp map</string>

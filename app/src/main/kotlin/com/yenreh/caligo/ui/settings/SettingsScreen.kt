@@ -108,6 +108,8 @@ fun SettingsScreen(
     actions: SettingsActions = SettingsActions(),
     snackbars: LabSnackbars = rememberLabSnackbars(),
     farePrice: TextFieldState = rememberTextFieldState(settings.farePrice.toString()),
+    /** Whether the build has trips, whose warning the alerts then cover too */
+    trips: Boolean = false,
 ) {
     val p = LabTheme.palette
     // A fare set elsewhere, as an import does, replaces what the field shows;
@@ -219,7 +221,7 @@ fun SettingsScreen(
             Section(stringResource(R.string.alerts_section)) {
                 SwitchTile(
                     title = stringResource(R.string.alert_sound),
-                    subtitle = stringResource(R.string.alert_sound_desc),
+                    subtitle = stringResource(if (trips) R.string.alert_sound_desc_trips else R.string.alert_sound_desc),
                     icon = painterResource(R.drawable.ic_volume_up),
                     checked = settings.alertSound,
                     onChange = actions.onAlertSound,
@@ -227,7 +229,7 @@ fun SettingsScreen(
                 LabDivider()
                 SwitchTile(
                     title = stringResource(R.string.alert_vibrate),
-                    subtitle = stringResource(R.string.alert_vibrate_desc),
+                    subtitle = stringResource(if (trips) R.string.alert_vibrate_desc_trips else R.string.alert_vibrate_desc),
                     icon = painterResource(R.drawable.ic_vibration),
                     checked = settings.alertVibrate,
                     onChange = actions.onAlertVibrate,

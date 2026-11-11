@@ -78,15 +78,24 @@ object WaitNotifications {
     }
 
     /** [notice] of [wait] as the notification with [id] */
-    fun build(context: Context, id: Int, wait: Wait, notice: WaitNotice, alerts: Alerts, words: WaitWords): Notification =
-        build(context, id, listOf(wait), notice, alerts, words)
+    fun build(context: Context, id: Int, wait: Wait, notice: WaitNotice, alerts: Alerts, words: WaitWords, trips: Boolean = false): Notification =
+        build(context, id, listOf(wait), notice, alerts, words, trips)
 
     /**
      * [notice] of [waits], one alone or a stop's group in the order they
      * started, as the notification with [id]: a tap opens their stop, a
-     * swipe ends them all
+     * swipe ends them all. "I took it" opens the trip screen in a build
+     * with [trips], else ends that wait.
      */
-    fun build(context: Context, id: Int, waits: List<Wait>, notice: WaitNotice, alerts: Alerts, words: WaitWords): Notification {
+    fun build(
+        context: Context,
+        id: Int,
+        waits: List<Wait>,
+        notice: WaitNotice,
+        alerts: Alerts,
+        words: WaitWords,
+        trips: Boolean = false,
+    ): Notification {
         val wait = waits.first()
         val grouped = waits.size > 1
         val builder = NotificationCompat.Builder(context, notice.channel.id)
@@ -116,7 +125,7 @@ object WaitNotifications {
             )
         for (action in notice.actions) {
             val intent = when (action) {
-                WaitAction.TOOK, WaitAction.YES -> tookIt(context, id, wait)
+                WaitAction.TOOK, WaitAction.YES -> tookIt(context, id, wait, trips = trips)
                 WaitAction.STOP, WaitAction.NOT_TAKEN -> action(context, id, wait, ACTION_STOP)
                 WaitAction.STOP_ALL -> action(context, id, wait, ACTION_STOP_GROUP)
             }
@@ -126,7 +135,7 @@ object WaitNotifications {
         for ((slot, button) in notice.buttons.withIndex()) {
             val own = waits.firstOrNull { it.key == button.key } ?: continue
             val intent = when (button.action) {
-                WaitAction.TOOK, WaitAction.YES -> tookIt(context, id, own, slot)
+                WaitAction.TOOK, WaitAction.YES -> tookIt(context, id, own, slot, trips)
                 WaitAction.STOP, WaitAction.NOT_TAKEN -> action(context, id, own, ACTION_STOP)
                 WaitAction.STOP_ALL -> action(context, id, own, ACTION_STOP_GROUP)
             }
@@ -158,12 +167,23 @@ object WaitNotifications {
     }
 
     /**
-     * "I took it": the trip screen, opened straight from the button, as
-     * Android 12 and later require of a notification's action that opens
-     * the app. With the app on show the trip may follow the location with
-     * the while-in-use permission alone.
+     * "I took it": with [trips], the trip screen, opened straight from the
+     * button, as Android 12 and later require of a notification's action
+     * that opens the app; with the app on show the trip may follow the
+     * location with the while-in-use permission alone. Without, the wait
+     * ends there, as in 5.1, with no screen opened.
      */
-    private fun tookIt(context: Context, id: Int, wait: Wait, slot: Int = 0): PendingIntent {
+    private fun tookIt(context: Context, id: Int, wait: Wait, slot: Int = 0, trips: Boolean): PendingIntent {
+        val code = id + TOOK_REQUEST_OFFSET + slot * TOOK_SLOT_STEP
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        if (!trips) {
+            val intent = Intent(context, WaitActionReceiver::class.java)
+                .setAction(ACTION_TOOK)
+                .putExtra(EXTRA_STOP_ID, wait.bus.stopId)
+                .putExtra(EXTRA_VEHICLE_ID, wait.bus.bus.vehicleId)
+                .putExtra(EXTRA_TRIP, wait.key.trip)
+            return PendingIntent.getBroadcast(context, code, intent, flags)
+        }
         val intent = Intent(context, MainActivity::class.java)
             .setAction(ACTION_TOOK)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -173,12 +193,7 @@ object WaitNotifications {
             .putExtra(EXTRA_STOP_NAME, wait.bus.stopName)
             .putExtra(EXTRA_LINE, wait.bus.bus.line)
             .putExtra(EXTRA_DESTINATION, wait.bus.bus.destination)
-        return PendingIntent.getActivity(
-            context,
-            id + TOOK_REQUEST_OFFSET + slot * TOOK_SLOT_STEP,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
+        return PendingIntent.getActivity(context, code, intent, flags)
     }
 
     /** The ride "I took it" names, from its intent */

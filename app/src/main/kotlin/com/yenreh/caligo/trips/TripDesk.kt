@@ -111,6 +111,8 @@ class TripDesk(
     var coroutineContext: CoroutineContext = Dispatchers.Main.immediate,
     /** The alert settings, as they are now: they cover the warning too */
     var alerts: () -> Alerts = { Alerts() },
+    /** Whether the build has trips: without them nothing starts, no channel is made */
+    var enabled: () -> Boolean = { true },
 ) : TripControl {
     private var pending: TripStart? = null
     private var pendingJourney: Journey? = null
@@ -150,6 +152,7 @@ class TripDesk(
     }
 
     override fun start(start: TripStart) {
+        if (!enabled()) return
         TripNotifications.createChannels(context)
         // The last word of the trip before goes as the next one starts
         NotificationManagerCompat.from(context).cancel(TripNotifications.ENDED_ID)
