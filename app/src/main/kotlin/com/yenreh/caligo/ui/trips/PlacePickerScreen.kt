@@ -226,7 +226,7 @@ fun PlacePickerScreen(
                 section("places", R.string.saved_places, shownPlaces) { place ->
                     SavedPlaceTile(place, onClick = { picked(place.tripPlace) }, onEdit = { editing = place.id })
                 }
-                section("favorites", R.string.favorites_short, shownFavorites) { favorite ->
+                section("favorites", R.string.favorite_stops, shownFavorites) { favorite ->
                     PlaceTile(
                         icon = R.drawable.ic_signpost,
                         title = favorite.displayName,

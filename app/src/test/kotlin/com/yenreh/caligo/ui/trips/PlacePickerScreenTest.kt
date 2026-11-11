@@ -120,7 +120,7 @@ class PlacePickerScreenTest {
         compose.onNodeWithText("Search a station, stop or address").assertExists()
         compose.onNodeWithText("My location").assertExists()
         compose.onNodeWithText("Pick on the map").assertExists()
-        compose.onNodeWithText("FAVORITES").assertExists()
+        compose.onNodeWithText("FAVORITE STOPS").assertExists()
         compose.onNodeWithText("Casa").assertExists()
         scrollTo("STATIONS")
         scrollTo("Estación Calima")
@@ -357,7 +357,7 @@ class PlacePickerScreenTest {
         showSaved()
 
         val label = compose.onNodeWithText("SAVED PLACES").fetchSemanticsNode().boundsInRoot.top
-        val favoritesLabel = compose.onNodeWithText("FAVORITES").fetchSemanticsNode().boundsInRoot.top
+        val favoritesLabel = compose.onNodeWithText("FAVORITE STOPS").fetchSemanticsNode().boundsInRoot.top
         assertTrue(label < favoritesLabel)
         assertTrue(savedTile("Mamá").fetchSemanticsNode().boundsInRoot.top < favoritesLabel)
         // What they were called, below their own name
