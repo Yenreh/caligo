@@ -467,6 +467,19 @@ class PlanTripViewModelTest {
     }
 
     @Test
+    fun rightAfterStartTripTheTripArrivesWhenThePlannerSaid() = test {
+        val trips = com.yenreh.caligo.trips.FakeTripControl(clock)
+        val model = viewModel(twoLines(), trips = trips)
+        val row = model.screen.value.options.single()
+        model.toggle(row.index)
+        val open = checkNotNull(model.screen.value.open)
+        model.startTrip()
+        val arrival = checkNotNull(com.yenreh.caligo.trips.TripArrival.of(checkNotNull(trips.running.value), clock))
+        assertEquals(open.arrivesAt, arrival.at)
+        assertEquals(!open.isLive, arrival.estimated)
+    }
+
+    @Test
     fun theLineShownByDefaultIsNoChoice() = test {
         val trips = com.yenreh.caligo.trips.FakeTripControl(clock)
         val model = viewModel(twoLines(), trips = trips)

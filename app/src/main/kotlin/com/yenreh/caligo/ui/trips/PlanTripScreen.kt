@@ -1221,7 +1221,7 @@ internal fun roundTo10(meters: Double): Int = (meters / 10).roundToInt() * 10
 
 /** A time of day as the device writes it, as Flutter's TimeOfDay.format */
 @Composable
-private fun clock(epochMillis: Long): String {
+internal fun clock(epochMillis: Long): String {
     val context = LocalContext.current
     val language = LocalConfiguration.current.locales[0].language
     return clockText(epochMillis, hours24 = DateFormat.is24HourFormat(context), spanish = language == "es")

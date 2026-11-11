@@ -90,6 +90,7 @@ import com.yenreh.caligo.trips.EndedTrip
 import com.yenreh.caligo.trips.FinishingTrip
 import com.yenreh.caligo.trips.LineTimes
 import com.yenreh.caligo.trips.RideBuses
+import com.yenreh.caligo.trips.TripArrival
 import com.yenreh.caligo.ui.common.LiveClock
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.common.LocalNow
@@ -258,8 +259,8 @@ fun TripScreen(
             modifier = modifier.fillMaxSize(),
             containerColor = p.bg,
             contentWindowInsets = WindowInsets(0),
-            // The boarding stop goes in the content, where large text has room for it
-            topBar = { LabTopBar(title = title, onBack = onBack) },
+            // The boarding stop goes in the content, where large text has room for it; when it arrives, under the title
+            topBar = { LabTopBar(title = title, onBack = onBack, subtitle = (content as? TripContent.Running)?.let { arrivalText(it.journey, awaited) }) },
             snackbarHost = { LabSnackbarHost(snackbars, Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) },
             bottomBar = {
                 when (content) {
@@ -362,6 +363,15 @@ private fun FinishedSnackbar(finishing: FinishingTrip?, snackbars: LabSnackbars,
             job.cancel()
         }
     }
+}
+
+/** "Arrive ~11:08": when the trip gets where it goes, as reckoned now; null with nowhere to get to */
+@Composable
+private fun arrivalText(journey: Journey, awaited: List<AwaitedLine>): String? {
+    val now = LocalNow.current
+    watchLiveClock()
+    val arrival = TripArrival.of(journey, now(), awaited) ?: return null
+    return stringResource(if (arrival.estimated) R.string.arrive_around else R.string.arrive_at, clock(arrival.at))
 }
 
 /** The map's share of the window: enough to see the stretch ahead, the words below it at any text size */

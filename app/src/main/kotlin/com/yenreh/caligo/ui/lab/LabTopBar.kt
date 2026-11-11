@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -84,7 +84,8 @@ private fun Bar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp),
+            // Taller only when large text and a subtitle need it
+            .heightIn(min = 56.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Flutter's leading slot is 56 wide, the button 48 in its middle

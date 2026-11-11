@@ -530,6 +530,35 @@ class TripScreenTest {
     }
 
     @Test
+    fun underTheTitleWhenTheTripArrivesWhichALineChosenChangesAtOnce() {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        trips.awaited.value = listOf(
+            com.yenreh.caligo.trips.AwaitedLine("E21", NOW + 6 * 60_000),
+            com.yenreh.caligo.trips.AwaitedLine("T31", NOW + 30 * 60_000),
+        )
+        show(took = null)
+        waitFor("trip_running")
+        fun shown() = checkNotNull(com.yenreh.caligo.trips.TripArrival.of(checkNotNull(trips.running.value), NOW, trips.awaited.value))
+        val any = shown()
+        compose.onNode(hasText("Arrive ~", substring = true)).assertExists()
+        trips.chooseLine("T31")
+        val t31 = shown()
+        assertTrue(t31.at > any.at)
+        compose.waitUntil(WAIT_TIMEOUT_MS) {
+            compose.onAllNodes(hasText(clockText(t31.at, hours24 = false, spanish = false), substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test
+    fun aRideFollowedWithNoStopHasNoArrival() {
+        show()
+        waitFor("trip_skip")
+        compose.onNodeWithTag("trip_skip").performClick()
+        waitFor("trip_running")
+        assertTrue(compose.onAllNodes(hasText("Arrive", substring = true)).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
     fun aRideOfOneLineShowsItsTimesWithNoChoice() {
         trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
         // On foot to the A47, after the first ride
