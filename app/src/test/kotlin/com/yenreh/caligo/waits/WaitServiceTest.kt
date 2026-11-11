@@ -559,6 +559,38 @@ class WaitServiceTest {
     }
 
     @Test
+    fun waitsAtTwoPlatformsOfAStationShareOneRequestAndAFarStopAsksItsOwn() {
+        // B2 of the same station, 110 m north of A1; another stop 2 km off
+        val platform = com.yenreh.caligo.domain.GeoPoint(WaitFixtures.place.latitude + 0.001, WaitFixtures.place.longitude)
+        val far = com.yenreh.caligo.domain.GeoPoint(WaitFixtures.place.latitude + 0.018, WaitFixtures.place.longitude)
+        val e21AtB2 = awaited(e21, stopId = "500801").copy(place = platform)
+        val a47Far = awaited(a47, stopId = "500900").copy(place = far)
+        source.answer = { point, at ->
+            val near = com.yenreh.caligo.domain.metersBetween(point.latitude, point.longitude, far.latitude, far.longitude) > 1_000
+            WaitAnswer(
+                if (near) {
+                    listOf(
+                        com.yenreh.caligo.domain.entities.NearbyStop(WaitFixtures.STOP, WaitFixtures.STOP_NAME, 40.0, listOf(t31)),
+                        com.yenreh.caligo.domain.entities.NearbyStop("500801", "Plaza de Cayzedo B2", 90.0, listOf(e21)),
+                    )
+                } else {
+                    listOf(com.yenreh.caligo.domain.entities.NearbyStop("500900", "Far", 20.0, listOf(a47)))
+                },
+                at,
+            )
+        }
+        start(awaited(t31), e21AtB2, a47Far)
+        // One request for the station, one for the far stop
+        assertEquals(2, source.asked.size)
+        assertEquals(setOf(WaitFixtures.place.latitude, far.latitude), source.asked.map { it.first.latitude }.toSet())
+        // E21 four minutes away paces the station: every 30 s, the one request still serving both
+        advance(2 * MINUTE)
+        val station = source.asked.count { it.first.latitude != far.latitude }
+        assertEquals(5, station)
+        assertTrue(posted.none { "no data" in it.title() })
+    }
+
+    @Test
     fun anAnswerAScreenJustFetchedServesInsteadOfARequest() {
         // The card the bell was on, and the screen's next answer for the stop
         val card = FadingArrivals.EMPTY.fed(WaitFixtures.STOP, listOf(t31, a47), NOW - 20_000)

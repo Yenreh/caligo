@@ -164,7 +164,9 @@ gets the stops.
   where each one is.
 - One request answers for every stop within 280 m of the point asked
   around, so favorites and the stops of a trip are grouped to need as few
-  as possible, and a trip reuses areas asked about within a minute. With
+  as possible, and a trip reuses areas asked about within a minute. Waits
+  for buses at stops that close to one another, as a station's platforms,
+  share one request each round. With
   a trip open, only its own stops are asked about again.
 - Identical requests in flight share one answer, and what barely changes
   is cached as above.

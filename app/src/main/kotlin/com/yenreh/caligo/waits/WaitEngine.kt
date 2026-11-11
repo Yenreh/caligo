@@ -8,7 +8,9 @@ import com.yenreh.caligo.domain.WaitAnswer
 import com.yenreh.caligo.domain.WaitEnding
 import com.yenreh.caligo.domain.WaitKey
 import com.yenreh.caligo.domain.WaitStep
+import com.yenreh.caligo.domain.ARRIVALS_REACH_METERS
 import com.yenreh.caligo.domain.failureBackoff
+import com.yenreh.caligo.domain.metersBetween
 import com.yenreh.caligo.ui.stops.StopsViewModel
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
@@ -66,11 +68,13 @@ enum class WaitStart {
 /**
  * The waits and their rounds, on [scope]'s single thread.
  *
- * Each round asks once around each point some waits share, at the pace
- * the home sets by how soon their buses come, put off further after
- * failures in a row as [failureBackoff] says; an answer a screen fetched
- * for the same stop meanwhile serves instead, and moves the next round
- * on. In between, a beat of [BEAT] reads the waits again, ends those due
+ * Each round asks once around each point some waits share, and not at
+ * all for a stop an ask on its way reaches, as another platform of the
+ * same station: an answer serves every wait whose stop it reaches. Each
+ * point asks at the pace the home sets by how soon its buses come, put
+ * off further after failures in a row as [failureBackoff] says; an answer
+ * a screen fetched for the same stop meanwhile serves instead, and moves
+ * the next round on. In between, a beat of [BEAT] reads the waits again, ends those due
  * and shows the rest. Waits that only say how they ended ask nothing,
  * and once the last one ends nothing runs.
  */
@@ -200,6 +204,8 @@ class WaitEngine(
                 }
             }
             if (point in requests) continue
+            // An ask on its way whose answer reaches this stop serves it too
+            if (requests.keys.any { covers(it, point) }) continue
             val last = waits.filter { it.point == point }.maxOf { maxOf(it.answeredAt ?: Long.MIN_VALUE, it.askedAt ?: Long.MIN_VALUE) }
             val due = if (last == Long.MIN_VALUE) now else last + pace + failureBackoff(failures[point] ?: 0).inWholeMilliseconds
             if (now >= due) ask(point, now) else wake = minOf(wake, due)
@@ -228,8 +234,9 @@ class WaitEngine(
         request.start()
     }
 
+    /** [answer], asked around [point], to every wait whose stop it reaches */
     private fun feed(point: AskPoint, answer: WaitAnswer) {
-        waits = waits.map { if (it.point == point) it.fed(answer) else it }
+        waits = waits.map { wait -> wait.point?.takeIf { covers(point, it) }?.let { wait.fed(answer) } ?: wait }
     }
 
     private fun replace(key: WaitKey, change: (Wait) -> Wait) {
@@ -237,6 +244,14 @@ class WaitEngine(
     }
 
     companion object {
+        /**
+         * Whether an answer asked around [asked] surely lists the stop asked
+         * about at [point]: the same point, or a stop whose own place lies
+         * within [ARRIVALS_REACH_METERS] of it, as two platforms of a station
+         */
+        fun covers(asked: AskPoint, point: AskPoint): Boolean = asked == point ||
+            (point.placed && metersBetween(asked.latitude, asked.longitude, point.latitude, point.longitude) <= ARRIVALS_REACH_METERS)
+
         /** How often the waits are read and shown between rounds: the screens' beat */
         val BEAT = 15.seconds
 
