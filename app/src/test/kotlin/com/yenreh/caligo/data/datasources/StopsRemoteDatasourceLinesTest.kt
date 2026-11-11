@@ -394,6 +394,41 @@ class StopsRemoteDatasourceLinesTest {
     }
 
     @Test
+    fun nearAPointOnlyTheBusesWithinAKilometreAreAskedTheirDirection() = runTest {
+        var clock = 1_790_000_000_000L
+        val asked = CopyOnWriteArrayList<String>()
+        val service = answering { _, url ->
+            val path = url.encodedPath
+            when {
+                // Bus 1 at 3.4382, bus 2 four kilometres south
+                path.endsWith("/operations/A47") -> ok(
+                    """[{"busNumber":1,"gpsx":-7.653E8,"gpsy":3.4382E7},{"busNumber":2,"gpsx":-7.653E8,"gpsy":3.40E7}]""",
+                )
+                "/busInfo/" in path -> {
+                    val bus = path.substringAfterLast('/')
+                    asked.add(bus)
+                    ok("""[{"busNumber":$bus,"line":"A47","orientation":"0"}]""")
+                }
+                else -> status(404, "Not Found")
+            }
+        }
+        val datasource = service.datasource(now = { clock })
+        val rider = com.yenreh.caligo.domain.GeoPoint(3.4350, -76.53)
+
+        val first = datasource.getLineBuses("A47", near = rider)
+        assertEquals(listOf("1"), asked.toList())
+        assertEquals(mapOf("1" to 0, "2" to null), first.associate { it.busNumber to it.direction })
+
+        // Known from a round without a point, as the line screen asks: kept, however old, while far
+        datasource.getLineBuses("A47")
+        clock += 11.minutes.inWholeMilliseconds
+        asked.clear()
+        val later = datasource.getLineBuses("A47", near = rider)
+        assertEquals(listOf("1"), asked.toList())
+        assertEquals(mapOf("1" to 0, "2" to 0), later.associate { it.busNumber to it.direction })
+    }
+
+    @Test
     fun asksABusItsDirectionAgainOnlyAsItNearsItsTripEnd() = runTest {
         var clock = 1_790_000_000_000L
         val asked = CopyOnWriteArrayList<String>()

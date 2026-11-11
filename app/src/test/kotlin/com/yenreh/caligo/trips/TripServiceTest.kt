@@ -562,6 +562,23 @@ class TripServiceTest {
     }
 
     @Test
+    fun theBusesDirectionsAreAskedNearTheRiderOrWhereTheEstimateHasThem() {
+        h.source.answer = { listOf(bus("32051", along(it))) }
+        h.start(plan)
+        h.ride(2 * MINUTE) { along(it) }
+        // By the rider's fresh fix
+        val fix = TripFixtures.fix(along(h.now() - TripHarness.FIX_EVERY), 0)
+        val near = checkNotNull(h.source.askedNear.last())
+        assertTrue(com.yenreh.caligo.domain.metersBetween(near.latitude, near.longitude, fix.point.latitude, fix.point.longitude) < 120)
+        // No fix for a while: where the ride is by the estimate, on its route, near the bus standing in
+        h.ride(3 * MINUTE) { null }
+        val estimated = checkNotNull(h.source.askedNear.last())
+        val busAt = TripFixtures.fix(along(h.source.asked.last()), 0).point
+        assertTrue(com.yenreh.caligo.domain.metersBetween(estimated.latitude, estimated.longitude, busAt.latitude, busAt.longitude) < 300)
+        assertTrue(com.yenreh.caligo.domain.metersBetween(estimated.latitude, estimated.longitude, fix.point.latitude, fix.point.longitude) > 500)
+    }
+
+    @Test
     fun theBusesAreAskedEvery30sAfterEachAnswer() {
         h.source.answer = { listOf(bus("32051", along(it))) }
         h.start(plan)

@@ -6,6 +6,7 @@ import com.yenreh.caligo.data.datasources.StopsLocalDatasource
 import com.yenreh.caligo.data.datasources.StopsRemoteDatasource
 import com.yenreh.caligo.data.json.busFromJson
 import com.yenreh.caligo.data.json.toJson
+import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.LiveArrivals
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.FavoriteStop
@@ -47,7 +48,7 @@ class StopsRepositoryImpl(
 
     override suspend fun getLineStops(line: String) = remote.getLineStops(line)
 
-    override suspend fun getLineBuses(line: String) = remote.getLineBuses(line)
+    override suspend fun getLineBuses(line: String, near: GeoPoint?) = remote.getLineBuses(line, near)
 
     override suspend fun getLineHours() = remote.getLineHours()
 

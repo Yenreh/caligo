@@ -110,7 +110,10 @@ the arrivals have shown it running within two weeks.
 
 A bus keeps its direction until the end of its trip, so `busInfo` is asked
 again every couple of minutes only while a bus is near its trip's last
-stop, and otherwise every 45 minutes.
+stop, and otherwise every 45 minutes. A trip asks it only for buses within
+1 km of where it tells its bus: the rider's fresh fix, where the estimate
+has them on the bus, or the stop to board at; the rest keep the direction
+last known, or none, which the trip never needs that far off.
 
 Stop names tell a station's platforms by a letter up to E and a number
 (`Universidades B1`). A `P` and a number is either two berths of one stop,

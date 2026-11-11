@@ -2,6 +2,7 @@ package com.yenreh.caligo.trips
 
 import com.yenreh.caligo.data.location.FixQuality
 import com.yenreh.caligo.data.location.LocationUpdates
+import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.TookRide
 import com.yenreh.caligo.domain.TripEnding
@@ -65,14 +66,18 @@ class FakeTripSource(private val now: () -> Long) : TripSource {
     var byLine: ((line: String, at: Long) -> List<LineBus>)? = null
     val asked = mutableListOf<Long>()
     val askedLines = mutableListOf<String>()
+
+    /** Where each request said the trip tells its buses */
+    val askedNear = mutableListOf<GeoPoint?>()
     var arrivalsAnswer: (stops: List<LineStop>, at: Long) -> LiveArrivals = { _, _ -> LiveArrivals.NONE }
     val arrivalsAsked = mutableListOf<List<String>>()
     val observed = mutableListOf<Map<String, Double>>()
 
-    override suspend fun buses(line: String): List<LineBus> {
+    override suspend fun buses(line: String, near: GeoPoint?): List<LineBus> {
         val at = now()
         asked.add(at)
         askedLines.add(line)
+        askedNear.add(near)
         return byLine?.invoke(line, at) ?: answer(at)
     }
 

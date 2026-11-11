@@ -56,8 +56,11 @@ interface StopsRepository {
     /** A line's route, both directions */
     suspend fun getLineStops(line: String): List<LineStop>
 
-    /** Buses running on a line now, each with the direction of its trip when known */
-    suspend fun getLineBuses(line: String): List<LineBus>
+    /**
+     * Buses running on a line now, each with the direction of its trip when
+     * known; with [near], the direction asked for only of buses near it
+     */
+    suspend fun getLineBuses(line: String, near: GeoPoint? = null): List<LineBus>
 
     /** Hours each line runs, by line name */
     suspend fun getLineHours(): Map<String, LineHours>

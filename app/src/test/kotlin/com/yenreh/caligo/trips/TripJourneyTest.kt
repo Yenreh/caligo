@@ -309,6 +309,16 @@ class TripJourneyTest {
     }
 
     @Test
+    fun waitingWithNoFreshFixTheBusesDirectionsAreAskedNearEachLinesStop() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.move(2 * MINUTE) { null }
+        val asked = h.source.askedLines.zip(h.source.askedNear).takeLast(2).toMap()
+        assertEquals(setOf("E21", "T31"), asked.keys)
+        for (near in asked.values) assertEquals(stop, near)
+    }
+
+    @Test
     fun iTookItOnTheRidersOwnWaitForALineTheTripAwaitsTakesIt() {
         startJourney()
         h.move(5 * MINUTE) { toTheStop(it) }

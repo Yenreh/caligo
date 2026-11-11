@@ -532,9 +532,11 @@ class StopsRemoteDatasource(
     /**
      * Buses running on [line] right now, each with the direction of its
      * trip. The positions are never cached; the directions are, until the
-     * bus nears the end of its trip.
+     * bus nears the end of its trip. [near], when given, asks the direction
+     * only of buses within [DIRECTIONS_NEAR_METERS] of it: those further
+     * off keep what is known of theirs, or none.
      */
-    suspend fun getLineBuses(line: String): List<LineBus> {
+    suspend fun getLineBuses(line: String, near: GeoPoint? = null): List<LineBus> {
         val buses = lineBusPositions(line)
         val ends = endsOf(line)
         val now = now()
@@ -546,6 +548,9 @@ class StopsRemoteDatasource(
         }
 
         val stale = buses.filter { bus ->
+            if (near != null && metersBetween(bus.latitude, bus.longitude, near.latitude, near.longitude) > DIRECTIONS_NEAR_METERS) {
+                return@filter false
+            }
             val known = busDirections[bus.busNumber] ?: return@filter true
             // A bus the service puts on another line says nothing of this
             // one's trip ends: asked again as a bus without the route, not
@@ -811,6 +816,13 @@ class StopsRemoteDatasource(
 
         /** Bus directions asked for at once */
         private const val DIRECTIONS_AT_ONCE = 4
+
+        /**
+         * A trip asks the direction of buses this close to the rider, or to
+         * the stop to board at, alone: it tells the rider's bus within a
+         * few hundred metres of them, and a bus nearing the stop within 600
+         */
+        const val DIRECTIONS_NEAR_METERS = 1_000.0
 
         /** Routes change a few times a year, and the hours with them */
         private val ROUTES_MAX_AGE = 7.days

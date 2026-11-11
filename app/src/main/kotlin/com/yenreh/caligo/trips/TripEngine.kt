@@ -32,8 +32,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /** Where a trip's buses come from, and where what it learns goes */
 interface TripSource {
-    /** The line's buses running now, as the line screen asks for them */
-    suspend fun buses(line: String): List<LineBus>
+    /**
+     * The line's buses running now, as the line screen asks for them; the
+     * direction of each asked for only near [near], where the trip tells
+     * its buses, when given
+     */
+    suspend fun buses(line: String, near: GeoPoint?): List<LineBus>
 
     /** Buses on their way to [stops], as the planner asks for them, reusing what it asked lately */
     suspend fun arrivals(stops: List<LineStop>): LiveArrivals
@@ -375,7 +379,7 @@ class TripEngine(
                 var near = false
                 for (line in lines) {
                     try {
-                        val buses = source.buses(line)
+                        val buses = source.buses(line, journey?.let { nearOf(it, line, now) })
                         near = near || journey?.busNear(line, buses, BUS_NEAR_METERS) == true
                         journey = journey?.withBuses(line, buses, now())
                     } catch (e: Exception) {
@@ -396,6 +400,18 @@ class TripEngine(
         request = job
         job.start()
         return now + BEAT_MS
+    }
+
+    /**
+     * Where the trip tells [line]'s buses at [now]: the rider's fresh good
+     * fix; on the bus without one, where the estimate has them on its
+     * route; waiting for a ride, its stop to board on that line
+     */
+    private fun nearOf(running: Journey, line: String, now: Long): GeoPoint? {
+        running.fix?.takeIf { now - it.at <= FIX_FRESH_MS }?.let { return it.point }
+        running.ride?.let { return it.route.pointAt(it.progress(now).along) }
+        val board = running.pendingCandidates.firstOrNull { it.line == line }?.board ?: return null
+        return GeoPoint(board.latitude, board.longitude)
     }
 
     /**

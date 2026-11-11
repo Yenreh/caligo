@@ -301,7 +301,7 @@ class FakeStopsRepository(
         return routes[line].orEmpty()
     }
 
-    override suspend fun getLineBuses(line: String): List<LineBus> {
+    override suspend fun getLineBuses(line: String, near: GeoPoint?): List<LineBus> {
         busesAsked.add(line)
         busAnswer?.invoke()
         busFailure?.let { throw it }
