@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -399,11 +400,11 @@ private fun Running(
         item {
             LabPanel(modifier = Modifier.padding(16.dp), accentTop = true) {
                 when (phase) {
-                    is JourneyPhase.Riding -> RideHeading(phase.trip, at, words)
+                    is JourneyPhase.Riding -> RideHeading(journey, phase.trip, at, words)
                     is JourneyPhase.Walking -> {
                         Heading(stringResource(R.string.trip_heading_walk, phase.leg.toName))
                         Detail(words.walkDetail(Trip.minutesOf(phase.millis), phase.estimated, roundTo10(phase.meters)))
-                        Source(if (phase.estimated) R.string.trip_by_estimate else R.string.trip_by_fix)
+                        Source(if (phase.estimated) estimateSource(journey) else R.string.trip_by_fix)
                         val next = journey.legs.getOrNull(journey.index + 1) as? JourneyLeg.Ride
                         if (phase.leg.toStop && next != null) {
                             // The soonest first, then the lines with no bus awaited, as at the stop
@@ -507,8 +508,19 @@ private fun Source(text: Int) {
     Text(stringResource(text), style = LabText.statusLine(LabTheme.palette))
 }
 
+/**
+ * Why the trip goes by the estimate: the permission approximate alone, a
+ * good fix had but none fresh, or none yet
+ */
+@StringRes
+private fun estimateSource(journey: Journey): Int = when {
+    journey.approximate -> R.string.trip_by_estimate_approximate
+    journey.fix != null -> R.string.trip_by_estimate_stale
+    else -> R.string.trip_by_estimate
+}
+
 @Composable
-private fun RideHeading(trip: Trip, at: Long, words: TripWords) {
+private fun RideHeading(journey: Journey, trip: Trip, at: Long, words: TripWords) {
     val progress = trip.progress(at)
     val plan = trip.plan
     Heading(words.rideHeading(plan, progress.stopsLeft))
@@ -519,7 +531,7 @@ private fun RideHeading(trip: Trip, at: Long, words: TripWords) {
         when (progress.source) {
             TripSource.FIX -> R.string.trip_by_fix
             TripSource.BUS -> R.string.trip_by_bus
-            TripSource.ESTIMATE -> R.string.trip_by_estimate
+            TripSource.ESTIMATE -> estimateSource(journey)
         },
     )
 }

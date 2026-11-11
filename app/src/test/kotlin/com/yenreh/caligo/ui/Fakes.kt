@@ -333,6 +333,10 @@ class FakeLocationSource(
     var answer: LocationPermission = LocationPermission.GRANTED,
     var lastKnown: GeoPoint? = null,
     var current: GeoPoint? = null,
+    /** The permission given as approximate alone, on Android 12 and later */
+    var approximate: Boolean = false,
+    /** Whether the prompt leaves it approximate alone; refused, as the system's upgrade prompt can be */
+    var answerApproximate: Boolean = false,
 ) : LocationSource {
     var requests = 0
     val currentAsked = mutableListOf<Pair<LocationAccuracy, Duration>>()
@@ -345,9 +349,12 @@ class FakeLocationSource(
     override fun checkPermission() =
         if (permission == LocationPermission.DENIED_FOREVER) LocationPermission.DENIED else permission
 
+    override fun approximateOnly() = permission == LocationPermission.GRANTED && approximate
+
     override suspend fun requestPermission(): LocationPermission {
         requests++
         permission = answer
+        approximate = answerApproximate
         return answer
     }
 

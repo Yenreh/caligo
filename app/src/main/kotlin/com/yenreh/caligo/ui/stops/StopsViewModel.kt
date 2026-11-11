@@ -839,6 +839,8 @@ private object NoLocation : LocationSource {
 
     override fun checkPermission() = LocationPermission.DENIED
 
+    override fun approximateOnly() = false
+
     override suspend fun requestPermission() = LocationPermission.DENIED
 
     override suspend fun lastKnownPosition(): GeoPoint = throw LocationPermissionException()

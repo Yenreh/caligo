@@ -32,6 +32,9 @@ interface LocationUpdates {
     /** Whether fixes can come: location on, and the permission, coarse or fine, still given */
     fun usable(): Boolean
 
+    /** Whether the permission is the precise one: with the approximate alone, no fix is exact enough to place the rider */
+    fun precise(): Boolean
+
     /**
      * Ask for fixes at [quality] from now on, replacing what was asked
      * before; each comes to [onFix], and [onLost] hears when location goes
@@ -67,6 +70,8 @@ class AndroidLocationUpdates(private val context: Context, private val now: () -
         val permitted = granted(Manifest.permission.ACCESS_FINE_LOCATION) || granted(Manifest.permission.ACCESS_COARSE_LOCATION)
         return permitted && LocationManagerCompat.isLocationEnabled(manager)
     }
+
+    override fun precise(): Boolean = granted(Manifest.permission.ACCESS_FINE_LOCATION)
 
     // usable() holds before every request
     @SuppressLint("MissingPermission")

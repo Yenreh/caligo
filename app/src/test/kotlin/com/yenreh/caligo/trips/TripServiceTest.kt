@@ -344,6 +344,21 @@ class TripServiceTest {
         h.assertRunning()
     }
 
+    // Precise location
+
+    @Test
+    fun theApproximatePermissionAloneIsReadAtEveryRound() {
+        h.location.precise = false
+        h.start(plan)
+        h.ride(MINUTE) { along(it) }
+        assertEquals(true, h.desk.running.value?.approximate)
+        // Made precise meanwhile, in the system's settings
+        h.location.precise = true
+        h.ride(TripEngine.BEAT.inWholeMilliseconds) { along(it) }
+        assertEquals(false, h.desk.running.value?.approximate)
+        h.assertRunning()
+    }
+
     // The notification
 
     @Test

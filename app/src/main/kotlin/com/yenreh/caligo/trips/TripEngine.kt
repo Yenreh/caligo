@@ -214,14 +214,17 @@ class TripEngine(
             val now = now()
             if (!host.allowed()) return end(TripEnding.BLOCKED)
             if (!location.usable()) return end(TripEnding.NO_LOCATION)
-            when (val step = current.step(now)) {
+            // Read at every round: the rider may make it precise, or not, meanwhile
+            val approximate = !location.precise()
+            if (current.approximate != approximate) journey = current.copy(approximate = approximate)
+            when (val step = checkNotNull(journey).step(now)) {
                 is JourneyStep.Ends -> {
                     learn(step.readings)
                     return end(step.ending)
                 }
                 is JourneyStep.Goes -> {
                     learn(step.readings)
-                    if (step.journey != current) {
+                    if (step.journey != journey) {
                         journey = step.journey
                         roundAt = null
                     }

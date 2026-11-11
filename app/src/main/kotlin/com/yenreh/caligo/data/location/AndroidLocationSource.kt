@@ -57,6 +57,9 @@ class AndroidLocationSource(private val context: Context) : LocationSource {
     override fun checkPermission(): LocationPermission =
         if (PERMISSIONS.any(::granted)) LocationPermission.GRANTED else LocationPermission.DENIED
 
+    override fun approximateOnly(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+        granted(Manifest.permission.ACCESS_COARSE_LOCATION) && !granted(Manifest.permission.ACCESS_FINE_LOCATION)
+
     private fun granted(permission: String) =
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 

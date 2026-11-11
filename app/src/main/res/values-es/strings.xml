@@ -345,6 +345,8 @@
     <string name="trip_by_fix">Según tu ubicación</string>
     <string name="trip_by_bus">Según el bus en que vas</string>
     <string name="trip_by_estimate">Estimado: aún sin posición</string>
+    <string name="trip_by_estimate_stale">Estimado: sin posición reciente</string>
+    <string name="trip_by_estimate_approximate">Estimado: la ubicación precisa está desactivada</string>
     <string name="trip_stops_ahead">Próximas paradas</string>
     <string name="trip_tap_to_get_off">Toca una parada para bajarte ahí</string>
     <string name="trip_get_off_now">Ahora te bajas en %1$s</string>

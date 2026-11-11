@@ -32,22 +32,30 @@ enum class TripMessage { NEEDS_NOTIFICATIONS, NEEDS_LOCATION, LOCATION_OFF }
 /**
  * What a trip needs and does not have, after asking for it, from the
  * screen on show: its notification, as [trips] may post it, location on
- * and the while-in-use permission; null when all is there
+ * and the while-in-use permission; null when all is there. A permission
+ * already given as approximate alone is asked once more to be precise,
+ * as the trip drops fixes that rough; refused, the trip starts all the
+ * same, and its screen says why it goes by the estimate.
  */
 suspend fun tripNeeds(notifications: NotificationAccess, location: LocationSource, trips: TripControl): TripMessage? {
     if (!notifications.granted() && !notifications.request()) return TripMessage.NEEDS_NOTIFICATIONS
     if (!trips.allowed()) return TripMessage.NEEDS_NOTIFICATIONS
     if (!location.isServiceEnabled()) return TripMessage.LOCATION_OFF
     var permission = location.checkPermission()
-    if (permission != LocationPermission.GRANTED) {
-        permission = try {
-            location.requestPermission()
-        } catch (_: IllegalStateException) {
-            // No activity to ask from
-            LocationPermission.DENIED
-        }
+    if (permission == LocationPermission.GRANTED) {
+        // Given before as approximate: the system's prompt to make it precise
+        if (location.approximateOnly()) askLocation(location)
+        return null
     }
+    permission = askLocation(location)
     return if (permission == LocationPermission.GRANTED) null else TripMessage.NEEDS_LOCATION
+}
+
+private suspend fun askLocation(location: LocationSource): LocationPermission = try {
+    location.requestPermission()
+} catch (_: IllegalStateException) {
+    // No activity to ask from
+    LocationPermission.DENIED
 }
 
 /** What the trip screen shows before the trip runs, and whether it does */

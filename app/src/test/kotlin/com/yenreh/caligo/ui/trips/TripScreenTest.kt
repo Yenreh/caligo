@@ -299,6 +299,34 @@ class TripScreenTest {
         assertEquals(0, closed)
     }
 
+    // Why the trip goes by the estimate
+
+    private fun estimated(journey: com.yenreh.caligo.domain.Journey, text: String) {
+        trips.running.value = journey
+        show(took = null)
+        waitFor("trip_running")
+        compose.onNode(hasText(text)).assertExists()
+    }
+
+    private val ride = com.yenreh.caligo.domain.Journey.single(TripFixtures.plan.copy(alight = 7), NOW)
+
+    @Test
+    fun noGoodFixYetSaysSo() = estimated(ride, "Estimated: no position yet")
+
+    @Test
+    fun goodFixesHadButNoneFreshSaySo() =
+        estimated(ride.copy(fix = TripFixtures.fix(400.0, NOW - 5 * 60_000)), "Estimated: no recent position")
+
+    @Test
+    fun theApproximatePermissionAloneSaysPreciseLocationIsOff() =
+        estimated(ride.copy(approximate = true), "Estimated: precise location is off")
+
+    @Test
+    fun onFootTheSameWordsSayWhy() {
+        val walk = com.yenreh.caligo.domain.Journey.planned(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro", NOW)
+        estimated(walk.copy(approximate = true), "Estimated: precise location is off")
+    }
+
     // A planner trip
 
     @Test

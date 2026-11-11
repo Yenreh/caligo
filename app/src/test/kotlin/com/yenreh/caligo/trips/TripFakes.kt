@@ -17,6 +17,10 @@ class FakeLocationUpdates : LocationUpdates {
     var usable = true
     override fun usable() = usable
 
+    /** The permission the precise one; false with the approximate alone */
+    var precise = true
+    override fun precise() = precise
+
     override var requested: FixQuality? = null
         private set
 

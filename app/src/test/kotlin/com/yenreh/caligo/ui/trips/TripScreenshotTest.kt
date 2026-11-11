@@ -83,6 +83,24 @@ class TripScreenshotTest {
     @Config(fontScale = 2f)
     fun rideFontScale2() = running("trip_ride_font2")
 
+    /** On the ride with the approximate permission alone: no fix to go by, and why */
+    private fun approximate(name: String) = shot(
+        name,
+        TripContent.Running(com.yenreh.caligo.domain.Journey.single(TripFixtures.plan, NOW - 3 * MINUTE).copy(approximate = true)),
+        "trip_running",
+    )
+
+    @Test
+    fun rideApproximateLight() = approximate("trip_ride_approximate_light")
+
+    @Test
+    @Config(qualifiers = "+night")
+    fun rideApproximateDark() = approximate("trip_ride_approximate_dark")
+
+    @Test
+    @Config(fontScale = 2f)
+    fun rideApproximateFontScale2() = approximate("trip_ride_approximate_font2")
+
     /** On the ride, a stop further on tapped: where the rider gets off now, with Undo */
     private fun changed(name: String) {
         running(name)

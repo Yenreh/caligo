@@ -74,6 +74,39 @@ class TripAccessTest {
         assertEquals(asked, h.source.arrivalsAsked.size)
     }
 
+    // Precise location
+
+    @Test
+    fun aPermissionGivenAsApproximateIsAskedOnceMoreToBePrecise() {
+        location.approximate = true
+        assertNull(needs())
+        assertEquals(1, location.requests)
+        assertEquals(false, location.approximateOnly())
+    }
+
+    @Test
+    fun refusedToBePreciseTheTripStartsAllTheSame() {
+        location.approximate = true
+        location.answerApproximate = true
+        assertNull(needs())
+        assertEquals(1, location.requests)
+        assertEquals(true, location.approximateOnly())
+    }
+
+    @Test
+    fun aPrecisePermissionAsksNothing() {
+        assertNull(needs())
+        assertEquals(0, location.requests)
+    }
+
+    @Test
+    fun approximateChosenInTheFirstPromptIsNotAskedAgainRightAway() {
+        location.permission = LocationPermission.DENIED
+        location.answerApproximate = true
+        assertNull(needs())
+        assertEquals(1, location.requests)
+    }
+
     @Test
     fun withTheTripsChannelOffNoTripStartsAndItsChannelSettingsOpen() {
         turnOff(TripChannel.TRIPS.id)

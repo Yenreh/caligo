@@ -42,6 +42,13 @@ interface LocationSource {
     fun checkPermission(): LocationPermission
 
     /**
+     * Whether the permission given is the approximate one alone, where the
+     * system can be asked to make it precise: Android 12 and later. Asking
+     * again with [requestPermission] then shows that prompt.
+     */
+    fun approximateOnly(): Boolean
+
+    /**
      * Ask the user through the system prompt, from the activity on screen.
      * [LocationPermission.DENIED_FOREVER] once the system no longer shows it.
      */

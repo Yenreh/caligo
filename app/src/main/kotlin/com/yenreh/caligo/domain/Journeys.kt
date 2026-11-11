@@ -78,6 +78,8 @@ data class Journey(
     val planned: Boolean = true,
     /** Waiting for a ride, since when every good fix has been well away from it */
     val awaySince: Long? = null,
+    /** The location permission approximate alone, as last read: no fix is good enough to place the rider */
+    val approximate: Boolean = false,
 ) {
     val leg: JourneyLeg get() = legs[index]
 
