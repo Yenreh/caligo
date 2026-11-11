@@ -403,9 +403,10 @@ class TripScreenTest {
         compose.onNode(hasText("Trip to Unicentro")).assertExists()
         compose.onNode(hasText("Walk to Plaza de Cayzedo A1")).assertExists()
         compose.onNode(hasText("Then the E21 or T31")).assertExists()
+        compose.assertControlsAccessible()
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasText("THEN"))
         compose.onNode(hasText("THEN")).assertExists()
         compose.onNode(hasText("E21 or T31 · get off at Calle 5 con Kr 39, 6${NBSP}stops")).assertExists()
-        compose.assertControlsAccessible()
     }
 
     @Test
@@ -465,6 +466,79 @@ class TripScreenTest {
         assertEquals(listOf(took.waitKey), waits.took)
         assertTrue(!exists("trip_choose"))
         compose.onNode(hasText("Get off at Calle 5 con Kr 39")).assertExists()
+    }
+
+    // The ride's lines at its stop
+
+    private fun walkingWithBuses() {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        val journey = checkNotNull(trips.running.value)
+        // About 5 minutes on foot: the T31 in 2 cannot be made
+        trips.rideBuses.value = com.yenreh.caligo.trips.JourneyFixtures.heard(
+            journey,
+            NOW,
+            com.yenreh.caligo.trips.JourneyFixtures.bus("T31", "t1", NOW, 2.0),
+            com.yenreh.caligo.trips.JourneyFixtures.bus("E21", "e1", NOW, 8.0),
+            com.yenreh.caligo.trips.JourneyFixtures.bus("T31", "t2", NOW, 12.0),
+            com.yenreh.caligo.trips.JourneyFixtures.bus("E21", "e2", NOW, 20.0),
+            com.yenreh.caligo.trips.JourneyFixtures.bus("T31", "t3", NOW, 25.0),
+            com.yenreh.caligo.trips.JourneyFixtures.bus("T31", "t4", NOW, 40.0),
+        )
+    }
+
+    @Test
+    fun onFootEachLineOfTheRideShowsItsNextBusesThoseOutOfReachSaidSo() {
+        walkingWithBuses()
+        show(took = null)
+        waitFor("trip_lines")
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_lines"))
+        compose.onNode(hasText("LINES AT THIS STOP")).assertExists()
+        compose.onNode(hasText("Tap one to see it and follow only that one")).assertExists()
+        compose.onNodeWithTag("trip_line_any").assertIsSelected()
+        compose.onNodeWithTag("trip_line_T31").assertIsNotSelected()
+        compose.onNode(hasText("E21") and hasTestTag("trip_line_E21")).assertExists()
+        // Three at most, the first out of reach on foot
+        compose.onNodeWithTag("trip_line_row_T31").assert(
+            androidx.compose.ui.test.hasContentDescription("T31, 2 minutes, 12 minutes, 25 minutes, the first you won't make"),
+        )
+        compose.onNodeWithTag("trip_line_row_E21").assert(androidx.compose.ui.test.hasContentDescription("E21, 8 minutes, 20 minutes"))
+        compose.assertControlsAccessible()
+    }
+
+    @Test
+    fun aLineTappedIsTheOneFollowedUntilAny() {
+        walkingWithBuses()
+        show(took = null)
+        waitFor("trip_lines")
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_lines"))
+        compose.onNodeWithTag("trip_line_T31").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.chosenLines.isNotEmpty() }
+        assertEquals(listOf<String?>("T31"), trips.chosenLines)
+        compose.onNode(hasText("Only the T31; the map shows its route")).assertExists()
+        compose.onNodeWithTag("trip_line_T31").assertIsSelected()
+        assertTrue(!exists("trip_line_row_E21"))
+        compose.onNode(hasText("Then the T31")).assertExists()
+
+        compose.onNodeWithTag("trip_line_any").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.chosenLines.size == 2 }
+        assertEquals(listOf("T31", null), trips.chosenLines)
+        waitFor("trip_line_row_E21")
+        // A row is a way to choose its line too
+        compose.onNodeWithTag("trip_line_row_E21").performClick()
+        compose.waitUntil(WAIT_TIMEOUT_MS) { trips.chosenLines.size == 3 }
+        assertEquals("E21", trips.chosenLines.last())
+    }
+
+    @Test
+    fun aRideOfOneLineShowsItsTimesWithNoChoice() {
+        trips.startJourney(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro")
+        // On foot to the A47, after the first ride
+        trips.running.value = checkNotNull(trips.running.value).took("T31", NOW).copy(index = 2, ride = null, legStartedAt = NOW)
+        show(took = null)
+        waitFor("trip_lines")
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_lines"))
+        assertTrue(!exists("trip_line_any"))
+        compose.onNodeWithTag("trip_line_row_A47").assert(androidx.compose.ui.test.hasContentDescription("A47, No buses coming"))
     }
 
     @Test

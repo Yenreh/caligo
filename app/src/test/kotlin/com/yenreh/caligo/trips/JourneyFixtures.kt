@@ -102,4 +102,15 @@ object JourneyFixtures {
     )
 
     val start = NOW
+
+    /** A bus of [line] at the first ride's stop, due [minutes] from [at] */
+    fun bus(line: String, vehicle: String, at: Long, minutes: Double) =
+        BusArrival(line, "Universidades", at + (minutes * MINUTE).toLong(), vehicle, out[0].name)
+
+    /** What [journey]'s trip heard at [at] of the ride it waits for: [buses] at its stop */
+    fun heard(journey: com.yenreh.caligo.domain.Journey, at: Long, vararg buses: BusArrival): RideBuses =
+        RideBuses(checkNotNull(journey.pendingRide)).heard(
+            LiveArrivals(at, listOf(NearbyStop(out[0].stopId, out[0].name, 20.0, buses.toList())), answeredAt = mapOf(out[0].stopId to at)),
+            journey.pendingCandidates,
+        )
 }

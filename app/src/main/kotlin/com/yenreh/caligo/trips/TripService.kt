@@ -12,6 +12,7 @@ import androidx.core.app.ServiceCompat
 import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.ServiceWakeLock
 import com.yenreh.caligo.channelOn
+import com.yenreh.caligo.domain.AskPoint
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.Journey
 import com.yenreh.caligo.domain.TookRide
@@ -19,6 +20,7 @@ import com.yenreh.caligo.domain.WaitKey
 import com.yenreh.caligo.domain.RunningWait
 import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.Wait
+import com.yenreh.caligo.domain.WaitAnswer
 import com.yenreh.caligo.domain.WaitEnding
 import com.yenreh.caligo.domain.WaitStatus
 import com.yenreh.caligo.waits.WaitChannel
@@ -136,6 +138,7 @@ class TripService : Service(), TripHost {
         // Killed with a trip on: the waits it started go with it
         waits.detachTripWaits(endWaitFromDesk)
         desk.awaitedChanged(emptyList())
+        desk.rideBusesChanged(null)
         wakeLock.release()
         desk.detach(this)
         super.onDestroy()
@@ -155,6 +158,8 @@ class TripService : Service(), TripHost {
     internal fun undo() = engine.undo()
 
     internal fun takeLine(line: String) = engine.takeLine(line)
+
+    internal fun chooseLine(line: String?) = engine.chooseLine(line)
 
     /** A trip wait's bell tapped on a row: the rider stops awaiting that bus, and its ride is not asked for again */
     internal fun endWait(key: WaitKey, ending: WaitEnding) {
@@ -248,6 +253,7 @@ class TripService : Service(), TripHost {
         // Nothing of a trip outlives it: its waits, had any been left, go too
         if (waitEngine.waits.isNotEmpty()) waitEngine.endAll(WaitEnding.STOPPED)
         desk.awaitedChanged(emptyList())
+        desk.rideBusesChanged(null)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         val manager = NotificationManagerCompat.from(this)
         manager.cancel(TripNotifications.TRIP_ID)
@@ -278,6 +284,12 @@ class TripService : Service(), TripHost {
 
     override fun runningWaits(): Set<WaitKey> = waitEngine.waits.mapTo(HashSet()) { it.key }
 
+    override fun awaitedLine(key: WaitKey): String? = waitEngine.waits.firstOrNull { it.key == key }?.last?.line
+
+    override fun rideBusesChanged(buses: RideBuses?) {
+        desk.rideBusesChanged(buses)
+    }
+
     override fun soonestAwaited(now: Long): Long? = engine.journey?.let { awaitedLines(it, now).firstOrNull()?.dueAt(now) }
 
     /**
@@ -292,6 +304,11 @@ class TripService : Service(), TripHost {
         override fun show(waits: List<Wait>, now: Long, nextPostIn: Long) {}
 
         override fun ended(wait: Wait, ending: WaitEnding) {}
+
+        // What its stop's answers list of every line: the trip screen's rows
+        override fun answered(point: AskPoint, answer: WaitAnswer) {
+            engine.heard(point, answer)
+        }
 
         override fun idle() {}
 

@@ -25,6 +25,32 @@ class JourneyTest {
     private val stop = GeoPoint(out[0].latitude, out[0].longitude)
 
     @Test
+    fun aLineChosenForARideIsItsAloneAndTheNextRideTakesAnyOfItsOwn() {
+        assertEquals(listOf("E21", "T31"), journey.pendingLines)
+        assertNull(journey.chosenLine)
+        val t31 = journey.choosing("T31")
+        assertEquals("T31", t31.chosenLine)
+        assertEquals(listOf("T31"), t31.pendingLines)
+        assertEquals(listOf("T31"), t31.awaitedCandidates.map { it.line })
+        // Any again, and a line the ride has not changes nothing
+        assertNull(t31.choosing(null).chosenLine)
+        assertEquals(t31, t31.choosing("A47"))
+        // Taken: the next ride, the A47's, on any of its lines
+        val taken = t31.took("T31", NOW)
+        assertNull(taken.chosenLine)
+    }
+
+    @Test
+    fun linesChosenInThePlannerAreKeptByTheirRide() {
+        // The first ride, the E21 or T31, is the option's ride 0, its leg 1
+        val chosen = Journey.planned(option, DESTINATION, NOW, lines = mapOf(0 to "T31", 1 to "A47", 2 to "X9"))
+        assertEquals(mapOf(1 to "T31", 3 to "A47"), chosen.chosenLines)
+        assertEquals("T31", chosen.chosenLine)
+        // A line the ride has not is no choice
+        assertEquals(emptyMap<Int, String>(), Journey.planned(option, DESTINATION, NOW, lines = mapOf(0 to "A47")).chosenLines)
+    }
+
+    @Test
     fun itStartsOnTheWalkToTheFirstStop() {
         assertEquals(5, journey.legs.size)
         val phase = journey.phase(NOW) as JourneyPhase.Walking

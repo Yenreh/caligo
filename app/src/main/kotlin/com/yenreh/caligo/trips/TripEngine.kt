@@ -2,6 +2,7 @@ package com.yenreh.caligo.trips
 
 import com.yenreh.caligo.data.location.FixQuality
 import com.yenreh.caligo.data.location.LocationUpdates
+import com.yenreh.caligo.domain.AskPoint
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.Journey
@@ -13,6 +14,7 @@ import com.yenreh.caligo.domain.Trip
 import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.TripFix
 import com.yenreh.caligo.domain.TripPlan
+import com.yenreh.caligo.domain.WaitAnswer
 import com.yenreh.caligo.domain.WaitKey
 import com.yenreh.caligo.domain.entities.LineBus
 import com.yenreh.caligo.domain.entities.LineStop
@@ -56,8 +58,14 @@ sealed interface TripStart {
         override fun journey(now: Long) = Journey.single(plan, now)
     }
 
-    data class Planned(val option: TripOption, val destination: String, val factors: Map<String, Double> = emptyMap()) : TripStart {
-        override fun journey(now: Long) = Journey.planned(option, destination, now, factors)
+    /** [lines]: the line the rider chose for some of its rides, by their place among its rides */
+    data class Planned(
+        val option: TripOption,
+        val destination: String,
+        val factors: Map<String, Double> = emptyMap(),
+        val lines: Map<Int, String> = emptyMap(),
+    ) : TripStart {
+        override fun journey(now: Long) = Journey.planned(option, destination, now, factors, lines)
     }
 }
 
@@ -86,6 +94,12 @@ interface TripHost {
 
     /** The waits running now */
     fun runningWaits(): Set<WaitKey>
+
+    /** The line the wait [key] follows; null when it no longer runs */
+    fun awaitedLine(key: WaitKey): String?
+
+    /** The buses at the stops of the ride waited for changed, as heard; null with no ride waited for */
+    fun rideBusesChanged(buses: RideBuses?)
 
     /** When the soonest bus the trip awaits is due, as its wait reads it at [now]; null with none */
     fun soonestAwaited(now: Long): Long?
@@ -151,6 +165,17 @@ class TripEngine(
     private var awaitEmpty = 0
     private var awaitFailures = 0
 
+    /** The ride waited for is asked about at the next beat, whatever its waits: its lines changed */
+    private var askNow = false
+
+    /** The buses at the stops of the ride waited for, as the trip heard of them */
+    var rideBuses: RideBuses? = null
+        private set(value) {
+            if (value == field) return
+            field = value
+            host.rideBusesChanged(value)
+        }
+
     private val poke = Channel<Unit>(Channel.CONFLATED)
 
     /** Whether nothing runs: no beat, no request, no fixes asked */
@@ -196,6 +221,45 @@ class TripEngine(
         return true
     }
 
+    /**
+     * Take the ride waited for on [line] alone, or on any of its lines when
+     * null: awaited, alerted for and asked about as chosen. Chosen, the
+     * waits of the other lines stop, not as declined, and the line is asked
+     * for at once when no wait of it runs; any line again, each is awaited
+     * again, asked for at once.
+     */
+    fun chooseLine(line: String?) {
+        if (finishingUntil != null) return
+        val running = journey ?: return
+        if (!running.planned || running.ride != null) return
+        val pending = running.pendingRide ?: return
+        val next = running.choosing(line)
+        if (next.chosenLine == running.chosenLine) return
+        var chosen = next
+        if (line != null && running.awaitedFor == pending) {
+            val (keep, stop) = running.awaited.partition { host.awaitedLine(it) == line }
+            host.stopWaits(stop)
+            chosen = chosen.copy(awaited = keep)
+            if (keep.none { it in host.runningWaits() }) askNow = true
+        } else if (line == null) {
+            askNow = true
+        }
+        // What the asks before found was for other lines
+        awaitFor = null
+        busNear = false
+        journey = chosen
+        poke.trySend(Unit)
+    }
+
+    /** [answer], asked around [point] by a wait of the trip: every bus at the stops of the ride waited for it reaches */
+    fun heard(point: AskPoint, answer: WaitAnswer) {
+        val running = journey ?: return
+        val pending = running.pendingRide ?: return
+        rideBuses = heardOf(pending).heard(point, answer, running.pendingCandidates)
+    }
+
+    private fun heardOf(pending: Int): RideBuses = rideBuses?.takeIf { it.ride == pending } ?: RideBuses(pending)
+
     /** The alert of the awaited bus near has gone out, for the ride awaited */
     fun busAlerted() {
         val running = journey ?: return
@@ -240,6 +304,7 @@ class TripEngine(
 
     private fun close(running: Journey, ending: TripEnding) {
         finishingUntil = null
+        rideBuses = null
         journey = null
         request?.cancel()
         request = null
@@ -283,6 +348,8 @@ class TripEngine(
                 }
             }
             settleWaits()
+            // Another ride waited for, or none: what was heard of the last goes
+            if (rideBuses?.ride != journey?.pendingRide) rideBuses = null
             awaitRide(checkNotNull(journey), now)
             val running = checkNotNull(journey)
             val quality = quality(running, now)
@@ -360,11 +427,18 @@ class TripEngine(
             awaitEmpty = 0
             awaitFailures = 0
         }
-        if (running.awaitedFor == pending) {
+        if (running.awaitedFor == pending && !askNow) {
             if (running.awaited.any { it in host.runningWaits() }) return
             if (now - (running.awaitedAt ?: now) < awaitAgain()) return
         }
-        val candidates = running.pendingCandidates
+        askNow = false
+        val candidates = running.awaitedCandidates
+        // A line whose wait runs already, as the one chosen before Any, keeps it
+        val waited = if (running.awaitedFor == pending) {
+            running.awaited.filter { it in host.runningWaits() }.mapNotNullTo(HashSet()) { host.awaitedLine(it) }
+        } else {
+            emptySet()
+        }
         // From when the rider gets to the stop
         val walk = (running.phase(now) as? JourneyPhase.Walking)?.millis ?: 0
         val job = scope.launch(start = CoroutineStart.LAZY) {
@@ -372,10 +446,12 @@ class TripEngine(
             var found: Boolean? = null
             try {
                 val live = source.arrivals(stopsToAsk(candidates))
+                // What it lists of every line, the one chosen or not, for the screen
+                journey?.takeIf { it.pendingRide == pending }?.let { heardOf(pending).heard(live, it.pendingCandidates) }?.let { rideBuses = it }
                 val buses = awaitedBuses(live, candidates, now + walk)
                 // None, as an area that could not be asked leaves it: a failure, not an answer
                 found = if (buses.isEmpty() && live.failed) null else buses.isNotEmpty()
-                keys = host.startWaits(buses)
+                keys = host.startWaits(buses.filter { it.bus.line !in waited })
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 // Asked again a little later
@@ -388,6 +464,13 @@ class TripEngine(
                 host.stopWaits(keys)
                 return@launch
             }
+            // A line chosen meanwhile: the others' waits go
+            val lines = current.pendingLines
+            val (wanted, unwanted) = keys.partition { host.awaitedLine(it) in lines }
+            host.stopWaits(unwanted)
+            // The waits already running for the ride stay, as for the line chosen before Any
+            val kept = if (current.awaitedFor == pending) current.awaited.filter { it in host.runningWaits() } else emptyList()
+            keys = (kept + wanted).distinct()
             if (awaitFor == pending) {
                 when (found) {
                     null -> awaitFailures++
@@ -485,7 +568,7 @@ class TripEngine(
      */
     private fun linesToAsk(running: Journey, now: Long): List<String> {
         running.ride?.let { return listOf(it.plan.line) }
-        val candidates = running.pendingCandidates
+        val candidates = running.awaitedCandidates
         val fix = running.fix
         if (running.phase(now) is JourneyPhase.Waiting) {
             val fresh = fix?.takeIf { now - it.at <= FIX_FRESH_MS }

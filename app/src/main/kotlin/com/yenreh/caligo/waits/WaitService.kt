@@ -11,10 +11,12 @@ import androidx.core.app.ServiceCompat
 import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.ServiceWakeLock
 import com.yenreh.caligo.channelOn
+import com.yenreh.caligo.domain.AskPoint
 import com.yenreh.caligo.domain.AwaitedBus
 import com.yenreh.caligo.domain.FadingArrivals
 import com.yenreh.caligo.domain.RunningWait
 import com.yenreh.caligo.domain.Wait
+import com.yenreh.caligo.domain.WaitAnswer
 import com.yenreh.caligo.domain.WaitEnding
 import com.yenreh.caligo.domain.WaitKey
 import kotlinx.coroutines.CoroutineScope
@@ -160,6 +162,9 @@ class WaitService : Service(), WaitHost {
     override fun changed(waits: List<Wait>) {
         desk.changed(waits.map { RunningWait(it.key, it.last.arrivalTime, it.listedAt) })
     }
+
+    // Each wait reads its own stop from it already
+    override fun answered(point: AskPoint, answer: WaitAnswer) {}
 
     private fun foreground(id: Int, notification: android.app.Notification) {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

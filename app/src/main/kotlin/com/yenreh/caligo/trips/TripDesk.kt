@@ -38,9 +38,17 @@ interface TripControl {
     /** Follow [plan], the ride "I took it" named, from the screen on show; a trip running is replaced */
     fun start(plan: TripPlan) = start(TripStart.Ride(plan))
 
-    /** Follow the planner's [option] to [destination], from the screen on show; a trip running is replaced */
-    fun startJourney(option: TripOption, destination: String, factors: Map<String, Double> = emptyMap()) =
-        start(TripStart.Planned(option, destination, factors))
+    /**
+     * Follow the planner's [option] to [destination], from the screen on
+     * show, with [lines] the rider chose for some of its rides, by their
+     * place among its rides; a trip running is replaced
+     */
+    fun startJourney(
+        option: TripOption,
+        destination: String,
+        factors: Map<String, Double> = emptyMap(),
+        lines: Map<Int, String> = emptyMap(),
+    ) = start(TripStart.Planned(option, destination, factors, lines))
 
     fun start(start: TripStart)
 
@@ -55,6 +63,12 @@ interface TripControl {
 
     /** Get off at [alight] instead, or just follow the ride when null */
     fun alightAt(alight: Int?)
+
+    /** The buses at the stops of the planner trip's ride waited for, as the trip heard of them */
+    val rideBuses: StateFlow<RideBuses?>
+
+    /** Take the planner trip's ride waited for on [line] alone, or on any of its lines when null */
+    fun chooseLine(line: String?)
 
     /** Finish, on the screen: Undo takes it back for [TripEngine.UNDO_WINDOW]; a start not yet taken ends at once */
     fun finish()
@@ -106,6 +120,17 @@ class TripDesk(
 
     private val last = MutableStateFlow<EndedTrip?>(null)
     override val ended: StateFlow<EndedTrip?> = last.asStateFlow()
+
+    private val heardBuses = MutableStateFlow<RideBuses?>(null)
+    override val rideBuses: StateFlow<RideBuses?> = heardBuses.asStateFlow()
+
+    override fun chooseLine(line: String?) {
+        service?.chooseLine(line)
+    }
+
+    internal fun rideBusesChanged(buses: RideBuses?) {
+        heardBuses.value = buses
+    }
 
     private val finishingTrip = MutableStateFlow<FinishingTrip?>(null)
     override val finishing: StateFlow<FinishingTrip?> = finishingTrip.asStateFlow()

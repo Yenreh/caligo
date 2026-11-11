@@ -190,7 +190,9 @@ data class TripNotice(
             var progress = 0
             var progressMax = 1
             var tracker = TripTracker.BUS
-            val soonest = awaited.sortedBy { it.dueAt(now) }
+            // The line chosen for the ride ahead alone, if one is; else each of its lines
+            val rideLines = journey.pendingLines
+            val soonest = awaited.filter { it.line in rideLines }.sortedBy { it.dueAt(now) }
             var lines = emptyList<String>()
             when (val phase = journey.phase(now)) {
                 is JourneyPhase.Riding -> return of(phase.trip, now, alerts, words, nextPostIn, warningOn)
@@ -202,7 +204,7 @@ data class TripNotice(
                         title = words.walkToStop(minutes, phase.estimated)
                         // As at the stop: the buses awaited soonest first, or the lines to take
                         text = if (soonest.isEmpty()) {
-                            "${phase.leg.toName} · ${words.then(words.lines(next.ride.lines))}"
+                            "${phase.leg.toName} · ${words.then(words.lines(rideLines))}"
                         } else {
                             "${phase.leg.toName} · " + soonest.joinToString(" · ") { words.lineMinutes(it, now) }
                         }
@@ -220,7 +222,7 @@ data class TripNotice(
                 }
                 is JourneyPhase.Waiting -> {
                     // The soonest first, then the lines with no bus awaited
-                    val ordered = (soonest.map { it.line } + phase.leg.ride.lines).distinct()
+                    val ordered = (soonest.map { it.line } + rideLines).distinct()
                     title = words.take(words.lines(ordered))
                     val stop = words.atStop(phase.leg.ride.board.name)
                     text = if (soonest.isEmpty()) "$stop · ${words.tookItHint}" else "$stop · " + soonest.joinToString(" · ") { words.lineMinutes(it, now) }

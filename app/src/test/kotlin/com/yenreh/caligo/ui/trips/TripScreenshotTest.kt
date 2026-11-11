@@ -169,7 +169,7 @@ class TripScreenshotTest {
 
     // With the map, over fixture tiles
 
-    private fun map(name: String, journey: com.yenreh.caligo.domain.Journey, dark: Boolean) {
+    private fun map(name: String, journey: com.yenreh.caligo.domain.Journey, dark: Boolean, heard: com.yenreh.caligo.trips.RideBuses? = null) {
         val tiles = com.yenreh.caligo.ui.map.FixtureTiles(dark = dark)
         compose.setContentAt(NOW) {
             CaliGoTheme {
@@ -177,6 +177,7 @@ class TripScreenshotTest {
                     content = TripContent.Running(journey),
                     title = "Viaje a Unicentro",
                     tiles = TripMapTiles(androidx.compose.runtime.remember { tiles }, dark = dark, fadeIn = false),
+                    rideBuses = heard,
                 )
             }
         }
@@ -227,6 +228,79 @@ class TripScreenshotTest {
     @Test
     @Config(fontScale = 2f)
     fun walkNearFontScale2() = nearStop("trip_walk_near_font2")
+
+    // The ride's lines at its stop: each with its next buses, and one chosen
+
+    private val toTheStop = com.yenreh.caligo.domain.Journey.planned(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro", NOW - MINUTE)
+
+    /** About 4 minutes on foot from the stop: the T31 in 2 cannot be made */
+    private fun heardAtTheStop(journey: com.yenreh.caligo.domain.Journey) = com.yenreh.caligo.trips.JourneyFixtures.heard(
+        journey,
+        NOW,
+        com.yenreh.caligo.trips.JourneyFixtures.bus("T31", "t1", NOW, 2.0),
+        com.yenreh.caligo.trips.JourneyFixtures.bus("E21", "e1", NOW, 8.0),
+        com.yenreh.caligo.trips.JourneyFixtures.bus("T31", "t2", NOW, 12.0),
+        com.yenreh.caligo.trips.JourneyFixtures.bus("E21", "e2", NOW, 20.0),
+        com.yenreh.caligo.trips.JourneyFixtures.bus("T31", "t3", NOW, 25.0),
+        com.yenreh.caligo.trips.JourneyFixtures.bus("T31", "t4", NOW, 40.0),
+    )
+
+    private fun lines(name: String, journey: com.yenreh.caligo.domain.Journey) {
+        compose.setContentAt(NOW) {
+            CaliGoTheme {
+                TripScreen(content = TripContent.Running(journey), title = "Viaje a Unicentro", rideBuses = heardAtTheStop(journey))
+            }
+        }
+        compose.waitUntil(WAIT_TIMEOUT_MS) { compose.onAllNodes(hasTestTag("trip_lines")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("trip_running").performScrollToNode(hasTestTag("trip_lines"))
+        compose.captureWindow(name)
+    }
+
+    @Test
+    fun linesLight() = lines("trip_lines_any_light", toTheStop)
+
+    @Test
+    @Config(qualifiers = "+night")
+    fun linesDark() = lines("trip_lines_any_dark", toTheStop)
+
+    @Test
+    @Config(qualifiers = "+en")
+    fun linesEnglish() = lines("trip_lines_any_en", toTheStop)
+
+    @Test
+    @Config(fontScale = 2f)
+    fun linesFontScale2() = lines("trip_lines_any_font2", toTheStop)
+
+    /** At the stop, the T31 chosen */
+    private val waitingT31 = toTheStop.fixed(
+        com.yenreh.caligo.trips.JourneyFixtures.fixAt(com.yenreh.caligo.domain.GeoPoint(TripFixtures.out[0].latitude, TripFixtures.out[0].longitude), NOW),
+    ).choosing("T31")
+
+    @Test
+    fun linesChosenLight() = lines("trip_lines_chosen_light", waitingT31)
+
+    @Test
+    @Config(qualifiers = "+en")
+    fun linesChosenEnglish() = lines("trip_lines_chosen_en", waitingT31)
+
+    @Test
+    @Config(fontScale = 2f)
+    fun linesChosenFontScale2() = lines("trip_lines_chosen_font2", waitingT31)
+
+    /** On foot to the A47, a ride of one line: its times, no choice */
+    @Test
+    fun linesOfOneLine() = lines(
+        "trip_lines_one",
+        com.yenreh.caligo.domain.Journey.planned(com.yenreh.caligo.trips.JourneyFixtures.option, "Unicentro", NOW - 10 * MINUTE)
+            .took("T31", NOW - 8 * MINUTE).copy(index = 2, ride = null, legStartedAt = NOW - MINUTE),
+    )
+
+    @Test
+    fun mapChosenLight() = map("trip_map_chosen_light", toTheStop.choosing("T31"), dark = false, heard = heardAtTheStop(toTheStop))
+
+    @Test
+    @Config(qualifiers = "+night")
+    fun mapChosenDark() = map("trip_map_chosen_dark", toTheStop.choosing("T31"), dark = true, heard = heardAtTheStop(toTheStop))
 
     @Test
     fun mapRideLight() = map("trip_map_ride_light", onTheT31, dark = false)

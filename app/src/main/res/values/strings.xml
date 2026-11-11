@@ -389,6 +389,18 @@
     <string name="trip_heading_take">Take the %1$s</string>
     <string name="trip_at_stop">At %1$s</string>
     <string name="trip_then_label">Then</string>
+    <string name="trip_lines_label">Lines at this stop</string>
+    <string name="trip_line_any">Any</string>
+    <string name="trip_lines_hint">Tap one to see it and follow only that one</string>
+    <string name="trip_line_only">Only the %1$s; the map shows its route</string>
+    <plurals name="trip_minutes_spoken">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <plurals name="trip_line_missed">
+        <item quantity="one">the first you won\'t make</item>
+        <item quantity="other">the first %1$d you won\'t make</item>
+    </plurals>
     <string name="trip_ahead_walk">Walk to %1$s, %2$d\u00A0min</string>
     <plurals name="trip_ahead_ride">
         <item quantity="one">%1$s · get off at %2$s, %3$d\u00A0stop</item>

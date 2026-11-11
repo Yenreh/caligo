@@ -53,6 +53,9 @@ interface WaitHost {
 
     /** The waits changed: those running now */
     fun changed(waits: List<Wait>) {}
+
+    /** [answer], asked around [point] or fetched by a screen for it, came: every bus of the stops it reaches */
+    fun answered(point: AskPoint, answer: WaitAnswer)
 }
 
 /** How starting a wait went */
@@ -201,6 +204,7 @@ class WaitEngine(
                 if (it.fetchedAt > answered) {
                     failures.remove(point)
                     feed(point, it)
+                    host.answered(point, it)
                 }
             }
             if (point in requests) continue
@@ -220,6 +224,7 @@ class WaitEngine(
                 val answer = source.ask(point)
                 failures.remove(point)
                 feed(point, answer)
+                host.answered(point, answer)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 failures[point] = (failures[point] ?: 0) + 1

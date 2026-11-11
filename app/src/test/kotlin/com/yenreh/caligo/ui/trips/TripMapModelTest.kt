@@ -40,6 +40,17 @@ class TripMapModelTest {
     }
 
     @Test
+    fun aLineChosenForTheRideAheadDrawsItsRouteInViewAndAccented() {
+        val model = TripMapModel.of(journey.choosing("T31"), NOW)
+        val ride = model.lines.single { it.id == "ride:1" }
+        assertEquals(TripLineRole.RIDE_CHOSEN, ride.role)
+        assertEquals(JourneyFixtures.t31.stops.map { GeoPoint(it.latitude, it.longitude) }, ride.points)
+        assertTrue(model.frame.containsAll(ride.points))
+        // The ride after it, on any of its lines, stays quiet
+        assertEquals(TripLineRole.RIDE_AHEAD, model.lines.single { it.id == "ride:3" }.role)
+    }
+
+    @Test
     fun aFixPlacesTheRiderOnTheWalk() {
         val fix = GeoPoint(JourneyFixtures.origin.latitude, JourneyFixtures.origin.longitude + 0.001)
         val model = TripMapModel.of(journey.fixed(fixAt(fix, NOW + MINUTE)), NOW + MINUTE)

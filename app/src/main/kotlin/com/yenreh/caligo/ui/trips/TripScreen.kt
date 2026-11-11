@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -54,10 +57,17 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -78,6 +88,8 @@ import com.yenreh.caligo.trips.AwaitedLine
 import com.yenreh.caligo.trips.TripWords
 import com.yenreh.caligo.trips.EndedTrip
 import com.yenreh.caligo.trips.FinishingTrip
+import com.yenreh.caligo.trips.LineTimes
+import com.yenreh.caligo.trips.RideBuses
 import com.yenreh.caligo.ui.common.LiveClock
 import com.yenreh.caligo.ui.common.Loaded
 import com.yenreh.caligo.ui.common.LocalNow
@@ -135,6 +147,7 @@ fun TripRoute(viewModel: TripViewModel, onBack: () -> Unit, tiles: TripMapTiles?
     val running by viewModel.trips.running.collectAsStateWithLifecycle()
     val ended by viewModel.trips.ended.collectAsStateWithLifecycle()
     val awaited by viewModel.trips.awaited.collectAsStateWithLifecycle()
+    val rideBuses by viewModel.trips.rideBuses.collectAsStateWithLifecycle()
     val finishing by viewModel.trips.finishing.collectAsStateWithLifecycle()
     val took = viewModel.took
     val content = when {
@@ -165,6 +178,8 @@ fun TripRoute(viewModel: TripViewModel, onBack: () -> Unit, tiles: TripMapTiles?
         onAlight = viewModel::alightAt,
         awaited = awaited,
         onTookLine = viewModel::takeLine,
+        rideBuses = rideBuses,
+        onChooseLine = viewModel::chooseLine,
         // The screen stays, the trip shown as finished, with Undo
         onFinish = viewModel::finish,
         finishing = finishing,
@@ -223,6 +238,10 @@ fun TripScreen(
     awaited: List<AwaitedLine> = emptyList(),
     /** "I took the A47", while waiting at the stop or near it on foot */
     onTookLine: (String) -> Unit = {},
+    /** The buses at the stops of a planner trip's ride ahead, for its lines' rows */
+    rideBuses: RideBuses? = null,
+    /** Take the ride ahead on that line alone, or on any of its lines when null */
+    onChooseLine: (String?) -> Unit = {},
     onFinish: () -> Unit = {},
     /** The trip just finished, while Undo can take it back */
     finishing: FinishingTrip? = null,
@@ -303,7 +322,7 @@ fun TripScreen(
                                 .background(p.ink),
                         )
                     }
-                    Running(content.journey, subtitle, onAlight, snackbars, awaited, onTookLine, Modifier.weight(1f))
+                    Running(content.journey, subtitle, onAlight, snackbars, awaited, onTookLine, rideBuses, onChooseLine, Modifier.weight(1f))
                 }
                 is TripContent.Ended -> LabEmptyState(
                     icon = painterResource(R.drawable.ic_directions_bus),
@@ -414,6 +433,8 @@ private fun Running(
     snackbars: LabSnackbars,
     awaited: List<AwaitedLine>,
     onTookLine: (String) -> Unit,
+    rideBuses: RideBuses?,
+    onChooseLine: (String?) -> Unit,
     modifier: Modifier,
 ) {
     val p = LabTheme.palette
@@ -435,7 +456,8 @@ private fun Running(
                         val next = journey.legs.getOrNull(journey.index + 1) as? JourneyLeg.Ride
                         if (phase.leg.toStop && next != null) {
                             // The soonest first, then the lines with no bus awaited, as at the stop
-                            val ordered = (awaited.map { it.line } + next.ride.lines).distinct()
+                            val lines = journey.pendingLines
+                            val ordered = (awaited.map { it.line }.filter { it in lines } + lines).distinct()
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 words.thenTake(words.lines(ordered)),
@@ -449,7 +471,8 @@ private fun Running(
                     }
                     is JourneyPhase.Waiting -> {
                         // The soonest first, then the lines with no bus awaited
-                        val ordered = (awaited.map { it.line } + phase.leg.ride.lines).distinct()
+                        val lines = journey.pendingLines
+                        val ordered = (awaited.map { it.line }.filter { it in lines } + lines).distinct()
                         Heading(words.take(words.lines(ordered)))
                         Detail(words.atStop(phase.leg.ride.board.name))
                         AwaitedTimes(awaited, at, words)
@@ -460,6 +483,13 @@ private fun Running(
                     Spacer(Modifier.height(2.dp))
                     Text(from, style = MaterialTheme.typography.bodyMedium.copy(color = p.muted))
                 }
+            }
+        }
+        // On foot to a ride's stop, and at it: each of its lines, and a way to take one alone
+        val toRide = phase is JourneyPhase.Waiting || (phase is JourneyPhase.Walking && phase.leg.toStop && journey.pendingRide != null)
+        if (journey.planned && toRide) {
+            item(key = "lines") {
+                RideLines(journey, (rideBuses ?: RideBuses(journey.pendingRide ?: -1)).lines(journey, at), words, onChooseLine)
             }
         }
         if (phase is JourneyPhase.Riding) {
@@ -475,7 +505,7 @@ private fun Running(
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
                 )
             }
-            items(ahead.size, key = { "ahead:$it" }) { i -> AheadRow(ahead[i], words) }
+            items(ahead.size, key = { "ahead:$it" }) { i -> AheadRow(ahead[i], words, journey.chosenLines[journey.index + 1 + i]) }
         }
     }
 }
@@ -514,6 +544,106 @@ private fun TookButtons(lines: List<String>, onTookLine: (String) -> Unit) {
                 .fillMaxWidth()
                 .testTag("trip_took_$line"),
         ) { Text(stringResource(R.string.trip_took_line, line)) }
+    }
+}
+
+/**
+ * The lines of the ride ahead and their next buses at the stop: with
+ * more than one, chips to take one alone or any, and a row per line, the
+ * one chosen alone once one is; a tap on a row chooses its line too
+ */
+@Composable
+private fun RideLines(journey: Journey, lines: List<LineTimes>, words: TripWords, onChoose: (String?) -> Unit) {
+    val p = LabTheme.palette
+    val chosen = journey.chosenLine
+    val several = journey.pendingCandidates.size > 1
+    Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp).testTag("trip_lines")) {
+        LabSectionLabel(stringResource(R.string.trip_lines_label), modifier = Modifier.padding(bottom = 6.dp))
+        if (several) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                LineChip(stringResource(R.string.trip_line_any), selected = chosen == null, tag = "trip_line_any") { onChoose(null) }
+                for (line in journey.pendingCandidates.map { it.line }) {
+                    LineChip(line, selected = chosen == line, tag = "trip_line_$line") { onChoose(line) }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (chosen == null) stringResource(R.string.trip_lines_hint) else stringResource(R.string.trip_line_only, chosen),
+                style = LabText.statusLine(p),
+            )
+        }
+        for (row in lines) {
+            if (chosen != null && row.line != chosen) continue
+            LineRow(row, words, onClick = if (several && chosen == null) ({ onChoose(row.line) }) else null)
+        }
+    }
+}
+
+/** One choice among the lines of a ride, lit when [selected] */
+@Composable
+private fun LineChip(label: String, selected: Boolean, tag: String, onClick: () -> Unit) {
+    val p = LabTheme.palette
+    Box(
+        Modifier
+            .widthIn(min = 48.dp)
+            .heightIn(min = 48.dp)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(vertical = 4.dp)
+            .background(if (selected) p.accent else Color.Transparent)
+            .border(1.dp, p.accent)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .testTag(tag),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, textAlign = TextAlign.Center, style = LabText.mono(p, size = 13f, color = if (selected) p.paper else p.accent))
+    }
+}
+
+/** "T52   16 min · 31 min · 47 min", those the rider cannot make greyed and said so */
+@Composable
+private fun LineRow(row: LineTimes, words: TripWords, onClick: (() -> Unit)?) {
+    val p = LabTheme.palette
+    val resources = LocalResources.current
+    val atStop = stringResource(R.string.at_the_stop).lowercase()
+    val none = stringResource(R.string.no_buses_coming)
+    val text = buildAnnotatedString {
+        if (row.times.isEmpty()) {
+            withStyle(SpanStyle(color = p.muted)) { append(none) }
+        }
+        for ((i, time) in row.times.withIndex()) {
+            if (i > 0) append(" · ")
+            val shown = if (time.atStop) atStop else words.minutes(time.minutes, time.estimated)
+            if (time.reachable) append(shown) else withStyle(SpanStyle(color = p.muted)) { append(shown) }
+        }
+    }
+    val missed = row.times.count { !it.reachable }
+    val spoken = buildList {
+        add(row.line)
+        if (row.times.isEmpty()) add(none)
+        for (time in row.times) {
+            add(if (time.atStop) atStop else resources.getQuantityString(R.plurals.trip_minutes_spoken, time.minutes, time.minutes))
+        }
+        if (missed > 0) add(resources.getQuantityString(R.plurals.trip_line_missed, missed, missed))
+    }.joinToString(", ")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .testTag("trip_line_row_${row.line}")
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            // Read out whole, the times as minutes and those out of reach said so
+            .clearAndSetSemantics {
+                contentDescription = spoken
+                if (onClick != null) onClick(label = null) { onClick(); true }
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(row.line, style = LabText.mono(p, size = 15f, color = p.accent), modifier = Modifier.widthIn(min = 56.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text, style = MaterialTheme.typography.bodyLarge.copy(color = p.ink), modifier = Modifier.weight(1f))
     }
 }
 
@@ -643,14 +773,14 @@ internal fun rememberTripWords(): TripWords {
 
 /** A leg still to come, in muted words */
 @Composable
-private fun AheadRow(leg: JourneyLeg, words: TripWords) {
+private fun AheadRow(leg: JourneyLeg, words: TripWords, chosen: String?) {
     val p = LabTheme.palette
     val text = when (leg) {
         is JourneyLeg.Walk -> stringResource(R.string.trip_ahead_walk, leg.toName, minutes(leg.walk.duration))
         is JourneyLeg.Ride -> pluralStringResource(
             R.plurals.trip_ahead_ride,
             leg.ride.stopCount,
-            words.lines(leg.ride.lines),
+            words.lines(chosen?.let { listOf(it) } ?: leg.ride.lines),
             leg.ride.alight.name,
             leg.ride.stopCount,
         )
@@ -674,7 +804,8 @@ private fun TripMap(journey: Journey, tiles: TripMapTiles, modifier: Modifier) {
     watchLiveClock()
     val model = TripMapModel.of(journey, now())
     val palette = tilesPalette(dark = tiles.dark)
-    var map by remember { mutableStateOf<LabMapState?>(null) }
+    // Framed again as a line is chosen for the ride ahead, to show its route
+    var map by remember(journey.chosenLine) { mutableStateOf<LabMapState?>(null) }
     var follow by remember { mutableStateOf(MapFollow()) }
     var creditsOpen by remember { mutableStateOf(false) }
     val rider by rememberUpdatedState(model.rider)
@@ -733,6 +864,7 @@ private fun line(line: TripMapLine, tiles: LabPalette): LabMapPolyline = when (l
     TripLineRole.RIDE -> LabMapPolyline(line.id, line.points, tiles.accent, width = 5.dp, borderColor = tiles.paper, borderWidth = 1.5.dp)
     TripLineRole.WALK -> LabMapPolyline(line.id, line.points, tiles.ink, width = 3.dp, dotted = true)
     TripLineRole.RIDE_AHEAD -> LabMapPolyline(line.id, line.points, tiles.muted, width = 4.dp, borderColor = tiles.paper, borderWidth = 1.dp)
+    TripLineRole.RIDE_CHOSEN -> LabMapPolyline(line.id, line.points, tiles.accent, width = 5.dp, borderColor = tiles.paper, borderWidth = 1.5.dp)
     TripLineRole.WALK_AHEAD -> LabMapPolyline(line.id, line.points, tiles.muted, width = 3.dp, dotted = true)
 }
 

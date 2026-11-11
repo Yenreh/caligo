@@ -18,6 +18,9 @@ enum class TripLineRole {
     /** A ride still to come: quieter */
     RIDE_AHEAD,
 
+    /** The ride waited for, on the line the rider chose for it: accent, as the one on now */
+    RIDE_CHOSEN,
+
     /** A walk still to come: quieter, dotted */
     WALK_AHEAD,
 }
@@ -59,9 +62,18 @@ data class TripMapModel(
                     }
                     is JourneyLeg.Ride -> {
                         val riding = journey.ride?.takeIf { current }
-                        val stops = riding?.plan?.let { it.stops.subList(it.board, it.target + 1) } ?: leg.ride.stops
+                        // The ride waited for, on the line chosen for it: that line's own route
+                        val chosen = journey.chosenLines[i]?.takeIf { riding == null && leg.ride.lines.contains(it) }
+                        val stops = riding?.plan?.let { it.stops.subList(it.board, it.target + 1) }
+                            ?: chosen?.let { leg.ride.choose(it).stops }
+                            ?: leg.ride.stops
                         val points = stops.map { GeoPoint(it.latitude, it.longitude) }
-                        lines.add(TripMapLine("ride:$i", points, if (riding != null) TripLineRole.RIDE else TripLineRole.RIDE_AHEAD))
+                        val role = when {
+                            riding != null -> TripLineRole.RIDE
+                            chosen != null -> TripLineRole.RIDE_CHOSEN
+                            else -> TripLineRole.RIDE_AHEAD
+                        }
+                        lines.add(TripMapLine("ride:$i", points, role))
                         if (riding != null) {
                             marks.add(TripMapMark("alight:$i", points.last(), TripMarkRole.ALIGHT))
                             riding.bus?.let { marks.add(TripMapMark("bus", riding.route.pointAt(it.along), TripMarkRole.BUS)) }
@@ -69,6 +81,8 @@ data class TripMapModel(
                         } else {
                             marks.add(TripMapMark("board:$i", points.first(), TripMarkRole.BOARD))
                             if (current) frame = listOf(points.first())
+                            // The line chosen for the ride waited for: its route in view too
+                            if (chosen != null && i == journey.pendingRide) frame = frame + points
                         }
                     }
                 }

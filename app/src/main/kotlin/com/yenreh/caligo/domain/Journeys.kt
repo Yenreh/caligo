@@ -80,6 +80,12 @@ data class Journey(
     val awaySince: Long? = null,
     /** The location permission approximate alone, as last read: no fix is good enough to place the rider */
     val approximate: Boolean = false,
+    /**
+     * The line chosen for a ride, by its leg's index: that ride awaits,
+     * alerts for and asks about that line alone. A ride with none takes
+     * any of its lines.
+     */
+    val chosenLines: Map<Int, String> = emptyMap(),
 ) {
     val leg: JourneyLeg get() = legs[index]
 
@@ -94,6 +100,26 @@ data class Journey(
 
     /** The lines that make the ride waited for, each with its own stops; none when no ride waits */
     val pendingCandidates: List<RideLeg> get() = pendingRide?.let { (legs[it] as JourneyLeg.Ride).candidates }.orEmpty()
+
+    /** The line chosen for the ride waited for; null when any of its lines will do */
+    val chosenLine: String? get() = pendingRide?.let { chosenLines[it] }
+
+    /** The lines of the ride waited for the trip awaits and asks about: the one chosen, or each */
+    val awaitedCandidates: List<RideLeg>
+        get() {
+            val chosen = chosenLine ?: return pendingCandidates
+            return pendingCandidates.filter { it.line == chosen }.ifEmpty { pendingCandidates }
+        }
+
+    /** The lines the ride waited for is taken on, as the trip says it: "E21 or T31", or the one chosen */
+    val pendingLines: List<String> get() = awaitedCandidates.map { it.line }
+
+    /** With [line] chosen for the ride waited for, or none so any of its lines will do; as it was when that is no line of it */
+    fun choosing(line: String?): Journey {
+        val pending = pendingRide ?: return this
+        if (line != null && pendingCandidates.none { it.line == line }) return this
+        return copy(chosenLines = if (line == null) chosenLines - pending else chosenLines + (pending to line))
+    }
 
     /** Where the journey ends: the destination, or the stop the last ride gets off at */
     val destinationName: String
@@ -279,17 +305,32 @@ data class Journey(
     }
 
     companion object {
-        /** A whole option from the planner, to [destination], from [now] */
-        fun planned(option: TripOption, destination: String, now: Long, factors: Map<String, Double> = emptyMap()): Journey {
+        /**
+         * A whole option from the planner, to [destination], from [now], with
+         * [lines] chosen by the rider for some of its rides, by their place
+         * among its rides
+         */
+        fun planned(
+            option: TripOption,
+            destination: String,
+            now: Long,
+            factors: Map<String, Double> = emptyMap(),
+            lines: Map<Int, String> = emptyMap(),
+        ): Journey {
             val legs = option.legs.map { leg ->
                 when (leg) {
                     is WalkLeg -> JourneyLeg.Walk(leg, leg.toStop?.name ?: destination)
                     is RideLeg -> JourneyLeg.Ride(leg)
                 }
             }
+            val rides = legs.indices.filter { legs[it] is JourneyLeg.Ride }
+            val chosen = lines.mapNotNull { (ride, line) ->
+                val index = rides.getOrNull(ride) ?: return@mapNotNull null
+                if ((legs[index] as JourneyLeg.Ride).ride.lines.contains(line)) index to line else null
+            }.toMap()
             // A first walk of a few steps: already at the stop
             val skip = (legs.first() as? JourneyLeg.Walk)?.let { it.toStop && it.walk.meters <= ARRIVED_METERS } == true
-            return Journey(now, legs, if (skip) 1 else 0, now, factors)
+            return Journey(now, legs, if (skip) 1 else 0, now, factors, chosenLines = chosen)
         }
 
         /** The single ride "I took it" started, as [plan] has it */

@@ -309,6 +309,97 @@ class TripJourneyTest {
         assertEquals(1, h.tripOwn.size)
     }
 
+    // Choosing one of the ride's lines
+
+    private val waitAsks get() = (h.app.container.waits.source as com.yenreh.caligo.waits.FakeWaitSource).asked.size
+
+    @Test
+    fun aLineChosenIsTheRidesAloneUntilAnyAndTheNextRideTakesAnyOfItsOwn() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        assertEquals(listOf("E21", "T31"), h.awaitedLines)
+        val arrivals = h.source.arrivalsAsked.size
+        val asks = waitAsks
+
+        // The T31 alone: the E21's wait stops, not as declined, and nothing more is asked
+        h.desk.chooseLine("T31")
+        h.advance(1)
+        assertEquals(listOf("T31"), h.awaitedLines)
+        assertEquals("T31", h.desk.running.value?.chosenLine)
+        assertNull(h.desk.running.value?.declinedFor)
+        assertEquals(arrivals, h.source.arrivalsAsked.size)
+        assertEquals(asks, waitAsks)
+        assertEquals("Take the T31", shown.title())
+        assertEquals(listOf("T31: I took it", "Finish"), shown.actions.map { it.title.toString() })
+        assertTrue(shown.text(), "E21" !in shown.text())
+        // Its buses alone near the stop
+        val rounds = h.source.askedLines.size
+        h.move(MINUTE) { stop }
+        assertEquals(setOf("T31"), h.source.askedLines.drop(rounds).toSet())
+        assertOne()
+
+        // Any again: each line awaited again, after one ask
+        h.desk.chooseLine(null)
+        h.advance(1)
+        assertEquals(arrivals + 1, h.source.arrivalsAsked.size)
+        // The T31's wait kept as it was, the E21's started again
+        assertEquals(setOf("E21", "T31"), h.awaitedLines.toSet())
+        assertEquals(2, h.awaitedLines.size)
+        assertTrue(shown.title(), shown.title() == "Take the E21 or T31" || shown.title() == "Take the T31 or E21")
+        h.move(MINUTE) { stop }
+        assertEquals(arrivals + 1, h.source.arrivalsAsked.size)
+
+        // The T31 again, taken: the A47's ride after it starts on any of its lines
+        h.desk.chooseLine("T31")
+        h.pressTitled("T31: I took it")
+        h.advance(1)
+        assertNull(h.desk.running.value?.chosenLine)
+        h.desk.finish()
+        h.advance(window)
+        h.assertEnded(TripEnding.FINISHED)
+    }
+
+    @Test
+    fun aLineChosenWithNoWaitOfItsOwnIsAskedForAtOnce() {
+        // Only the E21 listed at first
+        h.source.arrivalsAnswer = { _, at -> LiveArrivals(at, firstArrivals(at).stops.map { s -> s.copy(arrivals = s.arrivals.filter { it.line == "E21" }) }, answeredAt = mapOf(out[0].stopId to at)) }
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        assertEquals(listOf("E21"), h.awaitedLines)
+        val arrivals = h.source.arrivalsAsked.size
+        h.source.arrivalsAnswer = { stops, at -> if (stops.any { it.stopId == out[0].stopId }) firstArrivals(at) else secondArrivals(at) }
+        h.desk.chooseLine("T31")
+        h.advance(1)
+        assertEquals(arrivals + 1, h.source.arrivalsAsked.size)
+        assertEquals(listOf("T31"), h.awaitedLines)
+    }
+
+    @Test
+    fun aChoiceLeavesNothingBehindAsTheTripEnds() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        h.desk.chooseLine("E21")
+        h.advance(1)
+        assertTrue(h.desk.rideBuses.value != null)
+        h.swipe()
+        h.assertEnded(TripEnding.DISMISSED)
+        assertNull(h.desk.rideBuses.value)
+        assertTrue(waits.running.value.isEmpty())
+    }
+
+    @Test
+    fun theRidesLinesAndTheirBusesAreHeardWithNoRequestOfTheirOwn() {
+        startJourney()
+        h.move(5 * MINUTE) { toTheStop(it) }
+        val heard = checkNotNull(h.desk.rideBuses.value)
+        val lines = heard.lines(checkNotNull(h.desk.running.value), h.now())
+        assertEquals(listOf("E21", "T31"), lines.map { it.line })
+        // The E21 due at 8, the T31 at 10, as the waits' answers list them
+        assertEquals(listOf(3), lines[0].times.map { it.minutes })
+        assertEquals(listOf(5), lines[1].times.map { it.minutes })
+        assertTrue(lines.all { row -> row.times.all { it.reachable && !it.estimated } })
+    }
+
     // Asking for the next ride's buses
 
     /** Minutes from the start each ride's arrivals were asked at */

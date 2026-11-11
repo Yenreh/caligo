@@ -298,6 +298,24 @@ class TripNoticeTest {
     }
 
     @Test
+    fun withALineChosenTheNoticeTakesItAlone() {
+        val chosen = waiting.choosing("T31")
+        val notice = phaseNotice(chosen)
+        assertEquals("Take the T31", notice.title)
+        assertEquals("At Plaza de Cayzedo A1 · T31 5${NBSP}min", notice.text)
+        assertEquals(listOf("T31"), notice.takeLines)
+        assertEquals("5${NBSP}min", notice.chip)
+        // On foot: then the T31 alone
+        val walkingChosen = walking.choosing("T31")
+        assertEquals("Plaza de Cayzedo A1 · T31 5${NBSP}min", phaseNotice(walkingChosen).text)
+        assertEquals("Plaza de Cayzedo A1 · then the T31", TripNotice.of(walkingChosen, NOW, Alerts(), words, 15_000).text)
+        // Its alert alone: the E21, due in 1 min, says nothing
+        val e21Near = listOf(AwaitedLine("E21", NOW + MINUTE), AwaitedLine("T31", NOW + 5 * MINUTE))
+        assertFalse(TripNotice.of(chosen, NOW, Alerts(), words, 15_000, awaited = e21Near, near = true).alerting)
+        assertTrue(TripNotice.of(waiting, NOW, Alerts(), words, 15_000, awaited = e21Near, near = true).alerting)
+    }
+
+    @Test
     fun theWalksBarMovesIn20MetreStepsAndTheWaitsIn30SecondOnes() {
         val near = planned.fixed(fixAt(between(origin, stop, 200.0), NOW))
         val nudged = planned.fixed(fixAt(between(origin, stop, 203.0), NOW))

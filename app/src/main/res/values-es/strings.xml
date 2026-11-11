@@ -386,6 +386,20 @@
     <string name="trip_heading_take">Toma el %1$s</string>
     <string name="trip_at_stop">En %1$s</string>
     <string name="trip_then_label">Después</string>
+    <string name="trip_lines_label">Rutas en esta parada</string>
+    <string name="trip_line_any">Cualquiera</string>
+    <string name="trip_lines_hint">Toca una para verla y seguir solo esa</string>
+    <string name="trip_line_only">Sigues solo el %1$s; el mapa muestra su recorrido</string>
+    <plurals name="trip_minutes_spoken">
+        <item quantity="one">%1$d minuto</item>
+        <item quantity="many">%1$d minutos</item>
+        <item quantity="other">%1$d minutos</item>
+    </plurals>
+    <plurals name="trip_line_missed">
+        <item quantity="one">el primero no lo alcanzas</item>
+        <item quantity="many">los primeros %1$d no los alcanzas</item>
+        <item quantity="other">los primeros %1$d no los alcanzas</item>
+    </plurals>
     <string name="trip_ahead_walk">Camina a %1$s, %2$d\u00A0min</string>
     <plurals name="trip_ahead_ride">
         <item quantity="one">%1$s · bájate en %2$s, %3$d\u00A0parada</item>

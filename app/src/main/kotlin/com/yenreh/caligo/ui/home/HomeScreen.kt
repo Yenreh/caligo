@@ -350,7 +350,7 @@ private fun TripBar(journey: Journey, onTrip: () -> Unit) {
         }
         is JourneyPhase.Waiting -> {
             title = stringResource(R.string.trip_to_destination, journey.destinationName)
-            subtitle = words.take(words.lines(phase.leg.ride.lines))
+            subtitle = words.take(words.lines(journey.pendingLines))
         }
     }
     LabListTile(

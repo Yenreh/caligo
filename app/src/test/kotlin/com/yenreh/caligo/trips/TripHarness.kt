@@ -204,6 +204,7 @@ class TripHarness(private val immediate: Boolean = false) {
         assertTrue("out of the foreground", shadow.isForegroundStopped)
         assertTrue("nothing scheduled", service.tripEngine.isIdle)
         assertNull("no fixes asked", location.requested)
+        assertNull("nothing heard of a ride kept", desk.rideBuses.value)
         assertFalse("wake lock released", service.holdsWakeLock)
         // Nothing asks any more, however long it goes
         val asked = source.asked.size
