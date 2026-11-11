@@ -12,6 +12,7 @@ import com.yenreh.caligo.domain.TripPlan
 import com.yenreh.caligo.domain.entities.TripOption
 import com.yenreh.caligo.waits.Alerts
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -76,6 +77,8 @@ class TripDesk(
     var source: TripSource,
     /** The device's fixes */
     var location: LocationUpdates,
+    /** Where what the rides teach is kept, past the trip's end: the app's scope, or a test's */
+    var learning: CoroutineScope,
     var now: () -> Long = System::currentTimeMillis,
     /** Where the service runs the trip: the main thread, or a test's */
     var coroutineContext: CoroutineContext = Dispatchers.Main.immediate,

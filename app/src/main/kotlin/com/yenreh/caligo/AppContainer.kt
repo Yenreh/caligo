@@ -94,7 +94,7 @@ class AppContainer(private val context: Context) {
     }
 
     /** The ride followed, which the trip service follows apart from the waits */
-    val trips = TripDesk(context, RepositoryTripSource(stopsRepository), AndroidLocationUpdates(context)).apply {
+    val trips = TripDesk(context, RepositoryTripSource(stopsRepository), AndroidLocationUpdates(context), scope).apply {
         alerts = { settings.settings.value.let { Alerts(sound = it.alertSound, vibrate = it.alertVibrate) } }
     }
 

@@ -78,7 +78,7 @@ class TripService : Service(), TripHost {
         desk = container.trips
         waits = container.waits
         scope = CoroutineScope(SupervisorJob() + desk.coroutineContext)
-        engine = TripEngine(desk.source, desk.location, desk.now, scope, this)
+        engine = TripEngine(desk.source, desk.location, desk.now, scope, this, desk.learning)
         waitEngine = WaitEngine(waits.source, desk.now, scope, tripWaits)
         words = TripWords(resources)
         TripNotifications.createChannels(this)

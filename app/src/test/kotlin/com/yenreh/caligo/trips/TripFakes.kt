@@ -76,7 +76,11 @@ class FakeTripSource(private val now: () -> Long) : TripSource {
         return arrivalsAnswer(stops, now())
     }
 
+    /** While set and not complete, what the rides teach waits for it, as a slow disk */
+    var learnGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     override suspend fun observeRides(readings: Map<String, Double>) {
+        learnGate?.await()
         observed.add(readings)
     }
 }

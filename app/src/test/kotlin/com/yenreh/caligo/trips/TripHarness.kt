@@ -9,7 +9,9 @@ import com.yenreh.caligo.CaliGoApp
 import com.yenreh.caligo.domain.TripEnding
 import com.yenreh.caligo.domain.TripPlan
 import com.yenreh.caligo.trips.TripFixtures.NOW
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -54,6 +56,7 @@ class TripHarness(private val immediate: Boolean = false) {
         desk.location = location
         desk.now = now
         desk.coroutineContext = dispatcher()
+        desk.learning = CoroutineScope(SupervisorJob() + dispatcher())
     }
 
     private fun dispatcher() = if (immediate) UnconfinedTestDispatcher(scheduler) else StandardTestDispatcher(scheduler)
@@ -61,6 +64,12 @@ class TripHarness(private val immediate: Boolean = false) {
     fun tearDown() {
         controller?.destroy()
         waitController?.destroy()
+    }
+
+    /** The system destroys the trip service, as after a trip ends */
+    fun destroyService() {
+        checkNotNull(controller).destroy()
+        controller = null
     }
 
     /** The waits on the same virtual time, their answers by [answer] */

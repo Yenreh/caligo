@@ -104,6 +104,8 @@ class TripEngine(
     private val now: () -> Long,
     private val scope: CoroutineScope,
     private val host: TripHost,
+    /** Where what a ride teaches is kept: outlives the trip, so the end of one cuts no reading short */
+    private val learning: CoroutineScope,
 ) {
     var journey: Journey? = null
         private set(value) {
@@ -270,7 +272,7 @@ class TripEngine(
 
     private fun learn(readings: Map<String, Double>) {
         if (readings.isEmpty()) return
-        scope.launch {
+        learning.launch {
             try {
                 source.observeRides(readings)
             } catch (e: Exception) {

@@ -61,6 +61,21 @@ class TripServiceTest {
     }
 
     @Test
+    fun whatTheRideTaughtIsKeptThoughTheServiceGoesFirst() {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        h.source.learnGate = gate
+        h.start(plan)
+        h.ride(10 * MINUTE) { along(it) }
+        h.assertEnded(TripEnding.REACHED)
+        // The service gone, its scope with it, before the reading is written
+        h.destroyService()
+        assertTrue(h.source.observed.isEmpty())
+        gate.complete(Unit)
+        h.advance(1)
+        assertEquals(listOf("E21"), h.source.observed.flatMap { it.keys })
+    }
+
+    @Test
     fun standingAtTheStopToGetOffAtEndsTheTrip() {
         h.start(plan)
         h.ride(7 * MINUTE) { minOf(along(it), 2790.0) }
