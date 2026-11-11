@@ -163,6 +163,20 @@ class PlanTripPartsTest {
             assertEquals(key, Json.decodeFromString(Route.serializer(), json))
         }
         assertEquals(TripPlace(3.4, -76.5, "My location", isDevice = true), (keys[2] as Route.PlacePicker).near!!.place)
+        // A stop keeps what saves it as one
+        val stop = TripPlace(3.45, -76.53, "a 12", kind = PlaceKind.STOP, detail = "Cl 5", stopId = "a12")
+        val json = Json.encodeToString(Route.serializer(), Route.PlanTrip(stop.key))
+        assertEquals(stop, (Json.decodeFromString(Route.serializer(), json) as Route.PlanTrip).destination!!.place)
+    }
+
+    @Test
+    fun aPlannerKeySavedBeforeStopsKeptTheirIdsStillReads() {
+        val json = """{"type":"com.yenreh.caligo.ui.navigation.Route.PlanTrip",""" +
+            """"destination":{"latitude":3.45,"longitude":-76.53,"name":"a 12"}}"""
+
+        val key = Json.decodeFromString(Route.serializer(), json) as Route.PlanTrip
+
+        assertEquals(TripPlace(3.45, -76.53, "a 12"), key.destination!!.place)
     }
 
     // How it is written

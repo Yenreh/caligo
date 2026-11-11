@@ -2,6 +2,7 @@ package com.yenreh.caligo.ui.navigation
 
 import androidx.navigation3.runtime.NavKey
 import com.yenreh.caligo.domain.TookRide
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.TripPlace
 import kotlinx.serialization.Serializable
 
@@ -91,18 +92,25 @@ sealed interface Route : NavKey {
     data class PackageLicense(val name: String) : Route
 }
 
-/** A [TripPlace] as a key carries it, saved with the back stack */
+/**
+ * A [TripPlace] as a key carries it, saved with the back stack. What came
+ * after [isDevice] has defaults, so a back stack saved before still reads.
+ */
 @Serializable
 data class PlaceKey(
     val latitude: Double,
     val longitude: Double,
     val name: String,
     val isDevice: Boolean = false,
+    val kind: String = PlaceKind.PLACE.key,
+    val detail: String? = null,
+    val stopId: String? = null,
 ) {
-    val place: TripPlace get() = TripPlace(latitude, longitude, name, isDevice)
+    val place: TripPlace
+        get() = TripPlace(latitude, longitude, name, isDevice, kind = PlaceKind.of(kind), detail = detail, stopId = stopId)
 }
 
-val TripPlace.key: PlaceKey get() = PlaceKey(latitude, longitude, name, isDevice)
+val TripPlace.key: PlaceKey get() = PlaceKey(latitude, longitude, name, isDevice, kind.key, detail, stopId)
 
 /** A [TookRide] as a key carries it, saved with the back stack */
 @Serializable

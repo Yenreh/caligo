@@ -14,6 +14,7 @@ import com.yenreh.caligo.WAIT_TIMEOUT_MS
 import com.yenreh.caligo.data.datasources.NetworkApiException
 import com.yenreh.caligo.domain.entities.BusArrival
 import com.yenreh.caligo.domain.entities.NearbyStop
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.entities.TripPlace
 import com.yenreh.caligo.ui.common.AtTime
@@ -190,7 +191,10 @@ class StopDetailsSheetTest {
 
         compose.onNodeWithText("Go here").performScrollTo().performClick()
 
-        assertEquals(listOf(TripPlace(3.4513, -76.5321, "Plaza de Cayzedo A1")), places)
+        assertEquals(
+            listOf(TripPlace(3.4513, -76.5321, "Plaza de Cayzedo A1", kind = PlaceKind.STOP, stopId = "500800")),
+            places,
+        )
     }
 
     @Test
@@ -200,7 +204,10 @@ class StopDetailsSheetTest {
 
         compose.onNodeWithTag("go_here").performScrollTo().performClick()
 
-        assertEquals(listOf(TripPlace(3.4500, -76.5300, "Plaza de Cayzedo A1")), places)
+        assertEquals(
+            listOf(TripPlace(3.4500, -76.5300, "Plaza de Cayzedo A1", kind = PlaceKind.STOP, stopId = "500800")),
+            places,
+        )
     }
 
     @Test

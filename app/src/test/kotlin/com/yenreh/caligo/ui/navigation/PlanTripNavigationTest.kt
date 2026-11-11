@@ -135,7 +135,10 @@ class PlanTripNavigationTest {
 
         waitFor(planner)
         compose.onNodeWithTag("destination_field").assert(hasText("a 12"))
-        assertEquals(TripPlace(trips.to.latitude, trips.to.longitude, "a 12"), planners.single().second)
+        assertEquals(
+            TripPlace(trips.to.latitude, trips.to.longitude, "a 12", kind = PlaceKind.STOP, stopId = "a12"),
+            planners.single().second,
+        )
         waitFor(hasTestTag("option_0"))
 
         // Back to the station, the sheet put away
@@ -143,6 +146,33 @@ class PlanTripNavigationTest {
         waitGone(planner)
         waitFor(hasText(station.name))
         waitGone(hasTestTag("go_here"))
+    }
+
+    @Test
+    fun aStopSavedFromGoHereIsTheOneThePickerFinds() {
+        val stop = NearbyStop("a12", "a 12", 30.0, latitude = trips.to.latitude, longitude = trips.to.longitude)
+        show(Route.Home, station, nearby = listOf(stop))
+        waitFor(hasText("a 12"))
+        compose.onNodeWithText("a 12").performClick()
+        waitFor(hasTestTag("go_here"))
+        compose.onNodeWithTag("go_here").performScrollTo().performClick()
+        waitFor(planner)
+
+        compose.onNodeWithTag("destination_star").performClick()
+        waitFor(hasTestTag("place_save"))
+        compose.onNodeWithTag("place_save").performClick()
+        waitGone(hasTestTag("place_sheet"))
+        compose.onNodeWithTag("destination_star").assert(hasContentDescription("Edit the saved place a 12"))
+
+        // The same stop by text, 220 m from where the details placed it: its id says so
+        openPicker(origin = false)
+        compose.onNodeWithTag("place_search").performTextReplacement("a 12")
+        compose.onNodeWithTag("places").performScrollToNode(stopTile)
+        compose.onNode(stopTile).performClick()
+
+        waitFor(planner)
+        compose.onNodeWithTag("destination_star").assert(hasContentDescription("Edit the saved place a 12"))
+        assertEquals(listOf("a12"), trips.places.places.value.map { it.stopId })
     }
 
     // The place picker's round trip

@@ -39,9 +39,13 @@ data class FavoritePlace(
     val tripPlace: TripPlace
         get() = TripPlace(latitude, longitude, name, kind = kind, detail = detail, stopId = stopId)
 
-    /** Whether it is the place at [latitude], [longitude], or the stop [stopId] */
+    /**
+     * Whether it is the stop [stopId], when both are stops with an id;
+     * otherwise whether it is within [SAME_PLACE_METERS] of [latitude],
+     * [longitude], as a stop saved without its id
+     */
     fun isAt(latitude: Double, longitude: Double, stopId: String?): Boolean =
-        if (stopId != null) {
+        if (stopId != null && this.stopId != null) {
             this.stopId == stopId
         } else {
             metersBetween(this.latitude, this.longitude, latitude, longitude) <= SAME_PLACE_METERS

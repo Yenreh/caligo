@@ -42,6 +42,7 @@ import com.yenreh.caligo.domain.FadingArrivals
 import com.yenreh.caligo.domain.FadingRow
 import com.yenreh.caligo.domain.GeoPoint
 import com.yenreh.caligo.domain.entities.NearbyStop
+import com.yenreh.caligo.domain.entities.PlaceKind
 import com.yenreh.caligo.domain.shown
 import com.yenreh.caligo.domain.entities.StopLine
 import com.yenreh.caligo.domain.entities.TripPlace
@@ -248,7 +249,15 @@ fun StopDetailsContent(
             if (onGoHere != null) {
                 LabOutlinedButton(
                     onClick = {
-                        onGoHere(TripPlace(stop.latitude ?: anchorLatitude, stop.longitude ?: anchorLongitude, stop.name))
+                        onGoHere(
+                            TripPlace(
+                                stop.latitude ?: anchorLatitude,
+                                stop.longitude ?: anchorLongitude,
+                                stop.name,
+                                kind = PlaceKind.STOP,
+                                stopId = stop.id,
+                            ),
+                        )
                     },
                     modifier = Modifier
                         .fillMaxWidth()
