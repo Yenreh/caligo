@@ -99,7 +99,6 @@ import com.yenreh.caligo.ui.lab.LabEmptyState
 import com.yenreh.caligo.ui.lab.LabIconButton
 import com.yenreh.caligo.ui.lab.LabLineChip
 import com.yenreh.caligo.ui.lab.LabSnackbarHost
-import com.yenreh.caligo.ui.lab.LabTextButton
 import com.yenreh.caligo.ui.lab.LabTone
 import com.yenreh.caligo.ui.lab.LabTooltip
 import com.yenreh.caligo.ui.lab.LabTopBar
@@ -273,37 +272,22 @@ fun PlanTripScreen(
                     }
                     val mapsLabel = stringResource(R.string.open_in_google_maps)
                     val canOpenMaps = from != null && to != null
-                    if (labLargeText()) {
-                        // Its icon alone, so large text leaves the title some room
-                        LabTooltip(mapsLabel) {
-                            IconButton(
-                                onClick = openMaps,
-                                enabled = canOpenMaps,
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .testTag("google_maps"),
-                                shape = RectangleShape,
-                            ) {
-                                Icon(
-                                    painterResource(R.drawable.ic_open_in_new),
-                                    contentDescription = mapsLabel,
-                                    // A disabled TextButton's onSurface at 38 %
-                                    tint = if (canOpenMaps) p.accent else p.ink.copy(alpha = 0.38f),
-                                )
-                            }
-                        }
-                    } else {
-                        LabTooltip(mapsLabel) {
-                            LabTextButton(
-                                onClick = openMaps,
-                                enabled = canOpenMaps,
-                                modifier = Modifier.testTag("google_maps"),
-                                withIcon = true,
-                            ) {
-                                Icon(painterResource(R.drawable.ic_open_in_new), contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.google_maps))
-                            }
+                    // Its icon alone, as the other bars' actions, so the title keeps its room
+                    LabTooltip(mapsLabel) {
+                        IconButton(
+                            onClick = openMaps,
+                            enabled = canOpenMaps,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("google_maps"),
+                            shape = RectangleShape,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_open_in_new),
+                                contentDescription = mapsLabel,
+                                // A disabled TextButton's onSurface at 38 %
+                                tint = if (canOpenMaps) p.accent else p.ink.copy(alpha = 0.38f),
+                            )
                         }
                     }
                     Spacer(Modifier.width(8.dp))

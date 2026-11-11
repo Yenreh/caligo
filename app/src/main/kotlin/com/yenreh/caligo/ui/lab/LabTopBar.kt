@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -105,9 +106,11 @@ private fun Bar(
             Text(
                 text = title,
                 modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, color = p.ink),
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = TITLE_SIZE, color = p.ink),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                // Whole beside the actions at large text: smaller, down to a point, before it is cut
+                autoSize = TextAutoSize.StepBased(minFontSize = TITLE_MIN_SIZE, maxFontSize = TITLE_SIZE),
             )
             if (subtitle != null) {
                 Text(
@@ -121,3 +124,6 @@ private fun Bar(
         actions?.invoke(this)
     }
 }
+
+private val TITLE_SIZE = 22.sp
+private val TITLE_MIN_SIZE = 16.sp
