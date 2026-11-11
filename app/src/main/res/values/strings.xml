@@ -359,6 +359,7 @@
     <string name="trip_ended_blocked">Notifications are off, so the trip ended.</string>
     <string name="trip_ended_no_location">Without your location the ride cannot be followed.</string>
     <string name="trip_ended_replaced">Another trip took its place.</string>
+    <string name="trip_none">No trip is running.</string>
     <string name="trip_ended_title">Trip ended</string>
     <string name="trip_ended_title_watch">Trip ended: watch for your stop</string>
     <string name="trip_ended_left_stop">The trip ended: you left the stop.</string>

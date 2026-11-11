@@ -356,6 +356,7 @@
     <string name="trip_ended_blocked">Las notificaciones están desactivadas, así que el viaje terminó.</string>
     <string name="trip_ended_no_location">Sin tu ubicación no se puede seguir el viaje.</string>
     <string name="trip_ended_replaced">Otro viaje tomó su lugar.</string>
+    <string name="trip_none">No hay ningún viaje en curso.</string>
     <string name="trip_ended_title">Viaje terminado</string>
     <string name="trip_ended_title_watch">Viaje terminado: pendiente de tu parada</string>
     <string name="trip_ended_left_stop">El viaje terminó: te alejaste de la parada.</string>

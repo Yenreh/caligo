@@ -18,6 +18,7 @@ import com.yenreh.caligo.ui.common.loadCatching
 import com.yenreh.caligo.waits.NotificationAccess
 import com.yenreh.caligo.waits.WaitControl
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,6 +56,8 @@ data class TripScreenState(
     val plan: Loaded<TripPlan?> = Loaded.Loading,
     /** Chosen or skipped, and started: the screen follows the trip from here */
     val started: Boolean = false,
+    /** Restored long after its ride, as after the process went: nothing to ask, the screen closes */
+    val stale: Boolean = false,
     /** Asking for what starting needs */
     val starting: Boolean = false,
     val message: TripMessage? = null,
@@ -68,6 +71,8 @@ data class TripScreenState(
  * Opened by "I took it", it ends that wait as taken. The trip starts here,
  * with the app on show, after the notification and location permissions
  * it needs: while in use is enough, so no background location is asked.
+ * Restored with a ride over [STALE_TOOK] old that no trip follows, as the
+ * back stack is after the process went, it asks nothing and closes.
  */
 class TripViewModel(
     val took: TookRide?,
@@ -76,6 +81,7 @@ class TripViewModel(
     waits: WaitControl,
     private val location: LocationSource,
     private val notifications: NotificationAccess,
+    now: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val state = MutableStateFlow(TripScreenState())
     val screen: StateFlow<TripScreenState> = state.asStateFlow()
@@ -87,13 +93,15 @@ class TripViewModel(
         val ended = trips.ended.value
         when {
             took == null -> state.update { it.copy(started = true) }
-            // A bus a planner trip waited for: the trip takes it as its ride
-            trips.took(took) -> state.update { it.copy(started = true) }
             // Back from the notification, or turned: the trip already runs, or ran
             running?.ride?.plan?.took == took || ended?.journey?.ride?.plan?.took == took -> state.update { it.copy(started = true) }
+            // Its ride long gone: neither asked about nor taken
+            now() - took.trip > STALE_TOOK.inWholeMilliseconds -> state.update { it.copy(stale = true) }
+            // A bus a planner trip waited for: the trip takes it as its ride
+            trips.took(took) -> state.update { it.copy(started = true) }
             else -> load()
         }
-        took?.let { waits.took(it.waitKey) }
+        if (!state.value.stale) took?.let { waits.took(it.waitKey) }
     }
 
     /** Ask for the route again */
@@ -161,6 +169,9 @@ class TripViewModel(
     }
 
     companion object {
+        /** A ride taken this long ago is gone */
+        val STALE_TOOK = 30.minutes
+
         fun factory(took: TookRide?): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val container = (this[APPLICATION_KEY] as CaliGoApp).container

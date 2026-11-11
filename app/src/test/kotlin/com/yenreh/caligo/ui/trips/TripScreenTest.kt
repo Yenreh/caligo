@@ -53,7 +53,7 @@ class TripScreenTest {
     private var closed = 0
 
     private fun show(took: TookRide? = TripFixtures.took): TripViewModel {
-        val viewModel = TripViewModel(took, repository, trips, waits, location, notifications)
+        val viewModel = TripViewModel(took, repository, trips, waits, location, notifications, now = { NOW })
         compose.setContent { AtTime(NOW) { CaliGoTheme { TripRoute(viewModel, onBack = { closed++ }) } } }
         return viewModel
     }
@@ -224,6 +224,32 @@ class TripScreenTest {
         show(took = null)
         waitFor("trip_ended")
         compose.onNode(hasText("You reached Pampalinda.")).assertExists()
+    }
+
+    @Test
+    fun withNoTripRunningNorEndedItSaysSoPlainly() {
+        show(took = null)
+        waitFor("trip_ended")
+        compose.onNode(hasText("No trip is running.")).assertExists()
+    }
+
+    @Test
+    fun restoredLongAfterItsRideItAsksNothingAndCloses() {
+        // As the back stack is restored after the process went
+        val old = TripFixtures.took.copy(trip = NOW - TripViewModel.STALE_TOOK.inWholeMilliseconds - 60_000)
+        val viewModel = show(old)
+        compose.waitUntil(WAIT_TIMEOUT_MS) { closed == 1 }
+        assertTrue(viewModel.screen.value.stale)
+        assertTrue(!exists("trip_choose"))
+        assertTrue(waits.took.isEmpty())
+        assertTrue(trips.starts.isEmpty())
+    }
+
+    @Test
+    fun aRideTakenMinutesAgoStillAsksWhereToGetOff() {
+        show(TripFixtures.took.copy(trip = NOW - 20 * 60_000))
+        waitFor("trip_choose")
+        assertEquals(0, closed)
     }
 
     // A planner trip

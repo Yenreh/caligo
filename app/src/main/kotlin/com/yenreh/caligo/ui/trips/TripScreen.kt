@@ -137,6 +137,8 @@ fun TripRoute(viewModel: TripViewModel, onBack: () -> Unit, tiles: TripMapTiles?
     }
     val shown = running ?: ended?.journey
     val openSettings = rememberTripMessageSettings(viewModel::openNotificationSettings)
+    // Restored long after its ride: nothing to show
+    LaunchedEffect(screen.stale) { if (screen.stale) onBack() }
     TripScreen(
         content = content,
         title = shown?.let { journeyTitle(it) }
@@ -720,7 +722,9 @@ private fun endedText(ended: EndedTrip?): String = when (ended?.ending) {
     TripEnding.REPLACED -> stringResource(R.string.trip_ended_replaced)
     TripEnding.LEFT_STOP -> stringResource(R.string.trip_ended_left_stop)
     TripEnding.NO_BUS -> stringResource(R.string.trip_ended_no_bus, Journey.WAITING_LIMIT.inWholeMinutes.toInt())
-    TripEnding.FINISHED, null -> stringResource(R.string.trip_ended_finished)
+    TripEnding.FINISHED -> stringResource(R.string.trip_ended_finished)
+    // No trip ran in this process: nothing to tell of one
+    null -> stringResource(R.string.trip_none)
 }
 
 /** Where a trip that reached its end ended: its destination, or the stop got off at */

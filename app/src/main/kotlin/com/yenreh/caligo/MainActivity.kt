@@ -86,12 +86,6 @@ class MainActivity : ComponentActivity() {
         openedTrip(intent)?.let(openedTrips::trySend)
     }
 
-    /** The trip screen [intent] opens: the ride "I took it" names, or the trip running */
-    private fun openedTrip(intent: Intent?): Route.Trip? {
-        intent ?: return null
-        if (intent.action == TripNotifications.ACTION_OPEN_TRIP) return Route.Trip()
-        return WaitNotifications.tookOf(intent)?.let { Route.Trip(it.key) }
-    }
 
     /** The stop a wait's notification opens, from [intent] */
     private fun openedStop(intent: Intent?): OpenStop? {
@@ -112,9 +106,21 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private companion object {
+    companion object {
+        /**
+         * The trip screen [intent] opens: the ride "I took it" names, or the
+         * trip running. None when relaunched from Recents with the old
+         * intent, its ride long gone.
+         */
+        internal fun openedTrip(intent: Intent?): Route.Trip? {
+            intent ?: return null
+            if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return null
+            if (intent.action == TripNotifications.ACTION_OPEN_TRIP) return Route.Trip()
+            return WaitNotifications.tookOf(intent)?.let { Route.Trip(it.key) }
+        }
+
         /** enableEdgeToEdge's own scrims for three-button navigation */
-        val LIGHT_SCRIM = Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
-        val DARK_SCRIM = Color.argb(0x80, 0x1b, 0x1b, 0x1b)
+        private val LIGHT_SCRIM = Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
+        private val DARK_SCRIM = Color.argb(0x80, 0x1b, 0x1b, 0x1b)
     }
 }

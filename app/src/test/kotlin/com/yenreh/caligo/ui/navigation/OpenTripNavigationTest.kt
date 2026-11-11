@@ -61,6 +61,7 @@ class OpenTripNavigationTest {
                                     waits,
                                     FakeLocationSource(permission = LocationPermission.GRANTED),
                                     FakeNotificationAccess(granted = true),
+                                    now = { TripFixtures.NOW },
                                 )
                             }
                         },
