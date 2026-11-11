@@ -178,35 +178,18 @@ class PlacePickerViewModel(
     /** The places saved for quick plans, listed first */
     val places: StateFlow<List<FavoritePlace>> get() = savedPlaces.places
 
+    private val placeEdits = SavedPlaceEdits(savedPlaces, viewModelScope) {
+        reports.trySend(PlacePickerEvent.CouldNotSavePlace)
+    }
+
     init {
         network.watch()
-        viewModelScope.launch {
-            try {
-                savedPlaces.load()
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                // Without them the picker lists the rest all the same
-            }
-        }
+        placeEdits.load()
     }
 
-    fun renamePlace(id: Long, name: String) {
-        if (FavoritePlace.cleanName(name) == null) return
-        viewModelScope.launch { changePlaces { savedPlaces.rename(id, name) } }
-    }
+    fun renamePlace(id: Long, name: String) = placeEdits.rename(id, name)
 
-    fun deletePlace(id: Long) {
-        viewModelScope.launch { changePlaces { savedPlaces.delete(id) } }
-    }
-
-    private suspend fun changePlaces(change: suspend () -> Unit) {
-        try {
-            change()
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            reports.send(PlacePickerEvent.CouldNotSavePlace)
-        }
-    }
+    fun deletePlace(id: Long) = placeEdits.delete(id)
 
     fun setQuery(query: String) = state.update { it.copy(query = query) }
 

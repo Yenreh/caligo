@@ -1,7 +1,6 @@
 package com.yenreh.caligo.ui.trips
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -35,9 +34,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.semantics.customActions
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -256,20 +252,7 @@ fun PlacePickerScreen(
             }
         }
     }
-    places.firstOrNull { it.id == editing }?.let { place ->
-        EditPlaceSheet(
-            place = place,
-            onDismiss = { editing = null },
-            onSave = { name ->
-                editing = null
-                viewModel.renamePlace(place.id, name)
-            },
-            onDelete = {
-                editing = null
-                viewModel.deletePlace(place.id)
-            },
-        )
-    }
+    SavedPlaceEditor(places, editing, onClose = { editing = null }, viewModel::renamePlace, viewModel::deletePlace)
 }
 
 /** A section of [rows], under its label, with a rule between rows; nothing without rows */
@@ -314,8 +297,7 @@ private fun SavedPlaceTile(place: FavoritePlace, onClick: () -> Unit, onEdit: ()
         leading = painterResource(R.drawable.ic_star),
         leadingTint = LabTheme.palette.accent,
         modifier = Modifier
-            .combinedClickable(onClick = onClick, onLongClick = onEdit, onLongClickLabel = edit)
-            .semantics { customActions = listOf(CustomAccessibilityAction(edit) { onEdit(); true }) }
+            .editAction(edit, onEdit, onClick)
             .testTag("saved_place"),
     )
 }

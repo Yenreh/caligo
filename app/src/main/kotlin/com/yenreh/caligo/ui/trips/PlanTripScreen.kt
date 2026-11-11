@@ -382,20 +382,7 @@ fun PlanTripScreen(
             },
         )
     }
-    state.places.firstOrNull { it.id == editing }?.let { place ->
-        EditPlaceSheet(
-            place = place,
-            onDismiss = { editing = null },
-            onSave = { name ->
-                editing = null
-                viewModel.renamePlace(place.id, name)
-            },
-            onDelete = {
-                editing = null
-                viewModel.deletePlace(place.id)
-            },
-        )
-    }
+    SavedPlaceEditor(state.places, editing, onClose = { editing = null }, viewModel::renamePlace, viewModel::deletePlace)
 }
 
 /** Share of the screen the map takes while an option is open: the steps below it matter as much */

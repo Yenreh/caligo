@@ -210,6 +210,10 @@ class PlanTripViewModel(
     private val reports = Channel<PlanTripMessage>(Channel.BUFFERED)
     val messages: Flow<PlanTripMessage> = reports.receiveAsFlow()
 
+    private val placeEdits = SavedPlaceEdits(savedPlaces, viewModelScope) {
+        reports.trySend(PlanTripMessage.COULD_NOT_SAVE_PLACE)
+    }
+
     private val started = Channel<Unit>(Channel.CONFLATED)
 
     /** A trip started from here, for the screen to open it */
@@ -315,14 +319,7 @@ class PlanTripViewModel(
                 }
             }
         }
-        viewModelScope.launch {
-            try {
-                savedPlaces.load()
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                // Without them the planner works all the same, with no quick plans
-            }
-        }
+        placeEdits.load()
     }
 
     /** Plan to a saved place, from the origin as it is */
@@ -333,28 +330,13 @@ class PlanTripViewModel(
         val current = state.value
         val place = (if (origin) current.from else current.to) ?: return
         if (place.isDevice || FavoritePlace.cleanName(name) == null || current.places.matching(place) != null) return
-        viewModelScope.launch { changePlaces { savedPlaces.add(name, place) } }
+        placeEdits.add(name, place)
     }
 
     /** Rename a saved place; a field showing it follows, as with a rename in the picker */
-    fun renamePlace(id: Long, name: String) {
-        val clean = FavoritePlace.cleanName(name) ?: return
-        viewModelScope.launch { changePlaces { savedPlaces.rename(id, clean) } }
-    }
+    fun renamePlace(id: Long, name: String) = placeEdits.rename(id, name)
 
-    fun deletePlace(id: Long) {
-        viewModelScope.launch { changePlaces { savedPlaces.delete(id) } }
-    }
-
-    /** A snackbar when [change] does not go through */
-    private suspend fun changePlaces(change: suspend () -> Unit) {
-        try {
-            change()
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            reports.trySend(PlanTripMessage.COULD_NOT_SAVE_PLACE)
-        }
-    }
+    fun deletePlace(id: Long) = placeEdits.delete(id)
 
     private fun tick() {
         val current = state.value

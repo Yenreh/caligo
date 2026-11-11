@@ -3,7 +3,6 @@ package com.yenreh.caligo.ui.trips
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -29,10 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -110,16 +107,7 @@ private fun PlaceChip(place: FavoritePlace, onClick: () -> Unit, onEdit: () -> U
     val interaction = remember { MutableInteractionSource() }
     Box(
         Modifier
-            .combinedClickable(
-                interactionSource = interaction,
-                indication = null,
-                role = Role.Button,
-                onClickLabel = plan,
-                onLongClickLabel = edit,
-                onLongClick = onEdit,
-                onClick = onClick,
-            )
-            .semantics { customActions = listOf(CustomAccessibilityAction(edit) { onEdit(); true }) }
+            .editAction(edit, onEdit, onClick, onClickLabel = plan, role = Role.Button, interaction = interaction)
             .padding(vertical = 4.dp)
             .testTag("quick_plan"),
     ) {

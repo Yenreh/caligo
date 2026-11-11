@@ -1,5 +1,7 @@
 package com.yenreh.caligo.ui.trips
 
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +26,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
@@ -68,6 +73,64 @@ fun EditPlaceSheet(place: FavoritePlace, onDismiss: () -> Unit, onSave: (name: S
             onDelete = onDelete,
         )
     }
+}
+
+/**
+ * The edit sheet of the saved place [editing] among [places], while there
+ * is one: Save renames it, Delete deletes it, and either closes the sheet
+ * through [onClose] first, as dismissing it does
+ */
+@Composable
+internal fun SavedPlaceEditor(
+    places: List<FavoritePlace>,
+    editing: Long?,
+    onClose: () -> Unit,
+    onRename: (id: Long, name: String) -> Unit,
+    onDelete: (id: Long) -> Unit,
+) {
+    val place = places.firstOrNull { it.id == editing } ?: return
+    EditPlaceSheet(
+        place = place,
+        onDismiss = onClose,
+        onSave = { name ->
+            onClose()
+            onRename(place.id, name)
+        },
+        onDelete = {
+            onClose()
+            onDelete(place.id)
+        },
+    )
+}
+
+/**
+ * A saved place's row or chip: a tap does [onClick], read out as
+ * [onClickLabel]; a long press, or the custom action read out as [edit],
+ * does [onEdit]. With [interaction], the press is drawn where that source
+ * is shown, not here.
+ */
+internal fun Modifier.editAction(
+    edit: String,
+    onEdit: () -> Unit,
+    onClick: () -> Unit,
+    onClickLabel: String? = null,
+    role: Role? = null,
+    interaction: MutableInteractionSource? = null,
+): Modifier {
+    val clicks = if (interaction == null) {
+        combinedClickable(onClickLabel = onClickLabel, role = role, onLongClickLabel = edit, onLongClick = onEdit, onClick = onClick)
+    } else {
+        combinedClickable(
+            interactionSource = interaction,
+            indication = null,
+            role = role,
+            onClickLabel = onClickLabel,
+            onLongClickLabel = edit,
+            onLongClick = onEdit,
+            onClick = onClick,
+        )
+    }
+    return clicks.semantics { customActions = listOf(CustomAccessibilityAction(edit) { onEdit(); true }) }
 }
 
 /**
